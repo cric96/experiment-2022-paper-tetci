@@ -1,0 +1,19 @@
+[versions]
+alchemist = "25.4.0"
+kotlin = "1.8.0"
+scalapy = "0.5.3"
+scalaVersion = "2.13.10"
+[libraries]
+alchemist = { module = "it.unibo.alchemist:alchemist", version.ref = "alchemist" }
+alchemist-incarnation-protelis = { module = "it.unibo.alchemist:alchemist-incarnation-protelis", version.ref = "alchemist" }
+alchemist-swingui = { module = "it.unibo.alchemist:alchemist-swingui", version.ref = "alchemist" }
+scalapy = { module = "dev.scalapy:scalapy-core_2.13", version.ref = "scalapy" }
+scalacompiler = { module = "org.scala-lang:scala-compiler", version.ref = "scalaVersion" }
+alchemist-incarnation-scafi = { module = "it.unibo.alchemist:alchemist-incarnation-scafi", version.ref = "alchemist"}
+[bundles]
+alchemist = ["alchemist", "alchemist-incarnation-scafi", "alchemist-swingui"]
+
+[plugins]
+multiJvmTesting = "org.danilopianini.multi-jvm-test-plugin:0.4.15"
+taskTree = "com.dorongold.task-tree:2.1.0"
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

@@ -1,0 +1,122 @@
+incarnation: scafi
+
+_constants:
+  initialClock: &initial_clock 1.0
+  retentionTime: &retentionTime 5
+  exportInterval: &exportInterval 1
+  actionSpace: &actionSpace List(1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5)
+  windowHistory: &windownHistory 5
+
+variables:
+  random: &random
+    min: 0
+    max: 5
+    step: 1
+    default: 2
+
+  batchSize: { formula: 10, language: scala }
+  episodeLength: { formula: 200, language: scala }
+  bufferSize: { formula: 10000, language: scala }
+
+  width: &width { formula: 500.0, language: scala }
+  spacing: &spacing { formula: 50.0, language: scala }
+  randomness: &randomness { formula: 25.0, language: scala }
+
+  range: &range
+    formula: 75
+    language: scala
+  actionSpaceEvaluated: &actionSpaceEvaluated
+    formula: *actionSpace
+    language: scala
+
+  learningInfo: &learningInfo
+    formula: |
+      import it.unibo.scripting._;
+      it.unibo.learning.LearningInfo(
+        random.as[Double].toInt, 
+        bufferSize.as[Int], 
+        batchSize.as[Int],
+        episodeLength.as[Int]
+      )
+    language: scala
+
+  environmentBox: &environmentBox
+    formula: |
+      import it.unibo.scripting._;
+      it.unibo.learning.Box(width.as[Double], spacing.as[Double], randomness.as[Double])
+    language: scala
+
+  learner: &learner
+    formula: |
+      import it.unibo.learning.abstractions.DecayReference;
+      import it.unibo.learning.agents.QLearning;
+      import it.unibo.scripting._;
+      new QLearning(
+        actionSpaceEvaluated.as[List[Double]],
+        DecayReference.exponentialDecay(0.5, 0.1).bounded(0.01),
+        DecayReference.exponentialDecay(0.5, 0.1).bounded(0.1),
+        0.9
+      )
+    language: scala
+seeds:
+  scenario: *random
+  simulation: *random
+
+environment:
+  type: Continuous2DEnvironment
+  parameters: [ ]
+  global-programs:
+    - time-distribution:
+        type: DiracComb
+        parameters: [0.01, 1]
+      type: CentralAgent
+      parameters: [ *learningInfo, *actionSpaceEvaluated, *learner, *environmentBox]
+    - time-distribution:
+        type: DiracComb
+        parameters: [ 0.02, 0.01 ]
+      type: SingleBlinker
+      parameters: [ 200 ] # half width
+
+
+network-model:
+  type: ConnectWithinDistance #*connectionType
+  parameters: [*range]
+
+_reactions:
+  - program: &program
+      - time-distribution:
+          type: NextWakeUp
+          parameters: "next-wake-up"
+        type: Event
+        actions:
+          - type: RunScafiProgram
+            parameters: [it.unibo.scafi.Main, *retentionTime]
+      - program: send
+
+deployments: ## i.e, how to place nodes
+  type: Grid
+  parameters: [0, 0, *width, *width, *spacing, *spacing, *randomness, *randomness]
+  programs:
+    - *program
+  contents:
+    - molecule: "next-wake-up"
+      concentration: *initial_clock
+    - molecule: "actions"
+      concentration: *actionSpace
+    - molecule: "window"
+      concentration: *windownHistory
+    - molecule: "source"
+      concentration: false
+
+export:
+  - type: CSVExporter
+    parameters:
+      fileNameRoot: "experiment"
+      exportPath: "build/exports/simulation"
+      fileExtension: "csv"
+      interval: *exportInterval
+    data:
+      - time
+      - molecule: ticks
+        aggregators: [sum]
+        value-filter: onlyfinite

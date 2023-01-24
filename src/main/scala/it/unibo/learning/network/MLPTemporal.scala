@@ -30,7 +30,7 @@ class MLPTemporal(snapshots: Int, hiddenSize: Int, val actionSpace: List[Double]
     py.`with`(torch.no_grad()) { _ =>
       val tensor = torch.tensor(netInput).record().view(1, snapshots).record().to(device).record()
       val netOutput = underlying(tensor).record()
-      val elements = netOutput.tolist().record()
+      val elements = netOutput.tolist().record().bracketAccess(0).record()
       val max = py.Dynamic.global.max(elements)
       val index = elements.index(max).as[Int]
       session.clear()

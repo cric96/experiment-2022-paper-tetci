@@ -19,12 +19,14 @@ class DeepQLearning(
   private val gc = py.module("gc")
   var updates = 0
   private var random: Random = new Random()
-  private val targetNetwork = referenceNet.cloneNetwork
-  private val policyNetwork = referenceNet
+  private var targetNetwork = referenceNet.cloneNetwork
+  private var policyNetwork = referenceNet
   targetNetwork.underlying.to(device)
   policyNetwork.underlying.to(device)
   private val optimizer = optim.RMSprop(policyNetwork.underlying.parameters(), alpha)
   private val behaviouralPolicy = policyNetwork.policy(device)
+  targetNetwork.underlying.eval()
+  policyNetwork.underlying.eval()
 
   override def policy: AgentState => (Int, Contextual) = state =>
     if (random.nextDouble() < epsilon) {
@@ -39,23 +41,27 @@ class DeepQLearning(
     val session = PythonMemoryManager.session()
     // context
     import session._
+    targetNetwork.underlying.train()
+    policyNetwork.underlying.train()
+
     val states = batch.map(_.stateT).map(referenceNet.encode)
     val action = batch.map(_.actionT).map(action => action).toPythonCopy
     val rewards = torch.tensor(batch.map(_.rewardTPlus).toPythonCopy, device = device).record()
-    val actionSelection = torch
-      .tensor(action, device = device)
-      .record()
-      .view(batch.size, 1)
-      .record()
     val nextStates = batch.map(_.stateTPlus).map(referenceNet.encode)
-    val tensorInputStates = referenceNet.encodeBatch(states, device).record()
     val stateActionValue =
       policyNetwork
-        .underlying(tensorInputStates)
+        .underlying(referenceNet.encodeBatch(states, device).record())
         .record()
-        .gather(1, actionSelection)
+        .gather(
+          1,
+          torch
+            .tensor(action, device = device)
+            .record()
+            .view(batch.size, 1)
+            .record()
+        )
         .record()
-    val nextStateValues =
+    val nextStateValues = py.`with`(torch.no_grad()) { _ =>
       targetNetwork
         .underlying(referenceNet.encodeBatch(nextStates, device).record())
         .record()
@@ -63,8 +69,8 @@ class DeepQLearning(
         .record()
         .bracketAccess(0)
         .record()
-        .detach()
-        .record()
+    }
+
     val expectedValue = ((nextStateValues * gamma).record() + rewards).record()
     val criterion = nn.SmoothL1Loss()
     val loss = criterion(stateActionValue, expectedValue.unsqueeze(1).record()).record()
@@ -73,11 +79,15 @@ class DeepQLearning(
     writer.add_scalar("Loss", loss.detach().item().as[Double], updates)
     torch.nn.utils.clip_grad_value_(policyNetwork.underlying.parameters(), 1)
     optimizer.step()
+    policyNetwork.underlying.zero_grad(set_to_none = true)
+    targetNetwork.underlying.zero_grad(set_to_none = true)
     session.clear()
     updates += 1
     if (updates % copyEach == 0) {
       targetNetwork.underlying.load_state_dict(policyNetwork.underlying.state_dict())
     }
+    targetNetwork.underlying.eval()
+    policyNetwork.underlying.eval()
   }
 
   override def injectRandom(random: Random): Unit = this.random = random

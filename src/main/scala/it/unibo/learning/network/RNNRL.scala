@@ -39,7 +39,7 @@ class RNNRL(snapshots: Int, hiddenSize: Int, val actionSpace: List[Double]) exte
         .view(1, snapshots, 1)
         .record()
       val netOutput = underlying(input).record()
-      val elements = netOutput.tolist().record()
+      val elements = netOutput.tolist().record().bracketAccess(0).record()
       val max = py.Dynamic.global.max(elements)
       val index = elements.index(max).as[Int]
       session.clear()

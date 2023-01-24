@@ -30,7 +30,6 @@ object RDQN {
       |        h_0 = torch.zeros(self.num_layers, x.size(1), self.hidden_size, device=x.device) #hidden state
       |        # Propagate input through LSTM
       |        output, hn = self.gru(x, h_0) #lstm with input, hidden, and internal state
-      |        del hn
       |        output = output[:, -1, :]
       |        out = self.relu(output)
       |        out = self.fc_1(out) #first Dense

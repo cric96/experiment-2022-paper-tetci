@@ -22,7 +22,7 @@ class Main
   lazy val localWindowSize = node.getOption("window").getOrElse(3)
   lazy val actionSpace = node.getOption("actions").getOrElse(List(1.0, 1.5, 2, 3))
   lazy val sharedMemory: ReplayBuffer = loadMemory()
-  lazy val weightForConvergence = 0.7
+  lazy val weightForConvergence = 0.01
   def policy: (AgentState => (Int, Contextual)) = loadPolicy()
 
   override def main(): Any = {

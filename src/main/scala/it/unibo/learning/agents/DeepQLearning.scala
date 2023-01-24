@@ -45,7 +45,7 @@ class DeepQLearning(
     val actionSelection = torch
       .tensor(action, device = device)
       .record()
-      .reshape(batch.size, 1)
+      .view(batch.size, 1)
       .record()
     val nextStates = batch.map(_.stateTPlus).map(referenceNet.encode)
     val tensorInputStates = referenceNet.encodeBatch(states, device).record()

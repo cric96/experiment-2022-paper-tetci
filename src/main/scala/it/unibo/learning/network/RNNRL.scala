@@ -22,7 +22,7 @@ class RNNRL(snapshots: Int, hiddenSize: Int, val actionSpace: List[Double]) exte
 
   override def encodeBatch(seq: Seq[py.Any], device: py.Any): py.Dynamic = {
     val base = torch.tensor(seq.toPythonCopy, device = device)
-    val reshaped = base.reshape((seq.size, snapshots, 1))
+    val reshaped = base.view((seq.size, snapshots, 1))
     base.del()
     reshaped
   }
@@ -36,7 +36,7 @@ class RNNRL(snapshots: Int, hiddenSize: Int, val actionSpace: List[Double]) exte
       val input = torch
         .tensor(netInput, device = device)
         .record()
-        .reshape(1, snapshots, 1)
+        .view(1, snapshots, 1)
         .record()
       val netOutput = underlying(input).record()
       val elements = netOutput.tolist().record()

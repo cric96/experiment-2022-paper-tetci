@@ -4,6 +4,8 @@ import it.unibo.alchemist.model.implementations.timedistributions.reactions.Cent
 import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist._
 import it.unibo.learning.abstractions.AgentState.NeighborInfo
 import it.unibo.learning.abstractions.{AgentState, Contextual, ReplayBuffer}
+import it.unibo.learning.network.RDQN
+import it.unibo.learning.network.torch.{Pack, torch}
 
 import scala.collection.immutable.Queue
 import scala.jdk.CollectionConverters.IteratorHasAsScala
@@ -20,21 +22,23 @@ class Main
   lazy val localWindowSize = node.getOption("window").getOrElse(3)
   lazy val actionSpace = node.getOption("actions").getOrElse(List(1.0, 1.5, 2, 3))
   lazy val sharedMemory: ReplayBuffer = loadMemory()
-  lazy val weightForConvergence = 0.9
+  lazy val weightForConvergence = 0.7
   def policy: (AgentState => (Int, Contextual)) = loadPolicy()
 
   override def main(): Any = {
     val localComputation = computation()
     node.put("localComputation", localComputation)
     val localSensing = perception()
-    val fieldComputation = includingSelf.reifyField(NeighborInfo(nbr(localComputation), nbrRange()))
-    val fieldSensing = includingSelf.reifyField(NeighborInfo(nbr(localSensing), nbrRange()))
-
-    val windowComputation = window(fieldComputation)
-    val windowFieldSensing = window(fieldSensing)
-
     val (_, _, Some(action)) = rep((Option.empty[AgentState], (), Option.empty[Int])) {
       case (oldState, oldContext, oldAction) =>
+        val fieldComputation =
+          includingSelf.reifyField(NeighborInfo(nbr(localComputation), nbrRange(), nbr(oldAction).getOrElse(-1)))
+        val fieldSensing =
+          includingSelf.reifyField(NeighborInfo(nbr(localSensing), nbrRange(), nbr(oldAction).getOrElse(-1)))
+
+        val windowComputation = window(fieldComputation)
+        val windowFieldSensing = window(fieldSensing)
+
         val state = new AgentState(mid(), windowComputation, windowFieldSensing, oldContext)
         val reward = evalReward(state, oldAction)
         val (action, context) = policy(state)
@@ -42,16 +46,15 @@ class Main
           node.put("reward", reward)
           sharedMemory.put(stateT, actionT, reward, state)
         }
+        node.put("next-wake-up", actionSpace(action)) // Actuation
+        node.put("field-computation", fieldComputation)
+        node.put("local-computation-window", windowComputation.map(_.get(mid())))
+        node.put("field-sensing", fieldSensing)
+        node.put("window-computation", windowComputation)
+        node.put("window-sensing", windowFieldSensing)
+        node.put("ticks", roundCounter())
         (Some(state), context, Some(action))
     }
-
-    node.put("next-wake-up", actionSpace(action)) // Actuation
-    node.put("field-computation", fieldComputation)
-    node.put("local-computation-window", windowComputation.map(_.get(mid())))
-    node.put("field-sensing", fieldSensing)
-    node.put("window-computation", windowComputation)
-    node.put("window-sensing", windowFieldSensing)
-    node.put("ticks", roundCounter())
   }
 
   def computation(): Double = classicGradient(sense("source"))

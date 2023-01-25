@@ -1,6 +1,7 @@
 package it.unibo.learning.agents
 import it.unibo.alchemist.model.implementations.timedistributions.reactions.CentralAgent
 import it.unibo.learning.abstractions.{AgentState, Contextual, DecayReference, ReplayBuffer}
+import it.unibo.util.TemporalInfo
 
 import scala.util.Random
 
@@ -14,16 +15,7 @@ class QLearning(
 
   implicit def stateToEncoding: AgentState => QState = state => {
     val me = state.neighborhoodOutput.map(neigh => neigh(state.me))
-    me.map(_.data)
-      .sliding(2, 1)
-      .toList
-      .map(x =>
-        if (x.size == 1) {
-          -1
-        } else {
-          (x.last - x.head).sign
-        }
-      )
+    TemporalInfo.computeDeltaTrend(me.map(_.data))
   }
 
   private var random = new Random()

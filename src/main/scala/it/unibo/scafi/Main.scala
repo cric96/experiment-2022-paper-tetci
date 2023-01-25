@@ -6,6 +6,7 @@ import it.unibo.learning.abstractions.AgentState.NeighborInfo
 import it.unibo.learning.abstractions.{AgentState, Contextual, ReplayBuffer}
 import it.unibo.learning.network.RDQN
 import it.unibo.learning.network.torch.{Pack, torch}
+import it.unibo.util.TemporalInfo
 
 import scala.collection.immutable.Queue
 import scala.jdk.CollectionConverters.IteratorHasAsScala
@@ -22,7 +23,7 @@ class Main
   lazy val localWindowSize = node.getOption("window").getOrElse(3)
   lazy val actionSpace = node.getOption("actions").getOrElse(List(1.0, 1.5, 2, 3))
   lazy val sharedMemory: ReplayBuffer = loadMemory()
-  lazy val weightForConvergence = 0.9
+  lazy val weightForConvergence = 0.01
   def policy: (AgentState => (Int, Contextual)) = loadPolicy()
 
   override def main(): Any = {
@@ -69,14 +70,8 @@ class Main
 
   def evalReward(state: AgentState, oldAction: Option[Int]): Double = {
     val myOutput = state.neighborhoodOutput.map(neigh => neigh(state.me))
-    val history = myOutput
-      .map(_.data)
-      .sliding(2, 1)
-      .toList
-      .map(x =>
-        if (x.size == 1) { 0.0 }
-        else { (x.last - x.head).sign }
-      )
+    val history = TemporalInfo.computeDeltaTrend(myOutput.map(_.data))
+
     node.put("history", history)
     if (history.headOption.exists(_ != 0.0)) {
       -weightForConvergence * ((deltaTime.toMillis / 1000.0) / actionSpace.max)

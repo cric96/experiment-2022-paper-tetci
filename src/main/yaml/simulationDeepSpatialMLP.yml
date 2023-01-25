@@ -53,10 +53,11 @@ variables:
       //torch.manual_seed(random.as[Double].toInt);
       import it.unibo.learning.network._;
       import it.unibo.scripting._;
-      new RNNRL(
+      new MLPSpatial(
         hiddenSize = 32, 
-        snapshots = 10,
-        actionSpace = actionSpaceEvaluated.as[List[Double]]
+        neigh = 7,
+        actionSpace = actionSpaceEvaluated.as[List[Double]],
+        considerAction = true
       )
     language: scala
   learner: &learner

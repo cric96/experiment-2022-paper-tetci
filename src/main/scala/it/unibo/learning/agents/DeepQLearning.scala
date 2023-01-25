@@ -15,8 +15,7 @@ class DeepQLearning(
     copyEach: Int,
     referenceNet: NeuralNetworkRL
 ) extends Learner {
-  private val device = torch.device("cuda:0")
-  private val gc = py.module("gc")
+  private val device = torch.device("cpu")
   var updates = 0
   private var random: Random = new Random()
   private var targetNetwork = referenceNet.cloneNetwork

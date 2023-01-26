@@ -12,7 +12,7 @@ class RNNRL(snapshots: Int, hiddenSize: Int, val actionSpace: List[Double]) exte
 
   override def encodeBatch(seq: Seq[py.Any], device: py.Any): py.Dynamic = {
     val base = torch.tensor(seq.toPythonCopy, device = device)
-    val reshaped = base.view((seq.size, snapshots, 1))
+    val reshaped = normalize(base.view((seq.size, snapshots, 1)))
     base.del()
     reshaped
   }
@@ -23,4 +23,11 @@ class RNNRL(snapshots: Int, hiddenSize: Int, val actionSpace: List[Double]) exte
   override def cloneNetwork: NeuralNetworkRL = new RNNRL(snapshots, hiddenSize, actionSpace)
 
   override def emptyContextual: Contextual = ()
+
+  override def normalize(input: py.Dynamic): py.Dynamic = {
+    val result = torch.nn.functional.normalize(input, dim = 1)
+    input.del()
+    result
+  }
+
 }

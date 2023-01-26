@@ -14,7 +14,7 @@ class MLPSpatial(neigh: Int, hiddenSize: Int, val actionSpace: List[Double], con
   override def encode(state: AgentState): py.Any = Spatial.encodeSpatial(state, neigh, considerAction)
 
   override def encodeBatch(seq: Seq[py.Any], device: py.Any): py.Dynamic =
-    torch.tensor(seq.toPythonCopy, device = device)
+    normalize(torch.tensor(seq.toPythonCopy, device = device))
 
   override def policy(device: py.Any): (AgentState) => (Int, Contextual) =
     NeuralNetworkRL.policyFromNetwork(this, Seq(1, neigh * dataSpaceMultiplier), device)
@@ -22,4 +22,10 @@ class MLPSpatial(neigh: Int, hiddenSize: Int, val actionSpace: List[Double], con
   override def cloneNetwork: NeuralNetworkRL = new MLPSpatial(neigh, hiddenSize, actionSpace, considerAction)
 
   override def emptyContextual: Contextual = ()
+
+  override def normalize(input: py.Dynamic): py.Dynamic = {
+    val result = torch.nn.functional.normalize(input)
+    input.del()
+    result
+  }
 }

@@ -2,6 +2,7 @@ package it.unibo.learning.network
 
 import it.unibo.learning.abstractions.{AgentState, Contextual}
 import it.unibo.learning.network.torch.{PythonMemoryManager, torch}
+import it.unibo.util.TemporalInfo
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.Any.from
 import me.shadaj.scalapy.py.SeqConverters
@@ -15,9 +16,11 @@ trait NeuralNetworkRL {
   def encode(state: AgentState): py.Any
   def encodeBatch(seq: Seq[py.Any], device: py.Any): py.Dynamic
   def policy(device: py.Any): (AgentState) => (Int, Contextual)
+  def normalize(input: py.Dynamic): py.Dynamic
 }
 
 object NeuralNetworkRL {
+
   def policyFromNetwork(nn: NeuralNetworkRL, inputShape: Seq[Int], device: py.Any): (AgentState) => (Int, Contextual) =
     state => {
       val netInput = nn.encode(state)
@@ -31,8 +34,8 @@ object NeuralNetworkRL {
           .applyDynamic("view")(inputShape.map(_.as[py.Any]): _*)
           .record()
           .to(device)
-          .record()
-        val netOutput = nn.underlying(tensor).record()
+        val normalized = nn.normalize(tensor).record()
+        val netOutput = nn.underlying(normalized).record()
         val elements = netOutput.tolist().record().bracketAccess(0).record()
         val max = py.Dynamic.global.max(elements)
         val index = elements.index(max).as[Int]
@@ -43,10 +46,12 @@ object NeuralNetworkRL {
 
   object Historical {
     def encodeHistory(state: AgentState, snapshots: Int): py.Any = {
+      // TemporalInfo.computeDeltaTrend(me.map(_.data))
       val states: LazyList[Double] = state.neighborhoodOutput
         .map(_(state.me))
         .map(_.data)
         .replaceInfinite()
+        .reverse
         .to(LazyList)
       val fill: LazyList[Double] = LazyList.continually(0.0)
       (states #::: fill).take(snapshots).toPythonCopy

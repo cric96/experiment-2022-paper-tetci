@@ -11,7 +11,7 @@ class MLPTemporal(snapshots: Int, hiddenSize: Int, val actionSpace: List[Double]
   override def encode(state: AgentState): py.Any = Historical.encodeHistory(state, snapshots)
 
   override def encodeBatch(seq: Seq[py.Any], device: py.Any): py.Dynamic =
-    torch.tensor(seq.toPythonCopy, device = device)
+    normalize(torch.tensor(seq.toPythonCopy, device = device))
 
   override def policy(device: py.Any): (AgentState) => (Int, Contextual) =
     NeuralNetworkRL.policyFromNetwork(this, Seq(1, snapshots), device)
@@ -19,4 +19,10 @@ class MLPTemporal(snapshots: Int, hiddenSize: Int, val actionSpace: List[Double]
   override def cloneNetwork: NeuralNetworkRL = new MLPTemporal(snapshots, hiddenSize, actionSpace)
 
   override def emptyContextual: Contextual = ()
+
+  override def normalize(input: py.Dynamic): py.Dynamic = {
+    val result = torch.nn.functional.normalize(input)
+    input.del()
+    result
+  }
 }

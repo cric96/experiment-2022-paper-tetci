@@ -10,12 +10,12 @@ import me.shadaj.scalapy.py.SeqConverters
 /** An NN used in the context of RL */
 trait NeuralNetworkRL {
   val underlying: py.Dynamic
-  def forward(input: py.Dynamic): py.Dynamic = underlying(input)
+  def forward(input: py.Dynamic)(implicit session: PythonMemoryManager.Session): py.Dynamic = underlying(input)
   def actionSpace: List[Double]
   def emptyContextual: Contextual
   def cloneNetwork: NeuralNetworkRL
   def encode(state: AgentState): py.Any
-  def encodeBatch(seq: Seq[py.Any], device: py.Any): py.Dynamic
+  def encodeBatch(seq: Seq[py.Any], device: py.Any)(implicit session: PythonMemoryManager.Session): py.Dynamic
   def policy(device: py.Any): (AgentState) => (Int, Contextual)
   def normalize(input: py.Dynamic): py.Dynamic
 }

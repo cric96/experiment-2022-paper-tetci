@@ -13,7 +13,9 @@ class MLPSpatial(neigh: Int, hiddenSize: Int, val actionSpace: List[Double], con
 
   override def encode(state: AgentState): py.Any = Spatial.encodeSpatial(state, neigh, considerAction)
 
-  override def encodeBatch(seq: Seq[py.Any], device: py.Any): py.Dynamic =
+  override def encodeBatch(seq: Seq[py.Any], device: py.Any)(implicit
+      session: PythonMemoryManager.Session
+  ): py.Dynamic =
     normalize(torch.tensor(seq.toPythonCopy, device = device))
 
   override def policy(device: py.Any): (AgentState) => (Int, Contextual) =

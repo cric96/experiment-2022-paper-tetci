@@ -10,7 +10,9 @@ class MLPTemporal(snapshots: Int, hiddenSize: Int, val actionSpace: List[Double]
   override val underlying: py.Dynamic = DQN(snapshots, hiddenSize, actionSpace.size)
   override def encode(state: AgentState): py.Any = Historical.encodeHistory(state, snapshots)
 
-  override def encodeBatch(seq: Seq[py.Any], device: py.Any): py.Dynamic =
+  override def encodeBatch(seq: Seq[py.Any], device: py.Any)(implicit
+      session: PythonMemoryManager.Session
+  ): py.Dynamic =
     normalize(torch.tensor(seq.toPythonCopy, device = device))
 
   override def policy(device: py.Any): (AgentState) => (Int, Contextual) =

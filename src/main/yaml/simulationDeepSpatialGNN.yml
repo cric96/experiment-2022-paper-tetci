@@ -15,9 +15,9 @@ variables:
     default: 2
 
   weight: &weight 0.9 # It could be a variable
-  batchSize: { formula: 32, language: scala }
+  batchSize: { formula: 64, language: scala }
   episodeLength: { formula: 200, language: scala }
-  bufferSize: { formula: 10000, language: scala }
+  bufferSize: { formula: 100000, language: scala }
 
   width: &width { formula: 500.0, language: scala }
   spacing: &spacing { formula: 50.0, language: scala }

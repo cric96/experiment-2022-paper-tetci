@@ -4,7 +4,7 @@ import it.unibo.learning.abstractions.{AgentState, Contextual, DecayReference, R
 import it.unibo.learning.network.NeuralNetworkRL
 import it.unibo.learning.network.torch._
 import me.shadaj.scalapy.py
-import me.shadaj.scalapy.py.{PyQuote, SeqConverters}
+import me.shadaj.scalapy.py.SeqConverters
 
 import scala.util.Random
 
@@ -13,9 +13,11 @@ class DeepQLearning(
     alpha: Double,
     gamma: Double,
     copyEach: Int,
-    referenceNet: NeuralNetworkRL
+    referenceNet: NeuralNetworkRL,
+    deviceName: String = "cuda:0"
 ) extends Learner {
-  private val device = torch.device("cpu")
+  private val device =
+    torch.device(if (deviceName != "cpu" && torch.cuda.is_available().as[Boolean]) deviceName else "cpu")
   var updates = 0
   private var random: Random = new Random()
   private var targetNetwork = referenceNet.cloneNetwork
@@ -37,7 +39,7 @@ class DeepQLearning(
   override def load(where: String): (AgentState, (Int, Contextual)) = null
 
   override def update(batch: Seq[ReplayBuffer.Experience]): Unit = {
-    val session = PythonMemoryManager.session()
+    implicit val session: PythonMemoryManager.Session = PythonMemoryManager.session()
     // context
     import session._
     targetNetwork.underlying.train()
@@ -47,9 +49,10 @@ class DeepQLearning(
     val action = batch.map(_.actionT).map(action => action).toPythonCopy
     val rewards = torch.tensor(batch.map(_.rewardTPlus).toPythonCopy, device = device).record()
     val nextStates = batch.map(_.stateTPlus).map(referenceNet.encode)
+    val inputBatch = referenceNet.encodeBatch(states, device).record()
     val stateActionValue =
       policyNetwork
-        .forward(referenceNet.encodeBatch(states, device).record())
+        .forward(inputBatch)
         .record()
         .gather(
           1,

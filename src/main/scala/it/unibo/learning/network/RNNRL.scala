@@ -10,7 +10,9 @@ class RNNRL(snapshots: Int, hiddenSize: Int, val actionSpace: List[Double]) exte
   override val underlying: py.Dynamic = RDQN(1, hiddenSize, actionSpace.size, snapshots)
   override def encode(state: AgentState): py.Any = Historical.encodeHistory(state, snapshots)
 
-  override def encodeBatch(seq: Seq[py.Any], device: py.Any): py.Dynamic = {
+  override def encodeBatch(seq: Seq[py.Any], device: py.Any)(implicit
+      session: PythonMemoryManager.Session
+  ): py.Dynamic = {
     val base = torch.tensor(seq.toPythonCopy, device = device)
     val reshaped = normalize(base.view((seq.size, snapshots, 1)))
     base.del()

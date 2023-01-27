@@ -54,10 +54,10 @@ variables:
       //torch.manual_seed(random.as[Double].toInt);
       import it.unibo.learning.network._;
       import it.unibo.scripting._;
-      new RNNRL(
-        hiddenSize = 32, 
-        snapshots = 10,
-        actionSpace = actionSpaceEvaluated.as[List[Double]]
+      new GNNSpatial(
+        hiddenSize = 32,
+        actionSpace = actionSpaceEvaluated.as[List[Double]],
+        considerAction = true
       )
     language: scala
   learner: &learner
@@ -125,6 +125,7 @@ deployments: ## i.e, how to place nodes
       concentration: false
     - molecule: "weight"
       concentration: *weight
+
 export:
   - type: CSVExporter
     parameters:

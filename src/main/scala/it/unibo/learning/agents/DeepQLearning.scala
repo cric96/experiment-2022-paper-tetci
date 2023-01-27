@@ -49,7 +49,7 @@ class DeepQLearning(
     val nextStates = batch.map(_.stateTPlus).map(referenceNet.encode)
     val stateActionValue =
       policyNetwork
-        .underlying(referenceNet.encodeBatch(states, device).record())
+        .forward(referenceNet.encodeBatch(states, device).record())
         .record()
         .gather(
           1,
@@ -61,15 +61,14 @@ class DeepQLearning(
         )
         .record()
     val nextStateValues = py.`with`(torch.no_grad()) { _ =>
-      targetNetwork
-        .underlying(referenceNet.encodeBatch(nextStates, device).record())
+      policyNetwork
+        .forward(referenceNet.encodeBatch(nextStates, device).record())
         .record()
         .max(1)
         .record()
         .bracketAccess(0)
         .record()
     }
-
     val expectedValue = ((nextStateValues * gamma).record() + rewards).record()
     val criterion = nn.SmoothL1Loss()
     val loss = criterion(stateActionValue, expectedValue.unsqueeze(1).record()).record()

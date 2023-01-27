@@ -8,4 +8,5 @@ package object torch {
   val optim = py.module("torch.optim")
   val log = py.module("torch.utils.tensorboard")
   val writer = log.SummaryWriter()
+  val geometric = py.module("torch_geometric")
 }

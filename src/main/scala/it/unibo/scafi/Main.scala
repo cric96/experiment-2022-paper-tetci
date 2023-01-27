@@ -5,7 +5,7 @@ import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist._
 import it.unibo.learning.abstractions.AgentState.NeighborInfo
 import it.unibo.learning.abstractions.{AgentState, Contextual, ReplayBuffer}
 import it.unibo.learning.network.RDQN
-import it.unibo.learning.network.torch.{Pack, torch}
+import it.unibo.learning.network.torch.torch
 import it.unibo.util.TemporalInfo
 
 import scala.collection.immutable.Queue
@@ -23,7 +23,7 @@ class Main
   lazy val localWindowSize = node.getOption("window").getOrElse(3)
   lazy val actionSpace = node.getOption("actions").getOrElse(List(1.0, 1.5, 2, 3))
   lazy val sharedMemory: ReplayBuffer = loadMemory()
-  lazy val weightForConvergence = 0.9
+  lazy val weightForConvergence = node.getOption("weight").getOrElse(0.9)
   def policy: (AgentState => (Int, Contextual)) = loadPolicy()
 
   override def main(): Any = {

@@ -10,6 +10,7 @@ import me.shadaj.scalapy.py.SeqConverters
 /** An NN used in the context of RL */
 trait NeuralNetworkRL {
   val underlying: py.Dynamic
+  def forward(input: py.Dynamic): py.Dynamic = underlying(input)
   def actionSpace: List[Double]
   def emptyContextual: Contextual
   def cloneNetwork: NeuralNetworkRL
@@ -58,6 +59,16 @@ object NeuralNetworkRL {
     }
   }
   object Spatial {
+    def encodeSpatialUnbounded(state: AgentState, considerAction: Boolean): py.Any = {
+      val currentSnapshot = state.neighborhoodOutput.head.toList.sortBy(_._2.distance)
+      val data = currentSnapshot.map(_._2.data).replaceInfinite() to LazyList
+      if (considerAction) {
+        val actions = currentSnapshot.map(_._2.oldAction)
+        data.zip(actions).map { case (data, action) => List(data, action.toDouble).toPythonCopy }.toPythonCopy
+      } else {
+        data.toPythonCopy
+      }
+    }
     def encodeSpatial(state: AgentState, neigh: Int, considerAction: Boolean): py.Any = {
       val states: LazyList[Double] = {
         val currentSnapshot = state.neighborhoodOutput.head.toList.sortBy(_._2.distance).take(neigh)

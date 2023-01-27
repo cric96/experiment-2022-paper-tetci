@@ -14,6 +14,7 @@ variables:
     step: 1
     default: 2
 
+  weight: &weight 0.9 # It could be a variable
   batchSize: { formula: 10, language: scala }
   episodeLength: { formula: 200, language: scala }
   bufferSize: { formula: 10000, language: scala }
@@ -107,6 +108,8 @@ deployments: ## i.e, how to place nodes
       concentration: *windownHistory
     - molecule: "source"
       concentration: false
+    - molecule: "weight"
+      concentration: *weight
 
 export:
   - type: CSVExporter

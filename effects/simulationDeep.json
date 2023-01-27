@@ -6,6 +6,66 @@
     "red": {
       "max": 255,
       "min": 0,
+      "val": 177
+    },
+    "blue": {
+      "max": 255,
+      "min": 0,
+      "val": 0
+    },
+    "green": {
+      "max": 255,
+      "min": 0,
+      "val": 0
+    },
+    "alpha": {
+      "max": 255,
+      "min": 0,
+      "val": 255
+    },
+    "scaleFactor": {
+      "max": 100,
+      "min": 0,
+      "val": 50
+    },
+    "size": {
+      "max": 100,
+      "min": 0,
+      "val": 100
+    },
+    "molFilter": true,
+    "molString": "source",
+    "molPropertyFilter": true,
+    "property": "",
+    "writingPropertyValue": false,
+    "c": "ALPHA",
+    "reverse": false,
+    "propoom": {
+      "max": 10,
+      "min": -10,
+      "val": 0
+    },
+    "minprop": {
+      "max": 10,
+      "min": -10,
+      "val": 0
+    },
+    "maxprop": {
+      "max": 10,
+      "min": -10,
+      "val": 10
+    },
+    "colorCache": {
+      "value": -5177344
+    }
+  },
+  {
+    "type": "class it.unibo.alchemist.boundary.gui.effects.DrawShape",
+    "curIncarnation": "scafi",
+    "mode": "FILL_ELLIPSE",
+    "red": {
+      "max": 255,
+      "min": 0,
       "val": 0
     },
     "blue": {
@@ -31,11 +91,11 @@
     "size": {
       "max": 100,
       "min": 0,
-      "val": 5
+      "val": 61
     },
-    "molFilter": false,
-    "molString": "",
-    "molPropertyFilter": false,
+    "molFilter": true,
+    "molString": "next-wake-up",
+    "molPropertyFilter": true,
     "property": "",
     "writingPropertyValue": false,
     "c": "ALPHA",
@@ -56,8 +116,7 @@
       "val": 10
     },
     "colorCache": {
-      "value": -16777216,
-      "falpha": 0.0
+      "value": -16777216
     }
   },
   {
@@ -92,10 +151,10 @@
     "size": {
       "max": 100,
       "min": 0,
-      "val": 6
+      "val": 26
     },
     "molFilter": true,
-    "molString": "g",
+    "molString": "localComputation",
     "molPropertyFilter": true,
     "property": "",
     "writingPropertyValue": false,
@@ -104,21 +163,20 @@
     "propoom": {
       "max": 10,
       "min": -10,
-      "val": 3
+      "val": 2
     },
     "minprop": {
       "max": 10,
       "min": -10,
-      "val": 0
+      "val": -7
     },
     "maxprop": {
       "max": 10,
       "min": -10,
-      "val": 10
+      "val": 8
     },
     "colorCache": {
-      "value": -65536,
-      "falpha": 0.0
+      "value": -65536
     }
   }
 ]

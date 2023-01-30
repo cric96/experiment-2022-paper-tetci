@@ -103,7 +103,7 @@ _reactions:
   - program: &program
       - time-distribution:
           type: NextWakeUp
-          parameters: "next-wake-up"
+          parameters: "nextWakeUp"
         type: Event
         actions:
           - type: RunScafiProgram
@@ -116,7 +116,7 @@ deployments: ## i.e, how to place nodes
   programs:
     - *program
   contents:
-    - molecule: "next-wake-up"
+    - molecule: "nextWakeUp"
       concentration: *initial_clock
     - molecule: "actions"
       concentration: *actionSpace
@@ -126,6 +126,8 @@ deployments: ## i.e, how to place nodes
       concentration: false
     - molecule: "weight"
       concentration: *weight
+    - molecule: "full"
+      concentration: true
 
 export:
   - type: CSVExporter

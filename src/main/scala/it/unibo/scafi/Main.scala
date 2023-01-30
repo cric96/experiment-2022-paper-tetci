@@ -1,11 +1,10 @@
 package it.unibo.scafi
 
+import it.unibo.alchemist.model.implementations.nodes.SimpleNodeManager
 import it.unibo.alchemist.model.implementations.timedistributions.reactions.CentralAgent
 import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist._
 import it.unibo.learning.abstractions.AgentState.NeighborInfo
 import it.unibo.learning.abstractions.{AgentState, Contextual, ReplayBuffer}
-import it.unibo.learning.network.RDQN
-import it.unibo.learning.network.torch.torch
 import it.unibo.util.TemporalInfo
 
 import scala.collection.immutable.Queue
@@ -20,15 +19,27 @@ class Main
     with FieldUtils
     with StateManagement {
 
-  lazy val localWindowSize = node.getOption("window").getOrElse(3)
-  lazy val actionSpace = node.getOption("actions").getOrElse(List(1.0, 1.5, 2, 3))
-  lazy val sharedMemory: ReplayBuffer = loadMemory()
-  lazy val weightForConvergence = node.getOption("weight").getOrElse(0.9)
+  import Sensors._
+
+  private lazy val localWindowSize = node.getOption(Sensors.window).getOrElse(3)
+  private lazy val actionSpace = node.getOption(actions).getOrElse(List(1.0, 1.5, 2, 3))
+  private lazy val sharedMemory: ReplayBuffer = loadMemory()
+  private lazy val weightForConvergence = node.getOption(Sensors.weight).getOrElse(0.9)
   def policy: (AgentState => (Int, Contextual)) = loadPolicy()
 
   override def main(): Any = {
     val localComputation = computation()
-    node.put("localComputation", localComputation)
+    val fullSpeed = node.get[Boolean](Sensors.fullSpeed)
+    branch(!fullSpeed) {
+      update(localComputation)
+    } {
+      node.put(Sensors.groundTruth, localComputation)
+      exec()
+    }
+  }
+
+  def update(localComputation: Double): Unit = {
+    node.put(localComputationWindow, localComputation)
     val localSensing = perception()
     val (_, _, Some(action)) = rep((Option.empty[AgentState], (), Option.empty[Int])) {
       case (oldState, oldContext, oldAction) =>
@@ -44,21 +55,36 @@ class Main
         val reward = evalReward(state, oldAction)
         val (action, context) = policy(state)
         oldState.zip(oldAction).foreach { case (stateT, actionT) =>
-          node.put("reward", reward)
+          node.put(Sensors.reward, reward)
           sharedMemory.put(stateT, actionT, reward, state)
         }
-        node.put("next-wake-up", actionSpace(action)) // Actuation
-        node.put("field-computation", fieldComputation)
-        node.put("local-computation-window", windowComputation.map(_.get(mid())))
-        node.put("field-sensing", fieldSensing)
-        node.put("window-computation", windowComputation)
-        node.put("window-sensing", windowFieldSensing)
-        node.put("ticks", roundCounter())
+        node.put(Sensors.nextWakeUp, actionSpace(action)) // Actuation
+        node.put(Sensors.fieldComputation, fieldComputation)
+        node.put(Sensors.localComputationWindow, windowComputation.map(_.get(mid())))
+        node.put(Sensors.fieldSensing, fieldSensing)
+        node.put(Sensors.localComputationWindow, windowComputation)
+        node.put(Sensors.windowSensing, windowFieldSensing)
+        node.put(Sensors.ticks, roundCounter())
+        val me = alchemistEnvironment.getPosition(alchemistEnvironment.getNodeByID(mid()))
+        val fastestResult =
+          alchemistEnvironment
+            .getNodesWithinRange(me, 0.01)
+            .iterator()
+            .asScala
+            .toList
+            .filter(_.getId != mid())
+            .map(new SimpleNodeManager[Any](_))
+            .map(_.get[Double](Sensors.groundTruth))
+            .head
+        node.put(Sensors.error, math.abs(localComputation.convertIfInfinite - fastestResult.convertIfInfinite))
         (Some(state), context, Some(action))
     }
   }
 
-  def computation(): Double = classicGradient(sense("source"))
+  def exec(): Unit =
+    node.put(Sensors.nextWakeUp, actionSpace.min)
+
+  def computation(): Double = classicGradient(sense(Sensors.source))
   def perception(): Double = 0.0 // what I need from my neighborhood for computing the state
 
   def window(snapshot: Map[ID, NeighborInfo]): Queue[Map[ID, NeighborInfo]] =
@@ -72,7 +98,7 @@ class Main
     val myOutput = state.neighborhoodOutput.map(neigh => neigh(state.me))
     val history = TemporalInfo.computeDeltaTrend(myOutput.map(_.data))
 
-    node.put("history", history)
+    node.put(Sensors.history, history)
     if (history.headOption.exists(_ != 0.0)) {
       -weightForConvergence * ((deltaTime.toMillis / 1000.0) / actionSpace.max)
     } else {

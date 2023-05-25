@@ -94,7 +94,7 @@
       "val": 61
     },
     "molFilter": true,
-    "molString": "next-wake-up",
+    "molString": "nextWakeUp",
     "molPropertyFilter": true,
     "property": "",
     "writingPropertyValue": false,

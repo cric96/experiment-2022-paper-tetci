@@ -39,7 +39,7 @@ class Main
   }
 
   def update(localComputation: Double): Unit = {
-    node.put(localComputationWindow, localComputation)
+    node.put(Sensors.localComputation, localComputation)
     val localSensing = perception()
     val (_, _, Some(action)) = rep((Option.empty[AgentState], (), Option.empty[Int])) {
       case (oldState, oldContext, oldAction) =>

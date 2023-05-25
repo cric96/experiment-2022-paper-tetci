@@ -14,7 +14,7 @@ class DeepQLearning(
     gamma: Double,
     copyEach: Int,
     referenceNet: NeuralNetworkRL,
-    deviceName: String = "cuda:0"
+    deviceName: String = "cpu"
 ) extends Learner {
   private val device =
     torch.device(if (deviceName != "cpu" && torch.cuda.is_available().as[Boolean]) deviceName else "cpu")

@@ -3,8 +3,9 @@ import it.unibo.alchemist.model.implementations.timedistributions.reactions.Cent
 import it.unibo.learning.abstractions.{AgentState, Contextual, DecayReference, ReplayBuffer}
 import it.unibo.learning.network.NeuralNetworkRL
 import it.unibo.learning.network.torch._
+import me.shadaj.scalapy.interpreter.CPythonInterpreter
 import me.shadaj.scalapy.py
-import me.shadaj.scalapy.py.SeqConverters
+import me.shadaj.scalapy.py.{PyQuote, SeqConverters}
 
 import scala.util.Random
 
@@ -24,7 +25,7 @@ class DeepQLearning(
   private var policyNetwork = referenceNet
   targetNetwork.underlying.to(device)
   policyNetwork.underlying.to(device)
-  private val optimizer = optim.RMSprop(policyNetwork.underlying.parameters(), alpha)
+  private val optimizer = optim.Adam(policyNetwork.underlying.parameters(), alpha)
   private val behaviouralPolicy = policyNetwork.policy(device)
   targetNetwork.underlying.eval()
   policyNetwork.underlying.eval()
@@ -63,29 +64,60 @@ class DeepQLearning(
             .record()
         )
         .record()
-    val nextStateValues = py.`with`(torch.no_grad()) { _ =>
-      policyNetwork
-        .forward(referenceNet.encodeBatch(nextStates, device).record())
+
+    val selectedAction = py.`with`(torch.no_grad()) { _ =>
+      targetNetwork
+        .forward(referenceNet.encodeBatch(nextStates, device))
         .record()
         .max(1)
         .record()
-        .bracketAccess(0)
+        .bracketAccess(1)
         .record()
     }
+    val nextStateValues = py.`with`(torch.no_grad()) {_ =>
+      policyNetwork
+        .forward(referenceNet.encodeBatch(nextStates, device).record())
+        .record()
+        .gather(
+          1,
+          selectedAction.unsqueeze(0).record()
+        )
+        .record()
+    }
+    /*val nextStateValues = py.`with`(torch.no_grad()) {
+      _ =>
+        py.`with`(torch.no_grad()) { _ =>
+          targetNetwork
+            .forward(referenceNet.encodeBatch(nextStates, device).record())
+            .record()
+            .max(1)
+            .record()
+            .bracketAccess(0)
+            .record()
+        }
+    }*/
     val expectedValue = ((nextStateValues * gamma).record() + rewards).record()
     val criterion = nn.SmoothL1Loss()
-    val loss = criterion(stateActionValue, expectedValue.unsqueeze(1).record()).record()
+    val loss = criterion(stateActionValue.view(batch.size), expectedValue.view(batch.size).record()).record()
+
     optimizer.zero_grad()
     loss.backward().record()
     writer.add_scalar("Loss", loss.detach().item().as[Double], updates)
-    torch.nn.utils.clip_grad_value_(policyNetwork.underlying.parameters(), 1)
+    torch.nn.utils.clip_grad_value_(policyNetwork.underlying.parameters(), 10)
     optimizer.step()
     policyNetwork.underlying.zero_grad(set_to_none = true)
     targetNetwork.underlying.zero_grad(set_to_none = true)
     session.clear()
     updates += 1
-    if (updates % copyEach == 0) {
+    /*if (updates % copyEach == 0) {
+      println(s"update : ${updates}")
       targetNetwork.underlying.load_state_dict(policyNetwork.underlying.state_dict())
+    }*/
+    val tau = 1 / copyEach
+    val targetNetWeights = targetNetwork.underlying.state_dict()
+    val policyNetWeights = policyNetwork.underlying.state_dict()
+    py.Dynamic.global.list(targetNetWeights.keys()).as[Seq[py.Any]].foreach {
+      key => targetNetWeights.bracketUpdate(key, policyNetWeights.bracketAccess(key) * tau + targetNetWeights.bracketAccess(key) * (1.0 - tau))
     }
     targetNetwork.underlying.eval()
     policyNetwork.underlying.eval()

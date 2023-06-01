@@ -23,8 +23,9 @@ class MLPTemporal(snapshots: Int, hiddenSize: Int, val actionSpace: List[Double]
   override def emptyContextual: Contextual = ()
 
   override def normalize(input: py.Dynamic): py.Dynamic = {
-    val result = torch.nn.functional.normalize(input)
-    input.del()
-    result
+    //val result = torch.nn.functional.normalize(input)
+    //input.del()
+    //result
+    input
   }
 }

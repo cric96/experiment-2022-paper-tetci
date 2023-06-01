@@ -5,7 +5,7 @@ _constants:
   retentionTime: &retentionTime 5
   exportInterval: &exportInterval 1
   actionSpace: &actionSpace List(1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5)
-  windowHistory: &windownHistory 20
+  windowHistory: &windowHistory 20
 
 variables:
   random: &random
@@ -15,7 +15,7 @@ variables:
     default: 2
 
   weight: &weight 0.9 # It could be a variable
-  batchSize: { formula: 64, language: scala }
+  batchSize: { formula: 256, language: scala }
   episodeLength: { formula: 200, language: scala }
   bufferSize: { formula: 100000, language: scala }
 
@@ -67,10 +67,10 @@ variables:
       import it.unibo.learning.network.NeuralNetworkRL;
       import it.unibo.scripting._;
       new DeepQLearning(
-        epsilon = DecayReference.exponentialDecay(0.5, 0.1).bounded(0.01),
+        epsilon = DecayReference.exponentialDecay(0.99, 0.05).bounded(0.02),
         alpha = 0.0004,
-        gamma = 0.99,
-        copyEach = 200,
+        gamma = 0.9,
+        copyEach = 1000,
         referenceNet = neuralNet.as[NeuralNetworkRL]
       )
     language: scala
@@ -120,7 +120,7 @@ deployments: ## i.e, how to place nodes
     - molecule: "actions"
       concentration: *actionSpace
     - molecule: "window"
-      concentration: *windownHistory
+      concentration: *windowHistory
     - molecule: "source"
       concentration: false
     - molecule: "weight"

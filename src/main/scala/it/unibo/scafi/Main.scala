@@ -66,7 +66,7 @@ class Main
         node.put(Sensors.windowSensing, windowFieldSensing)
         node.put(Sensors.ticks, roundCounter())
         val me = alchemistEnvironment.getPosition(alchemistEnvironment.getNodeByID(mid()))
-        val fastestResult =
+        /*val fastestResult =
           alchemistEnvironment
             .getNodesWithinRange(me, 0.01)
             .iterator()
@@ -76,7 +76,7 @@ class Main
             .map(new SimpleNodeManager[Any](_))
             .map(_.get[Double](Sensors.groundTruth))
             .head
-        node.put(Sensors.error, math.abs(localComputation.convertIfInfinite - fastestResult.convertIfInfinite))
+        node.put(Sensors.error, math.abs(localComputation.convertIfInfinite - fastestResult.convertIfInfinite))*/
         (Some(state), context, Some(action))
     }
   }

@@ -5,7 +5,7 @@ _constants:
   retentionTime: &retentionTime 5
   exportInterval: &exportInterval 1
   actionSpace: &actionSpace List(1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5)
-  windowHistory: &windownHistory 5
+  windowHistory: &windowHistory 5
 
 variables:
   random: &random
@@ -105,7 +105,7 @@ deployments: ## i.e, how to place nodes
     - molecule: "actions"
       concentration: *actionSpace
     - molecule: "window"
-      concentration: *windownHistory
+      concentration: *windowHistory
     - molecule: "source"
       concentration: false
     - molecule: "weight"

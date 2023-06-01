@@ -8,6 +8,7 @@ import it.unibo.learning.{Box, LearningInfo}
 import it.unibo.learning.abstractions.{DecayReference, ReplayBuffer}
 import it.unibo.learning.agents.Learner
 import it.unibo.learning.network.torch
+import it.unibo.scafi.Sensors
 import org.apache.commons.math3.random.RandomGenerator
 
 import scala.jdk.CollectionConverters.{IteratorHasAsScala, MapHasAsScala}
@@ -48,7 +49,7 @@ class CentralAgent[T, P <: Position[P]](
       if (currentTime.toDouble.toInt % learningInfo.episodeSize == 0) {
         val newPosition = createPositions()
         agents.foreach(node => environment.removeNode(node))
-        clonePutSpeed(newPosition, currentTime)
+        //clonePutSpeed(newPosition, currentTime)
         newPosition.zip(initialSnapshot).foreach { case (position, prototype) =>
           replaceNodes(position, prototype, currentTime)
         }
@@ -72,15 +73,15 @@ class CentralAgent[T, P <: Position[P]](
       }
     }
     val consumption =
-      managers.filterNot(_.get[Boolean]("full")).map(_.get[Double]("next-wake-up")).sum / (managers.size / 2)
+      managers.filterNot(_.get[Boolean](Sensors.fullSpeed)).map(_.get[Double](Sensors.nextWakeUp)).sum / (managers.size / 2)
     val rewardAverage =
-      managers.filterNot(_.get[Boolean]("full")).map(_.get[Double]("reward")).sum / (managers.size / 2)
-    val errorAverage = managers.filterNot(_.get[Boolean]("full")).map(_.get[Double]("error")).sum / (managers.size / 2)
+      managers.filterNot(_.get[Boolean](Sensors.fullSpeed)).map(_.get[Double]("reward")).sum / (managers.size / 2)
+    //val errorAverage = managers.filterNot(_.get[Boolean](Sensors.fullSpeed)).map(_.get[Double]("error")).sum / (managers.size / 2)
     averageRewardPerEpisode += rewardAverage
     averagedNextWakeUp += consumption
     torch.writer.add_scalar("average-wake-up-time", consumption, environment.getSimulation.getStep)
     torch.writer.add_scalar("reward", rewardAverage, environment.getSimulation.getStep)
-    torch.writer.add_scalar("error", errorAverage, environment.getSimulation.getStep)
+    //torch.writer.add_scalar("error", errorAverage, environment.getSimulation.getStep)
   }
 
   override def initializationComplete(time: Time, environment: Environment[T, _]): Unit =
@@ -112,7 +113,7 @@ class CentralAgent[T, P <: Position[P]](
     prototype.getContents.asScala.foreach { case (molecule, content) =>
       newNode.setConcentration(molecule, content)
     }
-    newNode.setConcentration(new SimpleMolecule("full"), full.asInstanceOf[T])
+    newNode.setConcentration(new SimpleMolecule(Sensors.fullSpeed), full.asInstanceOf[T])
     prototype.getReactions
       .iterator()
       .asScala
@@ -129,7 +130,7 @@ class CentralAgent[T, P <: Position[P]](
     .asScala
     .toList
     .map(node => new SimpleNodeManager[T](node))
-    .filter(manager => manager.get[Boolean]("full"))
+    .filter(manager => manager.get[Boolean](Sensors.fullSpeed))
     .map(manager => (manager.node, environment.getPosition(manager.node)))
 }
 

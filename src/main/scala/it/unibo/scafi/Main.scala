@@ -8,6 +8,7 @@ import it.unibo.learning.abstractions.{AgentState, Contextual, ReplayBuffer}
 import it.unibo.util.TemporalInfo
 
 import scala.collection.immutable.Queue
+import scala.concurrent.duration.FiniteDuration
 import scala.jdk.CollectionConverters.IteratorHasAsScala
 
 class Main
@@ -55,18 +56,22 @@ class Main
         val reward = evalReward(state, oldAction)
         val (action, context) = policy(state)
         oldState.zip(oldAction).foreach { case (stateT, actionT) =>
-          node.put(Sensors.reward, reward)
           sharedMemory.put(stateT, actionT, reward, state)
         }
+        val accumulatedReward = rep(0.0)(acc => acc + reward)
+        if (reward.isNaN) {
+          println(s"agent: $mid, $deltaFixed")
+        }
+        node.put(Sensors.accumulatedReward, accumulatedReward)
+        node.put(Sensors.reward, reward)
         node.put(Sensors.nextWakeUp, actionSpace(action)) // Actuation
         node.put(Sensors.fieldComputation, fieldComputation)
-        node.put(Sensors.localComputationWindow, windowComputation.map(_.get(mid())))
         node.put(Sensors.fieldSensing, fieldSensing)
         node.put(Sensors.localComputationWindow, windowComputation)
         node.put(Sensors.windowSensing, windowFieldSensing)
         node.put(Sensors.ticks, roundCounter())
         val me = alchemistEnvironment.getPosition(alchemistEnvironment.getNodeByID(mid()))
-        /*val fastestResult =
+        val fastestResult =
           alchemistEnvironment
             .getNodesWithinRange(me, 0.01)
             .iterator()
@@ -76,7 +81,7 @@ class Main
             .map(new SimpleNodeManager[Any](_))
             .map(_.get[Double](Sensors.groundTruth))
             .head
-        node.put(Sensors.error, math.abs(localComputation.convertIfInfinite - fastestResult.convertIfInfinite))*/
+        node.put(Sensors.error, math.abs(localComputation.convertIfInfinite - fastestResult.convertIfInfinite))
         (Some(state), context, Some(action))
     }
   }
@@ -97,12 +102,11 @@ class Main
   def evalReward(state: AgentState, oldAction: Option[Int]): Double = {
     val myOutput = state.neighborhoodOutput.map(neigh => neigh(state.me))
     val history = TemporalInfo.computeDeltaTrend(myOutput.map(_.data))
-
     node.put(Sensors.history, history)
     if (history.headOption.exists(_ != 0.0)) {
-      -weightForConvergence * ((deltaTime.toMillis / 1000.0) / actionSpace.max)
+      -weightForConvergence * (deltaFixed / actionSpace.max)
     } else {
-      -(1 - ((deltaTime.toMillis / 1000.0) / actionSpace.max)) * (1 - weightForConvergence)
+      -(1 - (deltaFixed / actionSpace.max)) * (1 - weightForConvergence)
     }
   }
 
@@ -111,4 +115,6 @@ class Main
     .asScala
     .collectFirst { case reaction: CentralAgent[_, _] => reaction }
     .get
+
+  def deltaFixed: Double = alchemistDeltaTime(0.0)
 }

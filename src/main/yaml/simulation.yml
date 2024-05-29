@@ -16,7 +16,7 @@ variables:
 
   weight: &weight 0.9 # It could be a variable
   batchSize: { formula: 10, language: scala }
-  episodeLength: { formula: 200, language: scala }
+  episodeLength: &episodeLength { formula: 200, language: scala }
   bufferSize: { formula: 10000, language: scala }
 
   width: &width { formula: 500.0, language: scala }
@@ -112,16 +112,38 @@ deployments: ## i.e, how to place nodes
       concentration: *weight
     - molecule: "full"
       concentration: true
-
 export:
   - type: CSVExporter
     parameters:
       fileNameRoot: "experiment"
-      exportPath: "build/exports/simulation"
+      exportPath: "build/exports/simulation/full"
       fileExtension: "csv"
       interval: *exportInterval
     data:
       - time
       - molecule: ticks
         aggregators: [sum]
+        value-filter: onlyfinite
+      - molecule: nextWakeUp
+        aggregators: [mean]
+        value-filter: onlyfinite
+      - molecule: error
+        aggregators: [mean]
+        value-filter: onlyfinite
+      - molecule: reward
+        aggregators: [mean]
+        value-filter: onlyfinite
+      - molecule: accumulatedReward
+        aggregators: [mean]
+        value-filter: onlyfinite
+  - type: CSVExporter
+    parameters:
+      fileNameRoot: "experiment"
+      exportPath: "build/exports/simulation/episode"
+      fileExtension: "csv"
+      interval: *episodeLength
+    data:
+      - time
+      - molecule: ticks
+        aggregators: [ sum ]
         value-filter: onlyfinite

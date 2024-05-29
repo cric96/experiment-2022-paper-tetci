@@ -11,6 +11,8 @@ object Sensors {
   val windowSensing = "window-sensing"
   val ticks = "ticks"
   val reward = "reward"
+  val accumulatedReward = "accumulatedReward"
+  val accumulatedError = "accumulatedError"
   val fullSpeed = "full"
   val window = "window"
   val actions = "actions"

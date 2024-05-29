@@ -1,3 +1,4 @@
+import org.apache.tools.ant.taskdefs.condition.Os
 
 
 plugins {
@@ -37,6 +38,7 @@ val runAll by tasks.register<DefaultTask>("runAll") {
     group = alchemistGroup
     description = "Launches all simulations"
 }
+val pythonVirtualEnvName = "env"
 /*
  * Scan the folder with the simulation files, and create a task for each one of them.
  */
@@ -65,6 +67,10 @@ File(rootProject.rootDir.path + "/src/main/yaml").listFiles()
                     languageVersion.set(JavaLanguageVersion.of(multiJvm.latestJava))
                 }
             )
+            jvmArgs(when (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                true -> "-Dscalapy.python.programname=$pythonVirtualEnvName\\Scripts\\python"
+                false -> "-Dscalapy.python.programname=$pythonVirtualEnvName/bin/python"
+            },"-Dscalapy.python.library=python3.12")
             // These are the program arguments
             args("-y", it.absolutePath, "-e", "$exportsDir/${it.nameWithoutExtension}-${System.currentTimeMillis()}")
             if (System.getenv("CI") == "true" || batch == "true") {

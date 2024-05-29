@@ -49,7 +49,7 @@ class CentralAgent[T, P <: Position[P]](
       if (currentTime.toDouble.toInt % learningInfo.episodeSize == 0) {
         val newPosition = createPositions()
         agents.foreach(node => environment.removeNode(node))
-        //clonePutSpeed(newPosition, currentTime)
+        clonePutSpeed(newPosition, currentTime)
         newPosition.zip(initialSnapshot).foreach { case (position, prototype) =>
           replaceNodes(position, prototype, currentTime)
         }
@@ -72,16 +72,19 @@ class CentralAgent[T, P <: Position[P]](
         averageRewardPerEpisode = 0
       }
     }
-    val consumption =
-      managers.filterNot(_.get[Boolean](Sensors.fullSpeed)).map(_.get[Double](Sensors.nextWakeUp)).sum / (managers.size / 2)
-    val rewardAverage =
-      managers.filterNot(_.get[Boolean](Sensors.fullSpeed)).map(_.get[Double]("reward")).sum / (managers.size / 2)
-    //val errorAverage = managers.filterNot(_.get[Boolean](Sensors.fullSpeed)).map(_.get[Double]("error")).sum / (managers.size / 2)
+    val managersWithLearning = managers.filterNot(_.get[Boolean](Sensors.fullSpeed)).toList
+    val consumption = managersWithLearning
+      .map(_.get[Double](Sensors.nextWakeUp))
+      .sum / (managersWithLearning.size)
+    val rewardAverage = managersWithLearning
+      .map(_.get[Double]("reward"))
+      .sum / (managersWithLearning.size)
+    val errorAverage = managersWithLearning.map(_.get[Double]("error")).sum / (managersWithLearning.size)
     averageRewardPerEpisode += rewardAverage
     averagedNextWakeUp += consumption
     torch.writer.add_scalar("average-wake-up-time", consumption, environment.getSimulation.getStep)
     torch.writer.add_scalar("reward", rewardAverage, environment.getSimulation.getStep)
-    //torch.writer.add_scalar("error", errorAverage, environment.getSimulation.getStep)
+    torch.writer.add_scalar("error", errorAverage, environment.getSimulation.getStep)
   }
 
   override def initializationComplete(time: Time, environment: Environment[T, _]): Unit =

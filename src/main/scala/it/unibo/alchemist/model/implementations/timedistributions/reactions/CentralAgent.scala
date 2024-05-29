@@ -90,6 +90,7 @@ class CentralAgent[T, P <: Position[P]](
   override def initializationComplete(time: Time, environment: Environment[T, _]): Unit =
     initialSnapshot = agents.map(_.cloneNode(Time.ZERO))
 
+  def decayVariableOf(name: String): Double = references.find(_._1 == name).get._2.value
   private def createPositions() = new Grid(
     environment,
     random,

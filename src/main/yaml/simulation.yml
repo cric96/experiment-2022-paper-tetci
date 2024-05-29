@@ -147,3 +147,5 @@ export:
       - molecule: ticks
         aggregators: [ sum ]
         value-filter: onlyfinite
+      - type: DecayVariableExtractor
+        parameters: [ ]

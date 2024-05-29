@@ -5,7 +5,7 @@ _constants:
   retentionTime: &retentionTime 5
   exportInterval: &exportInterval 1
   actionSpace: &actionSpace List(1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5)
-  windowHistory: &windowHistory 20
+  windowHistory: &windowHistory 3
 
 variables:
   random: &random
@@ -14,11 +14,12 @@ variables:
     step: 1
     default: 2
 
-  weight: &weight 0.9 # It could be a variable
+  weight: &weight 1.0 # It could be a variable
   batchSize: { formula: 256, language: scala }
-  episodeLength: { formula: 200, language: scala }
+  episodeLength: &episodeLength { formula: 200, language: scala }
   bufferSize: { formula: 100000, language: scala }
-
+  episodes: &episodes { formula: 40, language: scala }
+  totalEpisodes: &totalEpisodes { formula: episodes * episodeLength }
   width: &width { formula: 500.0, language: scala }
   spacing: &spacing { formula: 50.0, language: scala }
   randomness: &randomness { formula: 25.0, language: scala }
@@ -131,7 +132,7 @@ export:
   - type: CSVExporter
     parameters:
       fileNameRoot: "experiment"
-      exportPath: "build/exports/simulationDeep"
+      exportPath: "build/exports/simulationDeep/full"
       fileExtension: "csv"
       interval: *exportInterval
     data:
@@ -139,3 +140,48 @@ export:
       - molecule: ticks
         aggregators: [sum]
         value-filter: onlyfinite
+      - molecule: nextWakeUp
+        aggregators: [mean]
+        value-filter: onlyfinite
+      - molecule: error
+        aggregators: [mean]
+        value-filter: onlyfinite
+      - molecule: reward
+        aggregators: [mean]
+        value-filter: onlyfinite
+      - molecule: accumulatedReward
+        aggregators: [mean]
+        value-filter: onlyfinite
+      - molecule: accumulatedError
+        aggregators: [mean]
+        value-filter: onlyfinite
+      - molecule: localComputation
+        aggregators: [sum]
+        value-filter: onlyfinite
+      - molecule: groundTruth
+        aggregators: [sum]
+        value-filter: onlyfinite
+  - type: CSVExporter
+    parameters:
+      fileNameRoot: "experiment"
+      exportPath: "build/exports/simulationDeep/episode"
+      fileExtension: "csv"
+      interval: *episodeLength
+    data:
+      - time
+      - molecule: ticks
+        aggregators: [ sum ]
+        value-filter: onlyfinite
+      - molecule: accumulatedReward
+        aggregators: [ mean ]
+        value-filter: onlyfinite
+      - molecule: accumulatedError
+        aggregators: [ mean ]
+        value-filter: onlyfinite
+      - type: DecayVariableExtractor
+        parameters: [ ]
+
+
+terminate:
+  type: AfterTime
+  parameters: [ *totalEpisodes ]

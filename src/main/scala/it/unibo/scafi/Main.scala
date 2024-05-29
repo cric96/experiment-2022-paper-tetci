@@ -6,7 +6,7 @@ import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist._
 import it.unibo.learning.abstractions.AgentState.NeighborInfo
 import it.unibo.learning.abstractions.{AgentState, Contextual, ReplayBuffer}
 import it.unibo.util.TemporalInfo
-
+import it.unibo.alchemist.EnvironmentOps
 import scala.collection.immutable.Queue
 import scala.concurrent.duration.FiniteDuration
 import scala.jdk.CollectionConverters.IteratorHasAsScala
@@ -23,24 +23,30 @@ class Main
   import Sensors._
 
   private lazy val localWindowSize = node.getOption(Sensors.window).getOrElse(3)
+  private lazy val resultSize = 3
   private lazy val actionSpace = node.getOption(actions).getOrElse(List(1.0, 1.5, 2, 3))
   private lazy val sharedMemory: ReplayBuffer = loadMemory()
   private lazy val weightForConvergence = node.getOption(Sensors.weight).getOrElse(0.9)
   def policy: (AgentState => (Int, Contextual)) = loadPolicy()
 
   override def main(): Any = {
-    val localComputation = computation()
     val fullSpeed = node.get[Boolean](Sensors.fullSpeed)
-    branch(!fullSpeed) {
-      update(localComputation)
-    } {
+    val localComputation = branch(!fullSpeed)(computation())(computation())
+    val computationWindow = rep(Queue.empty[Double])(queue => (queue :+ localComputation).takeRight(resultSize))
+    if (!fullSpeed) {
+      node.put(Sensors.localComputation, localComputation)
+    } else {
       node.put(Sensors.groundTruth, localComputation)
+    }
+    branch(!fullSpeed) {
+      update(localComputation, computationWindow)
+    } {
+      node.put(Sensors.groundTruthWindow, computationWindow)
       exec()
     }
   }
 
-  def update(localComputation: Double): Unit = {
-    node.put(Sensors.localComputation, localComputation)
+  def update(localComputation: Double, elements: Queue[Double]): Unit = {
     val localSensing = perception()
     val (_, _, Some(action)) = rep((Option.empty[AgentState], (), Option.empty[Int])) {
       case (oldState, oldContext, oldAction) =>
@@ -59,29 +65,28 @@ class Main
           sharedMemory.put(stateT, actionT, reward, state)
         }
         val accumulatedReward = rep(0.0)(acc => acc + reward)
-        if (reward.isNaN) {
-          println(s"agent: $mid, $deltaFixed")
+        val fastestNode = EnvironmentOps(alchemistEnvironment).getClonedOfThis(mid())
+        val fastestResult =
+          fastestNode.get[Queue[Double]](Sensors.groundTruthWindow)
+
+        val filterInfinity = fastestResult.filterNot(_.isInfinity)
+        val localFilterInfinity = elements.filterNot(_.isInfinity)
+        val error = if (filterInfinity.size == resultSize && localFilterInfinity.size == resultSize) {
+          math.abs(filterInfinity.last - localFilterInfinity.last)
+        } else {
+          0.0
         }
+        val accumulatedError = rep(0.0)(acc => acc + error)
         node.put(Sensors.accumulatedReward, accumulatedReward)
         node.put(Sensors.reward, reward)
-        node.put(Sensors.nextWakeUp, actionSpace(action)) // Actuation
         node.put(Sensors.fieldComputation, fieldComputation)
         node.put(Sensors.fieldSensing, fieldSensing)
         node.put(Sensors.localComputationWindow, windowComputation)
         node.put(Sensors.windowSensing, windowFieldSensing)
         node.put(Sensors.ticks, roundCounter())
-        val me = alchemistEnvironment.getPosition(alchemistEnvironment.getNodeByID(mid()))
-        val fastestResult =
-          alchemistEnvironment
-            .getNodesWithinRange(me, 0.01)
-            .iterator()
-            .asScala
-            .toList
-            .filter(_.getId != mid())
-            .map(new SimpleNodeManager[Any](_))
-            .map(_.get[Double](Sensors.groundTruth))
-            .head
-        node.put(Sensors.error, math.abs(localComputation.convertIfInfinite - fastestResult.convertIfInfinite))
+        node.put(Sensors.error, error)
+        node.put(Sensors.accumulatedError, accumulatedError)
+        node.put(Sensors.nextWakeUp, actionSpace(action)) // Actuation
         (Some(state), context, Some(action))
     }
   }
@@ -117,4 +122,5 @@ class Main
     .get
 
   def deltaFixed: Double = alchemistDeltaTime(0.0)
+
 }

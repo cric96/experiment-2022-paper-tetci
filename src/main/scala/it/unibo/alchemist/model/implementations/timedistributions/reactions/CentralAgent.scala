@@ -3,6 +3,7 @@ package it.unibo.alchemist.model.implementations.timedistributions.reactions
 import it.unibo.alchemist.loader.deployments.Grid
 import it.unibo.alchemist.model.implementations.molecules.SimpleMolecule
 import it.unibo.alchemist.model.implementations.nodes.SimpleNodeManager
+import it.unibo.alchemist.model.implementations.times.DoubleTime
 import it.unibo.alchemist.model.interfaces._
 import it.unibo.learning.{Box, LearningInfo}
 import it.unibo.learning.abstractions.{DecayReference, ReplayBuffer}
@@ -41,7 +42,9 @@ class CentralAgent[T, P <: Position[P]](
   override def executeBeforeUpdateDistribution(): Unit = {
     val currentTime = environment.getSimulation.getTime
     if (currentTime.toDouble < 1) {
-      filterFullSpeed.foreach { case (node, position) => replaceNodes(position, node, currentTime) }
+      filterFullSpeed.foreach { case (node, position) =>
+        replaceNodes(position, node, currentTime.plus(new DoubleTime(0.000001)))
+      }
     }
     val sample = memory.sample(learningInfo.batchSize)
     if (currentTime.toDouble > 1 && sample.size == learningInfo.batchSize) { // skip the first tick
@@ -51,7 +54,7 @@ class CentralAgent[T, P <: Position[P]](
         agents.foreach(node => environment.removeNode(node))
         clonePutSpeed(newPosition, currentTime)
         newPosition.zip(initialSnapshot).foreach { case (position, prototype) =>
-          replaceNodes(position, prototype, currentTime)
+          replaceNodes(position, prototype, currentTime.plus(new DoubleTime(0.000001)))
         }
         references.foreach { case (name, value) =>
           torch.writer.add_scalar(name, value.value, environment.getSimulation.getStep)

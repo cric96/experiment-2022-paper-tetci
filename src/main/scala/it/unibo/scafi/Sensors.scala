@@ -2,6 +2,7 @@ package it.unibo.scafi
 
 object Sensors {
   val nextWakeUp = "nextWakeUp"
+  val groundTruthWindow = "groundTruthWindow"
   val groundTruth = "groundTruth"
   val fieldComputation = "fieldComputation"
   val localComputation = "localComputation"

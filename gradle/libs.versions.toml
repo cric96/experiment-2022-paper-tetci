@@ -1,5 +1,5 @@
 [versions]
-alchemist = "25.4.0"
+alchemist = "25.4.2"
 kotlin = "1.8.0"
 scalapy = "0.5.3"
 scalaVersion = "2.13.10"

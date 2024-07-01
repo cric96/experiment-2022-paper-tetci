@@ -25,13 +25,10 @@ class SingleBlinker[T, P <: Position[P]](
       newSource.foreach { node =>
         val reference = new SimpleNodeManager(node)
         reference.put("source", true)
-        val other = environment.getClonedOfThis(node.getId)
-        other.put("source", true)
       }
     } else {
       val index = random.nextInt(managers.size)
       managers(index).put("source", true)
-      environment.getClonedOfThis(managers(index).node.getId).put("source", true)
     }
   }
 

@@ -10,13 +10,16 @@ _constants:
 variables:
   random: &random
     min: 0
-    max: 5
+    max: 16
     step: 1
     default: 2
 
-  weight: &weight 1.0 # It could be a variable
+  weight:  &weight
+    type: ArbitraryVariable
+    parameters: [1.0, [1.0, 0.99, 0.95, 0.8, 0.5]]
   batchSize: { formula: 10, language: scala }
   episodeLength: &episodeLength { formula: 200, language: scala }
+  samplingEpisodes: &samplingEpisodes { formula: episodeLength - 0.0001 }
   bufferSize: { formula: 10000, language: scala }
   episodes: &episodes { formula: 40, language: scala }
   totalEpisodes: &totalEpisodes { formula: episodes * episodeLength }
@@ -57,7 +60,9 @@ variables:
         actionSpaceEvaluated.as[List[Double]],
         DecayReference.exponentialDecay(0.5, 0.1).bounded(0.01),
         DecayReference.exponentialDecay(0.5, 0.1).bounded(0.1),
-        0.9
+        0.9,
+        random.as[Double].toInt,
+        weight.as[Double]
       )
     language: scala
 seeds:
@@ -112,7 +117,7 @@ deployments: ## i.e, how to place nodes
     - molecule: "weight"
       concentration: *weight
     - molecule: "full"
-      concentration: true
+      concentration: false
 export:
   - type: CSVExporter
     parameters:
@@ -128,16 +133,10 @@ export:
       - molecule: nextWakeUp
         aggregators: [mean]
         value-filter: onlyfinite
-      - molecule: error
-        aggregators: [mean]
-        value-filter: onlyfinite
       - molecule: reward
         aggregators: [mean]
         value-filter: onlyfinite
       - molecule: accumulatedReward
-        aggregators: [mean]
-        value-filter: onlyfinite
-      - molecule: accumulatedError
         aggregators: [mean]
         value-filter: onlyfinite
       - molecule: localComputation
@@ -151,7 +150,7 @@ export:
       fileNameRoot: "experiment"
       exportPath: "build/exports/simulation/episode"
       fileExtension: "csv"
-      interval: *episodeLength
+      interval: 200
     data:
       - time
       - molecule: ticks
@@ -160,7 +159,7 @@ export:
       - molecule: accumulatedReward
         aggregators: [ mean ]
         value-filter: onlyfinite
-      - molecule: accumulatedError
+      - molecule: accumulatedUnstableTime
         aggregators: [ mean ]
         value-filter: onlyfinite
       - type: DecayVariableExtractor

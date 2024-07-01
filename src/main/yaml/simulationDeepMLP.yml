@@ -3,21 +3,24 @@ incarnation: scafi
 _constants:
   initialClock: &initial_clock 1.0
   retentionTime: &retentionTime 5
-  exportInterval: &exportInterval 1
-  actionSpace: &actionSpace List(1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5)
-  windowHistory: &windowHistory 3
+  exportInterval: &exportInterval 2
+  actionSpace: &actionSpace List(1.0, 2.0, 3.0, 4.0, 5.0)
+  windowHistory: &windowHistory 5
 
 variables:
   random: &random
     min: 0
-    max: 5
+    max: 16
     step: 1
     default: 2
 
-  weight: &weight 1.0 # It could be a variable
+  weight:  &weight
+    type: ArbitraryVariable
+    parameters: [1.0, [1.0, 0.99, 0.95, 0.8, 0.5]]
   batchSize: { formula: 256, language: scala }
   episodeLength: &episodeLength { formula: 200, language: scala }
-  bufferSize: { formula: 100000, language: scala }
+  samplingEpisodes: &samplingEpisodes { formula: episodeLength - 0.0001 }
+  bufferSize: { formula: 10000, language: scala }
   episodes: &episodes { formula: 40, language: scala }
   totalEpisodes: &totalEpisodes { formula: episodes * episodeLength }
   width: &width { formula: 500.0, language: scala }
@@ -51,13 +54,12 @@ variables:
   neuralNet: &neuralNet
     formula: |
       import it.unibo.learning.network.torch.torch;
-      torch.manual_seed(0)
-      //torch.manual_seed(random.as[Double].toInt);
       import it.unibo.learning.network._;
       import it.unibo.scripting._;
+      torch.manual_seed(random.as[Double].toInt);
       new MLPTemporal(
         hiddenSize = 128, 
-        snapshots = 10,
+        snapshots = 5,
         actionSpace = actionSpaceEvaluated.as[List[Double]]
       )
     language: scala
@@ -68,7 +70,7 @@ variables:
       import it.unibo.learning.network.NeuralNetworkRL;
       import it.unibo.scripting._;
       new DeepQLearning(
-        epsilon = DecayReference.exponentialDecay(0.99, 0.05).bounded(0.02),
+        epsilon = DecayReference.exponentialDecay(0.5, 0.1).bounded(0.01),
         alpha = 0.0004,
         gamma = 0.9,
         copyEach = 1000,
@@ -127,7 +129,7 @@ deployments: ## i.e, how to place nodes
     - molecule: "weight"
       concentration: *weight
     - molecule: "full"
-      concentration: true
+      concentration: false
 export:
   - type: CSVExporter
     parameters:
@@ -138,28 +140,22 @@ export:
     data:
       - time
       - molecule: ticks
-        aggregators: [sum]
+        aggregators: [ sum ]
         value-filter: onlyfinite
       - molecule: nextWakeUp
-        aggregators: [mean]
-        value-filter: onlyfinite
-      - molecule: error
-        aggregators: [mean]
+        aggregators: [ mean ]
         value-filter: onlyfinite
       - molecule: reward
-        aggregators: [mean]
+        aggregators: [ mean ]
         value-filter: onlyfinite
       - molecule: accumulatedReward
-        aggregators: [mean]
-        value-filter: onlyfinite
-      - molecule: accumulatedError
-        aggregators: [mean]
+        aggregators: [ mean ]
         value-filter: onlyfinite
       - molecule: localComputation
-        aggregators: [sum]
+        aggregators: [ sum ]
         value-filter: onlyfinite
       - molecule: groundTruth
-        aggregators: [sum]
+        aggregators: [ sum ]
         value-filter: onlyfinite
   - type: CSVExporter
     parameters:
@@ -175,7 +171,7 @@ export:
       - molecule: accumulatedReward
         aggregators: [ mean ]
         value-filter: onlyfinite
-      - molecule: accumulatedError
+      - molecule: accumulatedUnstableTime
         aggregators: [ mean ]
         value-filter: onlyfinite
       - type: DecayVariableExtractor

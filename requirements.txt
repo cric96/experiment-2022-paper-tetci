@@ -8,3 +8,5 @@ python-dateutil==2.8.2
 ruamel.yaml==0.17.21
 ruamel.yaml.clib==0.2.7
 six==1.16.0
+xarray
+seaborn

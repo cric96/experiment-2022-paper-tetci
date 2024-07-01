@@ -9,7 +9,9 @@ class QLearning(
     actionSpace: List[Double],
     epsilon: DecayReference[Double],
     alpha: DecayReference[Double],
-    gamma: Double
+    gamma: Double,
+    seed: Int,
+    weightConvergence: Double
 ) extends Learner {
   type QState = List[Double]
 

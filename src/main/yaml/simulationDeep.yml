@@ -3,18 +3,20 @@ incarnation: scafi
 _constants:
   initialClock: &initial_clock 1.0
   retentionTime: &retentionTime 5
-  exportInterval: &exportInterval 1
-  actionSpace: &actionSpace List(1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5)
+  exportInterval: &exportInterval 2
+  actionSpace: &actionSpace List(1.0, 2.0, 3.0, 4.0, 5.0)
   windowHistory: &windowHistory 20
 
 variables:
   random: &random
     min: 0
-    max: 5
+    max: 16
     step: 1
     default: 2
 
-  weight: &weight 0.9 # It could be a variable
+  weight:  &weight
+    type: ArbitraryVariable
+    parameters: [1.0, [1.0, 0.99, 0.95, 0.8, 0.5]]
   batchSize: { formula: 32, language: scala }
   episodeLength: { formula: 200, language: scala }
   bufferSize: { formula: 10000, language: scala }
@@ -131,7 +133,7 @@ export:
   - type: CSVExporter
     parameters:
       fileNameRoot: "experiment"
-      exportPath: "build/exports/simulationDeep"
+      exportPath: "build/exports/simulationDeepSpatial"
       fileExtension: "csv"
       interval: *exportInterval
     data:

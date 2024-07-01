@@ -30,7 +30,7 @@ class Main
   def policy: (AgentState => (Int, Contextual)) = loadPolicy()
 
   override def main(): Any = {
-    val fullSpeed = node.get[Boolean](Sensors.fullSpeed)
+    /*val fullSpeed = node.get[Boolean](Sensors.fullSpeed)
     val localComputation = branch(!fullSpeed)(computation())(computation())
     val computationWindow = rep(Queue.empty[Double])(queue => (queue :+ localComputation).takeRight(resultSize))
     if (!fullSpeed) {
@@ -43,7 +43,11 @@ class Main
     } {
       node.put(Sensors.groundTruthWindow, computationWindow)
       exec()
-    }
+    }*/
+    val localComputation = computation()
+    val computationWindow = rep(Queue.empty[Double])(queue => (queue :+ localComputation).takeRight(resultSize))
+    node.put(Sensors.localComputation, localComputation)
+    update(localComputation, computationWindow)
   }
 
   def update(localComputation: Double, elements: Queue[Double]): Unit = {
@@ -65,18 +69,31 @@ class Main
           sharedMemory.put(stateT, actionT, reward, state)
         }
         val accumulatedReward = rep(0.0)(acc => acc + reward)
-        val fastestNode = EnvironmentOps(alchemistEnvironment).getClonedOfThis(mid())
-        val fastestResult =
-          fastestNode.get[Queue[Double]](Sensors.groundTruthWindow)
-
-        val filterInfinity = fastestResult.filterNot(_.isInfinity)
-        val localFilterInfinity = elements.filterNot(_.isInfinity)
-        val error = if (filterInfinity.size == resultSize && localFilterInfinity.size == resultSize) {
-          math.abs(filterInfinity.last - localFilterInfinity.last)
-        } else {
-          0.0
+        val unstableTime = oldState match {
+          case Some(stateT) =>
+            stateT.neighborhoodOutput
+              .map(neigh => neigh(stateT.me))
+              .headOption
+              .filter(_.data != localComputation)
+              .map(_ => deltaFixed)
+              .getOrElse(0.0)
+          case None =>
+            0.0
         }
-        val accumulatedError = rep(0.0)(acc => acc + error)
+        val accumulatedUnstableTime = rep(0.0)(acc => acc + unstableTime)
+        node.put("accumulatedUnstableTime", accumulatedUnstableTime)
+        // val fastestNode = EnvironmentOps(alchemistEnvironment).getClonedOfThis(mid())
+        // val fastestResult =
+        //  fastestNode.get[Queue[Double]](Sensors.groundTruthWindow)
+
+        // val filterInfinity = fastestResult.filterNot(_.isInfinity)
+        // val localFilterInfinity = elements.filterNot(_.isInfinity)
+        // val error = if (filterInfinity.size == resultSize && localFilterInfinity.size == resultSize) {
+        //  math.abs(filterInfinity.last - localFilterInfinity.last).sign
+        // } else {
+        //  0.0
+        // }
+        // val accumulatedError = rep(0.0)(acc => acc + error)
         node.put(Sensors.accumulatedReward, accumulatedReward)
         node.put(Sensors.reward, reward)
         node.put(Sensors.fieldComputation, fieldComputation)
@@ -85,7 +102,7 @@ class Main
         node.put(Sensors.windowSensing, windowFieldSensing)
         node.put(Sensors.ticks, roundCounter())
         node.put(Sensors.error, error)
-        node.put(Sensors.accumulatedError, accumulatedError)
+        // node.put(Sensors.accumulatedError, accumulatedError)
         node.put(Sensors.nextWakeUp, actionSpace(action)) // Actuation
         (Some(state), context, Some(action))
     }

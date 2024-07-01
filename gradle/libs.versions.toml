@@ -14,6 +14,6 @@ alchemist-incarnation-scafi = { module = "it.unibo.alchemist:alchemist-incarnati
 alchemist = ["alchemist", "alchemist-incarnation-scafi", "alchemist-swingui"]
 
 [plugins]
-multiJvmTesting = "org.danilopianini.multi-jvm-test-plugin:0.4.15"
+multiJvmTesting = "org.danilopianini.multi-jvm-test-plugin:0.5.8"
 taskTree = "com.dorongold.task-tree:2.1.0"
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

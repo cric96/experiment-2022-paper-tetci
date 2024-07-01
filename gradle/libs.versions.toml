@@ -1,6 +1,6 @@
 [versions]
 alchemist = "25.4.0"
-kotlin = "1.8.0"
+kotlin = "1.8.22"
 scalapy = "0.5.3"
 scalaVersion = "2.13.10"
 [libraries]

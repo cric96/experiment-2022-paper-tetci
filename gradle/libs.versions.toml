@@ -2,7 +2,7 @@
 alchemist = "25.4.0"
 kotlin = "1.8.0"
 scalapy = "0.5.3"
-scalaVersion = "2.13.10"
+scalaVersion = "2.13.15"
 [libraries]
 alchemist = { module = "it.unibo.alchemist:alchemist", version.ref = "alchemist" }
 alchemist-incarnation-protelis = { module = "it.unibo.alchemist:alchemist-incarnation-protelis", version.ref = "alchemist" }

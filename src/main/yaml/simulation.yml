@@ -5,23 +5,23 @@ _constants:
   retentionTime: &retentionTime 5
   exportInterval: &exportInterval 2
   actionSpace: &actionSpace List(1.0, 2.0, 3.0, 4.0, 5.0)
-  windowHistory: &windowHistory 3
+  windowHistory: &windowHistory 10
 
 variables:
   random: &random
-    min: 0
-    max: 16
+    min: 1
+    max: 4
     step: 1
     default: 2
 
   weight:  &weight
     type: ArbitraryVariable
     parameters: [1.0, [1.0, 0.99, 0.95, 0.8, 0.5]]
-  batchSize: { formula: 10, language: scala }
+  batchSize: { formula: 32, language: scala }
   episodeLength: &episodeLength { formula: 200, language: scala }
   samplingEpisodes: &samplingEpisodes { formula: episodeLength - 0.0001 }
   bufferSize: { formula: 10000, language: scala }
-  episodes: &episodes { formula: 40, language: scala }
+  episodes: &episodes { formula: 20, language: scala }
   totalEpisodes: &totalEpisodes { formula: episodes * episodeLength }
   width: &width { formula: 500.0, language: scala }
   spacing: &spacing { formula: 50.0, language: scala }
@@ -58,8 +58,8 @@ variables:
       import it.unibo.scripting._;
       new QLearning(
         actionSpaceEvaluated.as[List[Double]],
-        DecayReference.exponentialDecay(0.5, 0.1).bounded(0.01),
-        DecayReference.exponentialDecay(0.5, 0.1).bounded(0.1),
+        DecayReference.exponentialDecay(0.9, 0.27).bounded(0.00),
+        DecayReference.exponentialDecay(0.5, 0.01).bounded(0.1),
         0.9,
         random.as[Double].toInt,
         weight.as[Double]
@@ -121,7 +121,7 @@ deployments: ## i.e, how to place nodes
 export:
   - type: CSVExporter
     parameters:
-      fileNameRoot: "experiment"
+      fileNameRoot: "experimentTable"
       exportPath: "build/exports/simulation/full"
       fileExtension: "csv"
       interval: *exportInterval
@@ -147,7 +147,7 @@ export:
         value-filter: onlyfinite
   - type: CSVExporter
     parameters:
-      fileNameRoot: "experiment"
+      fileNameRoot: "experimentTable"
       exportPath: "build/exports/simulation/episode"
       fileExtension: "csv"
       interval: 200

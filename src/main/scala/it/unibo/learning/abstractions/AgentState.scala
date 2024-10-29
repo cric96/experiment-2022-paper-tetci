@@ -8,10 +8,9 @@ import scala.collection.immutable.Queue
 case class AgentState(
     me: Int,
     neighborhoodOutput: Queue[Map[Int, NeighborInfo]],
-    neighborhoodSensing: Queue[Map[Int, NeighborInfo]],
-    contextual: Contextual
+    neighborhoodSensing: Queue[Map[Int, NeighborInfo]]
 )
 
 object AgentState {
-  case class NeighborInfo(data: Double, distance: Double, oldAction: Int)
+  case class NeighborInfo(data: Double, distance: Double, oldAction: Double)
 }

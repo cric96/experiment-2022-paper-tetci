@@ -5,35 +5,24 @@ _constants:
   retentionTime: &retentionTime 5
   exportInterval: &exportInterval 2
   actionSpace: &actionSpace List(1.0, 2.0, 3.0, 4.0, 5.0)
-  windowHistory: &windowHistory 5
+  windowHistory: &windowHistory 10
 
 variables:
   random: &random
-    min: 0
-    max: 16
+    min: 1
+    max: 4
     step: 1
     default: 2
 
-  weight:  &weight
-    type: ArbitraryVariable
-    parameters: [1.0, [1.0, 0.99, 0.95, 0.8, 0.5]]
-  batchSize: { formula: 256, language: scala }
   episodeLength: &episodeLength { formula: 200, language: scala }
+  episodes: &episodes { formula: 20, language: scala }
+  batchSize: { formula: 32, language: scala }
   samplingEpisodes: &samplingEpisodes { formula: episodeLength - 0.0001 }
   bufferSize: { formula: 10000, language: scala }
-  episodes: &episodes { formula: 40, language: scala }
   totalEpisodes: &totalEpisodes { formula: episodes * episodeLength }
   width: &width { formula: 500.0, language: scala }
   spacing: &spacing { formula: 50.0, language: scala }
   randomness: &randomness { formula: 25.0, language: scala }
-
-  range: &range
-    formula: 75
-    language: scala
-  actionSpaceEvaluated: &actionSpaceEvaluated
-    formula: *actionSpace
-    language: scala
-
   learningInfo: &learningInfo
     formula: |
       import it.unibo.scripting._;
@@ -44,37 +33,32 @@ variables:
         episodeLength.as[Int]
       )
     language: scala
+  range: &range
+    formula: 75
+    language: scala
+  actionSpaceEvaluated: &actionSpaceEvaluated
+    formula: *actionSpace
+    language: scala
 
+  weight: &weight
+    type: ArbitraryVariable
+    parameters: [ 1.0, [ 1.0, 0.99, 0.95, 0.8, 0.5 ] ]
+  actions:
+    type: ArbitraryVariable
+    parameters: [ 1.0, [ 1.0, 2.0, 3.0, 4.0, 5.0 ] ]
   environmentBox: &environmentBox
     formula: |
       import it.unibo.scripting._;
       it.unibo.learning.Box(width.as[Double], spacing.as[Double], randomness.as[Double])
     language: scala
 
-  neuralNet: &neuralNet
-    formula: |
-      import it.unibo.learning.network.torch.torch;
-      import it.unibo.learning.network._;
-      import it.unibo.scripting._;
-      torch.manual_seed(random.as[Double].toInt);
-      new MLPTemporal(
-        hiddenSize = 128, 
-        snapshots = 5,
-        actionSpace = actionSpaceEvaluated.as[List[Double]]
-      )
-    language: scala
   learner: &learner
     formula: |
       import it.unibo.learning.abstractions.DecayReference;
-      import it.unibo.learning.agents.DeepQLearning;
-      import it.unibo.learning.network.NeuralNetworkRL;
+      import it.unibo.learning.agents.SameActionAgent;
       import it.unibo.scripting._;
-      new DeepQLearning(
-        epsilon = DecayReference.exponentialDecay(0.5, 0.1).bounded(0.01),
-        alpha = 0.0004,
-        gamma = 0.9,
-        copyEach = 1000,
-        referenceNet = neuralNet.as[NeuralNetworkRL]
+      new SameActionAgent(
+        actions.as[Double]
       )
     language: scala
 seeds:
@@ -126,43 +110,43 @@ deployments: ## i.e, how to place nodes
       concentration: *windowHistory
     - molecule: "source"
       concentration: false
-    - molecule: "weight"
-      concentration: *weight
     - molecule: "full"
       concentration: false
+    - molecule: "weight"
+      concentration: *weight
 export:
   - type: CSVExporter
     parameters:
-      fileNameRoot: "experiment"
-      exportPath: "build/exports/simulationDeep/full"
+      fileNameRoot: "experimentBaseline"
+      exportPath: "build/exports/simulation/full"
       fileExtension: "csv"
       interval: *exportInterval
     data:
       - time
       - molecule: ticks
-        aggregators: [ sum ]
+        aggregators: [sum]
         value-filter: onlyfinite
       - molecule: nextWakeUp
-        aggregators: [ mean ]
+        aggregators: [mean]
         value-filter: onlyfinite
       - molecule: reward
-        aggregators: [ mean ]
+        aggregators: [mean]
         value-filter: onlyfinite
       - molecule: accumulatedReward
-        aggregators: [ mean ]
+        aggregators: [mean]
         value-filter: onlyfinite
       - molecule: localComputation
-        aggregators: [ sum ]
+        aggregators: [sum]
         value-filter: onlyfinite
       - molecule: groundTruth
-        aggregators: [ sum ]
+        aggregators: [sum]
         value-filter: onlyfinite
   - type: CSVExporter
     parameters:
-      fileNameRoot: "experiment"
-      exportPath: "build/exports/simulationDeep/episode"
+      fileNameRoot: "experimentBaseline"
+      exportPath: "build/exports/simulation/episode"
       fileExtension: "csv"
-      interval: *episodeLength
+      interval: 200
     data:
       - time
       - molecule: ticks
@@ -174,8 +158,6 @@ export:
       - molecule: accumulatedUnstableTime
         aggregators: [ mean ]
         value-filter: onlyfinite
-      - type: DecayVariableExtractor
-        parameters: [ ]
 
 
 terminate:

@@ -6,12 +6,13 @@ import it.unibo.alchemist.model.implementations.nodes.SimpleNodeManager
 import it.unibo.alchemist.model.implementations.times.DoubleTime
 import it.unibo.alchemist.model.interfaces._
 import it.unibo.learning.{Box, LearningInfo}
-import it.unibo.learning.abstractions.{DecayReference, ReplayBuffer}
+import it.unibo.learning.abstractions.{AgentState, DecayReference, ReplayBuffer}
 import it.unibo.learning.agents.Learner
 import it.unibo.learning.network.torch
 import it.unibo.scafi.Sensors
 import org.apache.commons.math3.random.RandomGenerator
 
+import scala.collection.immutable.Queue
 import scala.jdk.CollectionConverters.{IteratorHasAsScala, MapHasAsScala}
 import scala.util.Random
 
@@ -41,15 +42,13 @@ class CentralAgent[T, P <: Position[P]](
 
   override def executeBeforeUpdateDistribution(): Unit = {
     val currentTime = environment.getSimulation.getTime
-    if (currentTime.toDouble < 1) {
-      // filterFullSpeed.foreach { case (node, position) =>
-      // replaceNodes(position, node, currentTime.plus(new DoubleTime(0.000001)))
-      // }
-    }
     val sample = memory.sample(learningInfo.batchSize)
     if (currentTime.toDouble > 1 && sample.size == learningInfo.batchSize) { // skip the first tick
       learner.update(memory.sample(learningInfo.batchSize))
       if (currentTime.toDouble.toInt % learningInfo.episodeSize == 0) {
+
+        val allExperiences = managers.map(_.get[Queue[(AgentState, Int, Double, Double)]]("experiences"))
+        learner.endEpisode(allExperiences)
         val newPosition = createPositions()
         environment.getSimulation.schedule { () =>
           agents.foreach(node => environment.removeNode(node))
@@ -57,23 +56,7 @@ class CentralAgent[T, P <: Position[P]](
             replaceNodes(position, prototype, currentTime.plus(new DoubleTime(1)))
           }
         }
-        // clonePutSpeed(newPosition, currentTime)
-
-        // references.foreach { case (name, value) =>
-        // torch.writer.add_scalar(name, value.value, environment.getSimulation.getStep)
-        // }
         references.foreach(_._2.update())
-        // logging phase
-        // torch.writer.add_scalar(
-        //  "total-average",
-        //  averagedNextWakeUp / learningInfo.episodeSize,
-        //  environment.getSimulation.getStep
-        // )
-        // torch.writer.add_scalar(
-        //  "reward-average",
-        //  averageRewardPerEpisode / learningInfo.episodeSize,
-        //  environment.getSimulation.getStep
-        // )
         averagedNextWakeUp = 0
         averageRewardPerEpisode = 0
       }
@@ -87,9 +70,6 @@ class CentralAgent[T, P <: Position[P]](
       .sum / (managersWithLearning.size)
     averageRewardPerEpisode += rewardAverage
     averagedNextWakeUp += consumption
-    // torch.writer.add_scalar("average-wake-up-time", consumption, environment.getSimulation.getStep)
-    // torch.writer.add_scalar("reward", rewardAverage, environment.getSimulation.getStep)
-    // torch.writer.add_scalar("error", errorAverage, environment.getSimulation.getStep)
   }
 
   override def initializationComplete(time: Time, environment: Environment[T, _]): Unit =

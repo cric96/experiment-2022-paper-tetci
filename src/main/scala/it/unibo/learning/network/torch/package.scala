@@ -9,5 +9,7 @@ package object torch {
   val log = py.module("torch.utils.tensorboard")
   val writer = log.SummaryWriter()
   val geometric = py.module("torch_geometric")
+  val d3rlpy = py.module("d3rlpy")
   val tensordict = py.module("tensordict")
+  val numpy = py.module("numpy")
 }

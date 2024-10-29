@@ -177,8 +177,8 @@ def beautifyValue(v):
     except:
         return v
 
-minTime = 0
-maxTime = 8000
+minTime = 3000
+maxTime = 4000
 means = {}
 stdevs = {}
 if __name__ == '__main__':
@@ -190,7 +190,7 @@ if __name__ == '__main__':
     # How to name the summary of the processed data
     pickleOutput = 'data_summary'
     # Experiment prefixes: one per experiment (root of the file name)
-    experiments = ['experiment']
+    experiments = ['experimentTable', 'experimentDeepOffline', 'experimentBaseline']
     floatPrecision = '{: 0.3f}'
     # Number of time samples
     timeSamples = 40

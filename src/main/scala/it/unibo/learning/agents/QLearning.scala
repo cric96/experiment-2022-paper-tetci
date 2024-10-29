@@ -14,7 +14,8 @@ class QLearning(
     weightConvergence: Double
 ) extends Learner {
   type QState = List[Double]
-
+  var ticks = 0
+  val learningSteps = 10
   implicit def stateToEncoding: AgentState => QState = state => {
     val me = state.neighborhoodOutput.map(neigh => neigh(state.me))
     TemporalInfo.computeDeltaTrend(me.map(_.data))
@@ -23,17 +24,19 @@ class QLearning(
   private var random = new Random()
   private var Q: Map[(QState, Int), Double] = Map.empty.withDefault(_ => 0.0) // all near to 0
 
-  override def policy: AgentState => (Int, Contextual) = if (random.nextDouble() < epsilon.value) { _ =>
-    (random.shuffle(actionSpace.indices.toList).head, Contextual.empty)
+  override def policy: AgentState => Double = if (random.nextDouble() < epsilon.value) { _ =>
+    random.shuffle(actionSpace).head
   } else { state =>
-    (actionSpace.indices.map(action => action -> Q((state, action))).maxBy(_._2)._1, Contextual.empty)
+    val action = actionSpace.indices.maxBy(action => Q((state, action)))
+    actionSpace(action)
   }
 
   override def store(where: String): Unit = {}
 
-  override def load(where: String): (AgentState, (Int, Contextual)) = null // todo
+  override def load(where: String): (AgentState => Double) = null // todo
 
   override def update(batch: Seq[ReplayBuffer.Experience]): Unit = {
+    if (ticks > learningSteps) return
     batch.foreach { experience =>
       val currentValue = Q((experience.stateT, experience.actionT))
       val reward = experience.rewardTPlus
@@ -43,6 +46,8 @@ class QLearning(
       Q = Q.updated((experience.stateT, experience.actionT), currentValue + delta * alpha.value)
     }
   }
+
+  override def endEpisode(replyBuffer: Seq[Seq[(AgentState, Int, Double, Double)]]): Unit = ticks += 1
 
   override def injectRandom(random: Random): Unit = this.random = random
 

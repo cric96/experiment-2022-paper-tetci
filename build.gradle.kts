@@ -20,7 +20,7 @@ dependencies {
     implementation(libs.scalapy)// https://mvnrepository.com/artifact/org.scala-lang/scala-library
     implementation(libs.scalacompiler)
     implementation("org.graalvm.polyglot:polyglot:23.1.2")
-    implementation("org.graalvm.polyglot:python:23.1.2")
+    implementation("org.graalvm.polyglot:python:23.1.12.1")
 }
 
 

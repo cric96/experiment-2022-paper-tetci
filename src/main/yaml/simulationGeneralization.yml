@@ -134,8 +134,6 @@ deployments:
       concentration: false
     - molecule: "weight"
       concentration: *weight
-    - molecule: "full"
-      concentration: false
     - molecule: "program"
       concentration: *progId
 

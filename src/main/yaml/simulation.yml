@@ -115,8 +115,6 @@ deployments: ## i.e, how to place nodes
       concentration: false
     - molecule: "weight"
       concentration: *weight
-    - molecule: "full"
-      concentration: false
 export:
   - type: CSVExporter
     parameters:

@@ -110,8 +110,6 @@ deployments: ## i.e, how to place nodes
       concentration: *windowHistory
     - molecule: "source"
       concentration: false
-    - molecule: "full"
-      concentration: false
     - molecule: "weight"
       concentration: *weight
 export:

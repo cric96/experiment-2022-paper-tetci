@@ -27,6 +27,12 @@ tasks.test {
     useJUnitPlatform {
         includeEngines("scalatest")
     }
+    // Multi-threaded (and dynamically-threaded) BLAS kernels change the order of floating-point reductions,
+    // which makes training, and hence the golden masters, non-reproducible: pin PyTorch to a single thread.
+    systemProperty("ai.djl.pytorch.num_threads", "1")
+    systemProperty("ai.djl.pytorch.num_interop_threads", "1")
+    environment("OMP_NUM_THREADS", "1")
+    environment("MKL_NUM_THREADS", "1")
     testLogging {
         events("failed")
         exceptionFormat = TestExceptionFormat.FULL

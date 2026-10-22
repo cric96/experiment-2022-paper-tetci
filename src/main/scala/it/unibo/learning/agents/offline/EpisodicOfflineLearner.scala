@@ -29,11 +29,16 @@ abstract class EpisodicOfflineLearner[T](
 
   override def injectRandom(random: Random): Unit = randomness = random
 
+  /** Stores the trajectories and trains, as long as the schedule prescribes training: afterwards the transitions would
+    * never be used.
+    */
   override def endEpisode(trajectories: Seq[Trajectory]): Unit = {
-    trajectories.foreach(record)
-    schedule.trainingStepsAfter(episode).filterNot(_ => transitions.isEmpty).foreach { steps =>
-      train(steps)
-      onTrained()
+    schedule.trainingStepsAfter(episode).foreach { steps =>
+      trajectories.foreach(record)
+      if (!transitions.isEmpty) {
+        train(steps)
+        onTrained()
+      }
     }
     episode += 1
   }

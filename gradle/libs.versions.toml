@@ -6,7 +6,7 @@ djl = "0.27.0"
 scalatest = "3.2.19"
 scalatest-junit-runner = "0.2.0"
 junit-platform = "1.10.2"
-scalafmt = "3.6.1"
+scalafmt = "3.11.5"
 [libraries]
 alchemist = { module = "it.unibo.alchemist:alchemist", version.ref = "alchemist" }
 alchemist-swingui = { module = "it.unibo.alchemist:alchemist-swingui", version.ref = "alchemist" }

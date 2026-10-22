@@ -103,7 +103,8 @@ def final_episode_trace(run: AlchemistRun) -> pd.DataFrame:
     """
     data = run.data
     start = config.FINAL_EPISODE_START_S
-    window = data[(data.time > start) & (data.time <= start + config.EPISODE_LENGTH_S + 0.5)]
+    in_episode = (data.time >= start + config.EPISODE_RESET_DELAY_S) & (data.time <= start + config.EPISODE_LENGTH_S + 0.5)
+    window = data[in_episode]
     gradient_mean = window["localComputation[sum]"].to_numpy() / config.N_NODES
     truth_mean = window["groundTruth[sum]"].to_numpy() / config.N_NODES
     return pd.DataFrame(

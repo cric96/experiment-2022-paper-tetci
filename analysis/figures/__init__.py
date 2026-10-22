@@ -5,11 +5,11 @@ from collections.abc import Callable
 from pathlib import Path
 
 from ..dataset import Dataset
-from . import learning, tradeoff
+from . import dynamics, explain, learning, tradeoff
 
 FigureFunction = Callable[[Dataset, Path], None]
 
-MODULES = (learning, tradeoff)
+MODULES = (learning, tradeoff, dynamics, explain)
 
 
 def all_figures() -> list[FigureFunction]:

@@ -16,6 +16,7 @@ FINAL_EPISODE_START_S = (N_EPISODES - 1) * EPISODE_LENGTH_S  # 3800 s
 SOURCE_SWITCH_S = 100.0  # the gradient source moves halfway through an episode
 N_NODES = 100  # 10 x 10 perturbed grid
 FULL_EXPORT_INTERVAL_S = 2.0  # sampling period of the "full" exports
+EPISODE_RESET_DELAY_S = 1.0  # nodes of a new episode are created 1 s after the boundary
 
 # --- experimental factors ---------------------------------------------------
 WEIGHTS = (0.5, 0.8, 0.95, 0.99, 1.0)  # beta: convergence vs. energy trade-off

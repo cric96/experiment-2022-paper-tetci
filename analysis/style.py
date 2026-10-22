@@ -17,6 +17,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 import matplotlib as mpl
+import numpy as np
 
 mpl.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402  (backend must be set first)
@@ -40,10 +41,19 @@ PHASE_SHADE = "#f2f2ef"
 BETA_COLORS = dict(zip(config.WEIGHTS, ("#fd9344", "#f36f1a", "#dd4d04", "#ae3903", "#852904")))
 REGIME_GREYS = ("#afafaf", "#7b7b7b", "#4a4a4a", "#0e0e0e")
 
-# Continuous maps: one hue per magnitude; diverging for signed values.
-SEQUENTIAL = "Blues"
-SEQUENTIAL_2 = "Oranges"
-SEQUENTIAL_3 = "Purples"
+
+
+def _single_hue(name: str, start: float = 0.22) -> mpl.colors.Colormap:
+    """A matplotlib single-hue map without its near-white end (small marks stay visible)."""
+    base = mpl.colormaps[name]
+    return mpl.colors.LinearSegmentedColormap.from_list(f"{name}_paper", base(np.linspace(start, 1.0, 256)))
+
+
+# Continuous maps: one hue per magnitude (a second / third magnitude in the
+# same figure takes the next hue); blue-red diverging for signed values.
+SEQUENTIAL = _single_hue("Blues")
+SEQUENTIAL_2 = _single_hue("Oranges")
+SEQUENTIAL_3 = _single_hue("Purples")
 DIVERGING = "RdBu_r"
 
 PAPER_RC = {
@@ -90,7 +100,6 @@ PAPER_RC = {
     "lines.linewidth": 1.2,
     "lines.markersize": 3.5,
     "errorbar.capsize": 1.5,
-    "image.cmap": SEQUENTIAL,
 }
 
 
@@ -103,6 +112,12 @@ def figure(width: str = "double", height: float = 2.2, nrows: int = 1, ncols: in
     """Create a figure ``single`` (3.5 in) or ``double`` (7.16 in) column wide."""
     inches = {"single": SINGLE_COLUMN_IN, "double": DOUBLE_COLUMN_IN}[width]
     return plt.subplots(nrows, ncols, figsize=(inches, height), **kwargs)
+
+
+def canvas(width: str = "double", height: float = 2.2) -> Figure:
+    """An empty figure (for custom grids) ``single`` or ``double`` column wide."""
+    inches = {"single": SINGLE_COLUMN_IN, "double": DOUBLE_COLUMN_IN}[width]
+    return plt.figure(figsize=(inches, height))
 
 
 def save(fig: Figure, out_dir: Path, name: str) -> list[Path]:
@@ -182,11 +197,12 @@ def shade_evaluation(ax: Axes, label: bool = False) -> None:
         ax.text(1.0, 1.01, "evaluation", transform=ax.transAxes, fontsize=6, color=INK_MUTED, va="bottom", ha="right")
 
 
-def mark_source_switch(ax: Axes, label: bool = False) -> None:
+def mark_source_switch(ax: Axes, label: bool = False, label_y: float = 0.97) -> None:
+    """Dotted vertical line at the source switch; ``label_y`` in axes fraction."""
     ax.axvline(config.SOURCE_SWITCH_S, color=INK_MUTED, linewidth=0.7, linestyle=":", zorder=1)
     if label:
-        ax.text(config.SOURCE_SWITCH_S, 1.0, " source moves", transform=ax.get_xaxis_transform(),
-                fontsize=6, color=INK_MUTED, va="top", ha="left")
+        ax.text(config.SOURCE_SWITCH_S, label_y, " source moves", transform=ax.get_xaxis_transform(),
+                fontsize=6, color=INK_MUTED, va="top" if label_y > 0.5 else "bottom", ha="left")
 
 
 def panel_label(ax: Axes, letter: str) -> None:

@@ -19,22 +19,28 @@ METRIC_LABELS = {
 
 
 def mean_band(ax: Axes, x: np.ndarray, matrix: np.ndarray, color: str, label: str | None = None,
-              band: bool = True, **line_kwargs) -> None:
-    """Mean across seeds (rows of ``matrix``) with its 95 % t-interval as a band."""
+              band: bool = True, nonnegative: bool = False, **line_kwargs) -> None:
+    """Mean across seeds (rows of ``matrix``) with its 95 % t-interval as a band.
+
+    ``nonnegative`` clips the band at zero for quantities that cannot be negative.
+    """
     mean, low, high = t_band(matrix)
+    if nonnegative:
+        low = np.maximum(low, 0.0)
     ax.plot(x, mean, color=color, label=label, **line_kwargs)
     if band:
         ax.fill_between(x, low, high, color=color, alpha=BAND_ALPHA, linewidth=0)
 
 
 def method_band(ax: Axes, x: np.ndarray, matrix: np.ndarray, method: Method, markevery: int | None = None,
-                band: bool = True, **overrides) -> None:
+                band: bool = True, nonnegative: bool = False, **overrides) -> None:
+    """:func:`mean_band` in the method's colour and marker."""
     kwargs = style.line_style(method, **overrides)
     if markevery is not None:
         kwargs["markevery"] = markevery
     color = kwargs.pop("color")
     label = kwargs.pop("label")
-    mean_band(ax, x, matrix, color, label, band=band, **kwargs)
+    mean_band(ax, x, matrix, color, label, band=band, nonnegative=nonnegative, **kwargs)
 
 
 def episode_matrix(episodes, metric: str) -> np.ndarray:

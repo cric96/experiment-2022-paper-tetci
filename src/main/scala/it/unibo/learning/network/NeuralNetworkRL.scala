@@ -2,198 +2,220 @@ package it.unibo.learning.network
 
 import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.AgentState
+import it.unibo.learning.abstractions.AgentState.{NeighborInfo, Snapshot}
 import it.unibo.util.TemporalInfo
 
+/** State encoders that turn an [[AgentState]] into the feature vectors fed to the networks. */
 object NeuralNetworkRL {
 
+  /** Number of trends of the node's own output fed to the networks (latest and previous). */
+  val TrendFeatures: Int = 2
+
   object Historical {
+
+    /** The last `snapshots` trends (−1, 0, +1) of the node's own output, most recent first, padded with zeros. */
     def encodeHistory(state: AgentState, snapshots: Int): Array[Double] = {
-      val outputs = state.neighborhoodOutput
-        .flatMap(_.get(state.me))
-        .map(_.data)
-        .replaceInfinite()
-        .takeRight(snapshots + 1)
-      val trends = TemporalInfo
-        .computeDeltaTrend(outputs)
-        .reverse
-        .to(LazyList)
-      val fill: LazyList[Double] = LazyList.continually(0.0)
-      (trends #::: fill).take(snapshots).toArray
+      val outputs = state.ownOutputs.replaceInfinite().takeRight(snapshots + 1)
+      TemporalInfo.computeDeltaTrend(outputs).reverse.take(snapshots).padTo(snapshots, 0.0).toArray
     }
   }
 
-  /** Rich 9D Spatial-Temporal + Topological Role + Weight-Conditioned encoder: 0: latest self output delta trend in
-    * {-1, 0, +1} 1: previous self output delta trend in {-1, 0, +1} 2: self output change magnitude tanh(|g_i(t) -
-    * g_i(t-1)| / 50) in [0, 1] 3: max neighbor output change magnitude tanh(max_{j!=i} |g_j(t) - g_j(t-1)| / 50) in [0,
-    * 1] 4: fraction of 1-hop neighbors whose output changed in the last step in [0, 1] 5: local Bellman-Ford residual
-    * tanh(|g_i(t) - min_{j!=i}(g_j(t) + d_ij)| / 50) in [0, 1] 6: downstream children ratio in shortest-path tree in
-    * [0, 1] (topological backbone vs leaf role) 7: normalized minimum wake-up period among 1-hop neighbors in [0, 1] 8:
-    * convergence trade-off weight beta in [0, 1]
+  /** Spatial-temporal encoder with topological role and trade-off conditioning. Features, all in [−1, 1]:
+    *   - 0: latest trend of the node's output (−1, 0, +1)
+    *   - 1: previous trend of the node's output (−1, 0, +1)
+    *   - 2: magnitude of the last change of the node's output, tanh(|g_i(t) − g_i(t−1)| / scale)
+    *   - 3: largest change of a neighbour's output, tanh(max_j |g_j(t) − g_j(t−1)| / scale)
+    *   - 4: fraction of neighbours whose output changed in the last round
+    *   - 5: local Bellman-Ford residual (see [[bellmanFordResidual]])
+    *   - 6: fraction of neighbours routed through the node in the shortest-path tree (backbone vs. leaf)
+    *   - 7: shortest wake-up period among the neighbours, divided by the longest admissible period
+    *   - 8: the trade-off weight β (see [[TradeOff.betaFeature]])
     */
   object SpatialTemporal {
     val FeatureDim: Int = 9
 
-    /** Fraction of 1-hop neighbors that route their shortest path through this node (g_j approx g_i + d_ij). */
+    /** Scale used when the node has no finite output to compare with. */
+    val DefaultScale: Double = 50.0
+
+    /** The local scale is this fraction of the largest finite output in the neighbourhood. */
+    val ScaleFraction: Double = 0.2
+
+    /** Outputs larger than this are considered unbounded (e.g. a gradient with no source). */
+    val MaxPlausibleOutput: Double = 1e6
+
+    /** A change from or to a non-finite output counts as this many local scales. */
+    val UnboundedChangeInScales: Double = 2.0
+
+    /** A neighbour j is a child of i if |g_j − (g_i + d_ij)| ≤ max(MinChildTolerance, ChildToleranceRatio · d_ij). */
+    val MinChildTolerance: Double = 8.0
+    val ChildToleranceRatio: Double = 0.2
+
+    /** How the neighbours' outputs changed between the last two rounds. */
+    final case class NeighbourhoodChange(maxMagnitude: Double, changedRatio: Double)
+
+    object NeighbourhoodChange {
+      val None: NeighbourhoodChange = NeighbourhoodChange(0.0, 0.0)
+    }
+
+    /** Constants of [[instabilityIntensity]]. */
+    object Intensity {
+
+      /** Number of own outputs inspected to detect recent changes of the node. */
+      val OwnHistoryLength: Int = 4
+
+      /** A change of the node in its last `RecentTrends` trends makes it fully unstable. */
+      val RecentTrends: Int = 2
+
+      /** Neighbourhood changes below this normalized magnitude are ignored. */
+      val ChangeThreshold: Double = 1e-3
+
+      /** Bellman-Ford residuals below this value are ignored. */
+      val ResidualThreshold: Double = 0.05
+
+      /** Minimum intensity when the neighbourhood is changing. */
+      val NeighbourhoodFloor: Double = 0.45
+
+      /** Intensity when the node's own output changed in the window, but not recently. */
+      val Cooldown: Double = 0.35
+
+      /** Role multiplier of a leaf (no children); a node whose neighbours are all children gets the whole bonus. */
+      val LeafRoleMultiplier: Double = 0.75
+      val BackboneRoleBonus: Double = 0.5
+    }
+
+    /** Fraction of the neighbours that route their shortest path through this node (g_j ≈ g_i + d_ij). */
     def downstreamChildrenRatio(state: AgentState): Double = {
-      state.neighborhoodOutput.lastOption match {
-        case Some(curr) =>
-          val myValOpt = curr.get(state.me).map(_.data)
-          val others = curr.filter(_._1 != state.me)
-          myValOpt match {
-            case Some(myVal) if myVal.isFinite && others.nonEmpty =>
-              val children = others.count { case (_, info) =>
-                info.data.isFinite && info.data > myVal &&
-                math.abs(info.data - (myVal + info.distance)) <= math.max(8.0, 0.2 * info.distance)
-              }
-              children.toDouble / others.size.toDouble
-            case _ => 0.0
-          }
-        case None => 0.0
-      }
+      val ratio = for {
+        current <- state.latestSnapshot
+        own <- current.get(state.me).map(_.data) if own.isFinite
+        neighbours = state.neighboursIn(current) if neighbours.nonEmpty
+      } yield neighbours.count { case (_, neighbour) => isChild(own, neighbour) }.toDouble / neighbours.size.toDouble
+      ratio.getOrElse(0.0)
     }
 
-    def localScale(state: AgentState): Double = {
-      state.neighborhoodOutput.lastOption match {
-        case Some(curr) =>
-          val finiteVals = curr.values.map(_.data).filter(v => v.isFinite && math.abs(v) < 1e6)
-          if (finiteVals.isEmpty) 50.0
-          else math.max(1.0, 0.2 * finiteVals.map(math.abs).max)
-        case None => 50.0
-      }
+    private def isChild(own: Double, neighbour: NeighborInfo): Boolean = {
+      val tolerance = math.max(MinChildTolerance, ChildToleranceRatio * neighbour.distance)
+      neighbour.data.isFinite && neighbour.data > own && math.abs(
+        neighbour.data - (own + neighbour.distance)
+      ) <= tolerance
     }
 
-    /** Continuous instability intensity I(s) in [0, 1] combining self history, 1-hop neighborhood, and topological
-      * role.
-      */
+    /** Magnitude of the outputs around the node, used to normalize every difference of outputs. */
+    def localScale(state: AgentState): Double =
+      state.latestSnapshot
+        .map(_.values.map(_.data).filter(isPlausible))
+        .filter(_.nonEmpty)
+        .fold(DefaultScale)(outputs => math.max(1.0, ScaleFraction * outputs.map(math.abs).max))
+
+    private def isPlausible(output: Double): Boolean = output.isFinite && math.abs(output) < MaxPlausibleOutput
+
+    /** Magnitude of the last change of the node's own output, in [0, 1]. */
+    def selfChangeMagnitude(state: AgentState, scale: Double): Double = {
+      val recent = state.ownOutputs.takeRight(2).replaceInfinite()
+      if (recent.size >= 2) math.tanh(math.abs(recent.last - recent.head) / scale) else 0.0
+    }
+
+    /** Largest change (normalized in [0, 1]) and fraction of the neighbours whose output changed in the last round. */
+    def neighbourhoodChange(state: AgentState, scale: Double): NeighbourhoodChange =
+      state.lastTwoSnapshots.fold(NeighbourhoodChange.None) { case (previous, current) =>
+        val neighbours = state.neighboursIn(current)
+        if (neighbours.isEmpty) {
+          NeighbourhoodChange.None
+        } else {
+          val changes = outputChanges(previous, neighbours, scale)
+          NeighbourhoodChange(
+            maxMagnitude = math.tanh(changes.foldLeft(0.0)(math.max) / scale),
+            changedRatio = changes.size.toDouble / neighbours.size.toDouble
+          )
+        }
+      }
+
+    /** The absolute changes of the neighbours whose output changed since the `previous` snapshot. */
+    private def outputChanges(previous: Snapshot, neighbours: Snapshot, scale: Double): List[Double] =
+      neighbours.toList.flatMap { case (id, now) =>
+        previous.get(id).filter(_.data != now.data).map(before => outputChange(before.data, now.data, scale))
+      }
+
+    private def outputChange(before: Double, now: Double, scale: Double): Double =
+      if (before.isFinite && now.isFinite) math.abs(now - before) else scale * UnboundedChangeInScales
+
+    /** Instability intensity I(s) ∈ [0, 1], combining own history, neighbourhood changes and topological role. */
     def instabilityIntensity(state: AgentState): Double = {
-      val scale = localScale(state)
-      val myOutputs = state.neighborhoodOutput.flatMap(_.get(state.me)).takeRight(4).map(_.data)
-      val selfTrend = TemporalInfo.computeDeltaTrend(myOutputs)
-      val latestSelfChanged = selfTrend.takeRight(2).exists(_ != 0.0)
-      val cooldownSelfChanged = selfTrend.exists(_ != 0.0)
-
-      val snaps = state.neighborhoodOutput.takeRight(2)
-      val (maxNeighDelta, neighRatio) = if (snaps.size == 2) {
-        val prev = snaps.head
-        val curr = snaps.last
-        val others = curr.filter(_._1 != state.me)
-        if (others.isEmpty) (0.0, 0.0)
-        else {
-          var maxD = 0.0
-          var changed = 0
-          others.foreach { case (id, info) =>
-            prev.get(id).foreach { p =>
-              if (p.data != info.data) {
-                changed += 1
-                val d =
-                  if (p.data.isFinite && info.data.isFinite) math.abs(info.data - p.data)
-                  else scale * 2.0
-                if (d > maxD) maxD = d
-              }
-            }
+      val ownTrends = TemporalInfo.computeDeltaTrend(state.ownOutputs.takeRight(Intensity.OwnHistoryLength))
+      val roleMultiplier = Intensity.LeafRoleMultiplier + Intensity.BackboneRoleBonus * downstreamChildrenRatio(state)
+      val intensity =
+        if (ownTrends.takeRight(Intensity.RecentTrends).exists(_ != 0.0)) {
+          1.0
+        } else {
+          neighbourhoodSignal(state).fold(
+            if (ownTrends.exists(_ != 0.0)) Intensity.Cooldown * roleMultiplier else 0.0
+          ) { signal =>
+            math.min(1.0, math.max(Intensity.NeighbourhoodFloor, signal) * roleMultiplier)
           }
-          (math.tanh(maxD / scale), changed.toDouble / others.size.toDouble)
         }
-      } else (0.0, 0.0)
+      math.min(1.0, intensity)
+    }
 
-      val bfResidual = bellmanFordResidual(state)
-      val childrenRatio = downstreamChildrenRatio(state)
-      val roleMultiplier = 0.75 + 0.5 * childrenRatio
+    /** The strongest sign that the neighbourhood is still changing, if any is above its threshold. */
+    private def neighbourhoodSignal(state: AgentState): Option[Double] = {
+      val change = neighbourhoodChange(state, localScale(state))
+      val residual = bellmanFordResidual(state)
+      val isChanging = change.maxMagnitude > Intensity.ChangeThreshold || change.changedRatio > 0.0 ||
+        residual > Intensity.ResidualThreshold
+      Option.when(isChanging)(math.max(change.maxMagnitude, math.max(change.changedRatio, residual)))
+    }
 
-      val rawIntensity = if (latestSelfChanged) {
-        1.0
-      } else if (maxNeighDelta > 1e-3 || neighRatio > 0.0 || bfResidual > 0.05) {
-        math.min(1.0, math.max(0.45, math.max(maxNeighDelta, math.max(neighRatio, bfResidual))) * roleMultiplier)
-      } else if (cooldownSelfChanged) {
-        0.35 * roleMultiplier
-      } else {
-        0.0
+    /** How much the differences between the node's output and its neighbours' drifted in the last round, in [0, 1]: a
+      * non-zero value means that the local Bellman-Ford equation is not yet stable.
+      */
+    def bellmanFordResidual(state: AgentState): Double =
+      state.lastTwoSnapshots.fold(0.0) { case (previous, current) =>
+        val ownNow = current.get(state.me).fold(0.0)(_.data)
+        val ownBefore = previous.get(state.me).fold(0.0)(_.data)
+        val neighbours = state.neighboursIn(current)
+        if (neighbours.isEmpty || !ownNow.isFinite || !ownBefore.isFinite) 0.0
+        else math.tanh(maxEdgeDrift(previous, neighbours, ownNow, ownBefore) / localScale(state))
       }
-      math.min(1.0, rawIntensity)
-    }
 
-    def bellmanFordResidual(state: AgentState): Double = {
+    private def maxEdgeDrift(previous: Snapshot, neighbours: Snapshot, ownNow: Double, ownBefore: Double): Double =
+      neighbours.foldLeft(0.0) { case (drift, (id, now)) =>
+        previous.get(id) match {
+          case Some(before) if now.data.isFinite && before.data.isFinite =>
+            math.max(drift, math.abs((ownNow - now.data) - (ownBefore - before.data)))
+          case _ => drift
+        }
+      }
+
+    def encode(state: AgentState, weight: Double, maxAction: Double): Array[Float] = {
       val scale = localScale(state)
-      val snaps = state.neighborhoodOutput.takeRight(2)
-      if (snaps.size == 2) {
-        val prev = snaps.head
-        val curr = snaps.last
-        val myCurr = curr.get(state.me).map(_.data).getOrElse(0.0)
-        val myPrev = prev.get(state.me).map(_.data).getOrElse(0.0)
-        val others = curr.filter(_._1 != state.me)
-        if (others.isEmpty || !myCurr.isFinite || !myPrev.isFinite) 0.0
-        else {
-          val maxEdgeDrift = others.foldLeft(0.0) { case (acc, (id, info)) =>
-            prev.get(id) match {
-              case Some(pInfo) if info.data.isFinite && pInfo.data.isFinite =>
-                val diffNow = myCurr - info.data
-                val diffPrev = myPrev - pInfo.data
-                math.max(acc, math.abs(diffNow - diffPrev))
-              case _ => acc
-            }
-          }
-          math.tanh(maxEdgeDrift / scale)
-        }
-      } else 0.0
-    }
-
-    def encode(state: AgentState, weight: Double, maxAction: Double = 5.0): Array[Float] = {
-      val scale = localScale(state)
-      val trends = Historical.encodeHistory(state, 2)
-      val deltaLatest = trends(0).toFloat
-      val deltaPrev = trends(1).toFloat
-
-      val selfHistory = state.neighborhoodOutput.flatMap(_.get(state.me)).takeRight(2).map(_.data).replaceInfinite()
-      val selfDeltaMag = if (selfHistory.size >= 2) {
-        math.tanh(math.abs(selfHistory.last - selfHistory.head) / scale).toFloat
-      } else 0.0f
-
-      val snaps = state.neighborhoodOutput.takeRight(2)
-      val (maxNeighDeltaMag, neighChangedRatio) = if (snaps.size == 2) {
-        val prev = snaps.head
-        val curr = snaps.last
-        val others = curr.filter(_._1 != state.me)
-        if (others.isEmpty) (0.0f, 0.0f)
-        else {
-          var maxD = 0.0
-          var changedCount = 0
-          others.foreach { case (id, info) =>
-            prev.get(id).foreach { p =>
-              if (p.data != info.data) {
-                changedCount += 1
-                val d =
-                  if (p.data.isFinite && info.data.isFinite) math.abs(info.data - p.data)
-                  else scale * 2.0
-                if (d > maxD) maxD = d
-              }
-            }
-          }
-          (math.tanh(maxD / scale).toFloat, changedCount.toFloat / others.size.toFloat)
-        }
-      } else (0.0f, 0.0f)
-
-      val bfRes = bellmanFordResidual(state).toFloat
-      val childrenRatio = downstreamChildrenRatio(state).toFloat
-
-      val minNeighAction = state.neighborhoodOutput.lastOption
-        .flatMap { snap =>
-          val otherActions = snap.collect { case (id, info) if id != state.me => info.oldAction }
-          otherActions.minOption
-        }
-        .map(a => (a / maxAction).toFloat)
-        .getOrElse(1.0f)
-
-      val betaFeature = TradeOff.betaFeature(weight)
-
+      val trends = Historical.encodeHistory(state, TrendFeatures)
+      val change = neighbourhoodChange(state, scale)
       Array(
-        deltaLatest, deltaPrev, selfDeltaMag, maxNeighDeltaMag, neighChangedRatio, bfRes, childrenRatio, minNeighAction,
-        betaFeature
+        trends(0).toFloat,
+        trends(1).toFloat,
+        selfChangeMagnitude(state, scale).toFloat,
+        change.maxMagnitude.toFloat,
+        change.changedRatio.toFloat,
+        bellmanFordResidual(state).toFloat,
+        downstreamChildrenRatio(state).toFloat,
+        shortestNeighbourPeriod(state, maxAction),
+        TradeOff.betaFeature(weight)
       )
     }
+
+    /** The shortest wake-up period among the neighbours over `maxAction` (1 if the node has no neighbours). */
+    private def shortestNeighbourPeriod(state: AgentState, maxAction: Double): Float =
+      state.latestSnapshot
+        .flatMap(state.neighboursIn(_).values.map(_.oldAction).minOption)
+        .fold(1.0f)(period => (period / maxAction).toFloat)
   }
 
-  /** Star-Graph encoder for EdgeGAT (Graph Attention + Relational Max-Pooling GNN): Encodes the ego node (5 features) +
-    * up to MaxNeighbors = 8 1-hop neighbors (6 node/edge features each).
+  /** Star-graph encoder for the EdgeGAT networks: the ego node features followed by one slot of features for each of
+    * the `MaxNeighbors` nearest neighbours (padded with idle slots).
+    *
+    * Ego features: latest and previous own trend, magnitude of the last own change, children ratio, β feature. Slot
+    * features: sign and magnitude of the neighbour's last change, drift of the edge difference, relative order of the
+    * outputs, normalized distance, normalized wake-up period.
     */
   object StarGraph {
     val SelfDim: Int = 5
@@ -201,73 +223,74 @@ object NeuralNetworkRL {
     val NeighDim: Int = 6
     val TotalDim: Int = SelfDim + MaxNeighbors * NeighDim
 
-    def encode(state: AgentState, weight: Double, maxAction: Double = 5.0): Array[Float] = {
+    /** Distance that normalizes the neighbours' distances to [0, 1]. */
+    val MaxDistance: Double = 100.0
+
+    /** Slot of a missing neighbour: nothing changes and it sleeps as long as possible. */
+    val IdleSlot: Seq[Float] = Seq(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f)
+
+    /** What a neighbour slot is computed against: the previous snapshot and the node's own last two outputs. */
+    final private case class Reference(previous: Snapshot, ownNow: Double, ownBefore: Double, scale: Double)
+
+    def encode(state: AgentState, weight: Double, maxAction: Double): Array[Float] = {
       val scale = SpatialTemporal.localScale(state)
-      val trends = Historical.encodeHistory(state, 2)
-      val deltaLatest = trends(0).toFloat
-      val deltaPrev = trends(1).toFloat
-
-      val selfHistory = state.neighborhoodOutput.flatMap(_.get(state.me)).takeRight(2).map(_.data).replaceInfinite()
-      val selfDeltaMag = if (selfHistory.size >= 2) {
-        math.tanh(math.abs(selfHistory.last - selfHistory.head) / scale).toFloat
-      } else 0.0f
-
-      val childrenRatio = SpatialTemporal.downstreamChildrenRatio(state).toFloat
-      val betaFeature = TradeOff.betaFeature(weight)
-
-      val out = new Array[Float](TotalDim)
-      out(0) = deltaLatest
-      out(1) = deltaPrev
-      out(2) = selfDeltaMag
-      out(3) = childrenRatio
-      out(4) = betaFeature
-
-      val snaps = state.neighborhoodOutput.takeRight(2)
-      val currSnap = snaps.lastOption.getOrElse(Map.empty)
-      val prevSnap = if (snaps.size == 2) snaps.head else currSnap
-      val myCurr = currSnap.get(state.me).map(_.data).getOrElse(0.0)
-      val myPrev = prevSnap.get(state.me).map(_.data).getOrElse(0.0)
-
-      val sortedNeighbors = currSnap
-        .filter(_._1 != state.me)
-        .toList
-        .sortBy(_._2.distance)
-        .take(MaxNeighbors)
-
-      var k = 0
-      while (k < MaxNeighbors) {
-        val baseOffset = SelfDim + k * NeighDim
-        if (k < sortedNeighbors.size) {
-          val (nId, info) = sortedNeighbors(k)
-          val prevInfoOpt = prevSnap.get(nId)
-          val nCurr = if (info.data.isFinite) info.data else scale * 2.0
-          val nPrev = prevInfoOpt.map(p => if (p.data.isFinite) p.data else scale * 2.0).getOrElse(nCurr)
-          val diff = nCurr - nPrev
-          val nSign = math.signum(diff).toFloat
-          val nMag = math.tanh(math.abs(diff) / scale).toFloat
-          val edgeDrift = if (myCurr.isFinite && myPrev.isFinite) {
-            math.tanh(math.abs((myCurr - nCurr) - (myPrev - nPrev)) / scale).toFloat
-          } else 0.0f
-          val relOrder = if (myCurr.isFinite) {
-            math.tanh((nCurr - myCurr) / scale).toFloat
-          } else 0.0f
-          val normDist = math.min(1.0, info.distance / 100.0).toFloat
-          val normClock = (info.oldAction / maxAction).toFloat
-
-          out(baseOffset + 0) = nSign
-          out(baseOffset + 1) = nMag
-          out(baseOffset + 2) = edgeDrift
-          out(baseOffset + 3) = relOrder
-          out(baseOffset + 4) = normDist
-          out(baseOffset + 5) = normClock
-        } else {
-          // Idle padding neighbor slot (zero delta, max clock = 1.0)
-          out(baseOffset + 5) = 1.0f
-        }
-        k += 1
-      }
-      out
+      (egoFeatures(state, weight, scale) ++ neighbourSlots(state, scale, maxAction).flatten).toArray
     }
-  }
 
+    private def egoFeatures(state: AgentState, weight: Double, scale: Double): Seq[Float] = {
+      val trends = Historical.encodeHistory(state, TrendFeatures)
+      Seq(
+        trends(0).toFloat,
+        trends(1).toFloat,
+        SpatialTemporal.selfChangeMagnitude(state, scale).toFloat,
+        SpatialTemporal.downstreamChildrenRatio(state).toFloat,
+        TradeOff.betaFeature(weight)
+      )
+    }
+
+    private def neighbourSlots(state: AgentState, scale: Double, maxAction: Double): Seq[Seq[Float]] = {
+      val current = state.latestSnapshot.getOrElse(Map.empty[Int, NeighborInfo])
+      val previous = state.lastTwoSnapshots.fold(current) { case (previous, _) => previous }
+      val reference = Reference(
+        previous,
+        ownNow = current.get(state.me).fold(0.0)(_.data),
+        ownBefore = previous.get(state.me).fold(0.0)(_.data),
+        scale
+      )
+      state
+        .neighboursIn(current)
+        .toList
+        .sortBy { case (_, neighbour) => neighbour.distance }
+        .take(MaxNeighbors)
+        .map { case (id, neighbour) => slotOf(id, neighbour, reference, maxAction) }
+        .padTo(MaxNeighbors, IdleSlot)
+    }
+
+    private def slotOf(id: Int, neighbour: NeighborInfo, reference: Reference, maxAction: Double): Seq[Float] = {
+      val now = bounded(neighbour.data, reference.scale)
+      val before = reference.previous.get(id).fold(now)(info => bounded(info.data, reference.scale))
+      val change = now - before
+      Seq(
+        math.signum(change).toFloat,
+        math.tanh(math.abs(change) / reference.scale).toFloat,
+        edgeDrift(now, before, reference).toFloat,
+        relativeOrder(now, reference).toFloat,
+        math.min(1.0, neighbour.distance / MaxDistance).toFloat,
+        (neighbour.oldAction / maxAction).toFloat
+      )
+    }
+
+    private def bounded(output: Double, scale: Double): Double =
+      if (output.isFinite) output else scale * SpatialTemporal.UnboundedChangeInScales
+
+    private def edgeDrift(now: Double, before: Double, reference: Reference): Double =
+      if (reference.ownNow.isFinite && reference.ownBefore.isFinite) {
+        math.tanh(math.abs((reference.ownNow - now) - (reference.ownBefore - before)) / reference.scale)
+      } else {
+        0.0
+      }
+
+    private def relativeOrder(now: Double, reference: Reference): Double =
+      if (reference.ownNow.isFinite) math.tanh((now - reference.ownNow) / reference.scale) else 0.0
+  }
 }

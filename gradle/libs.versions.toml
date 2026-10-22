@@ -6,6 +6,7 @@ djl = "0.27.0"
 scalatest = "3.2.19"
 scalatest-junit-runner = "0.2.0"
 junit-platform = "1.10.2"
+scalafmt = "3.6.1"
 [libraries]
 alchemist = { module = "it.unibo.alchemist:alchemist", version.ref = "alchemist" }
 alchemist-incarnation-protelis = { module = "it.unibo.alchemist:alchemist-incarnation-protelis", version.ref = "alchemist" }
@@ -25,3 +26,4 @@ djl = ["djl-api", "djl-pytorch-engine"]
 multiJvmTesting = "org.danilopianini.multi-jvm-test-plugin:0.4.15"
 taskTree = "com.dorongold.task-tree:2.1.0"
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+spotless = "com.diffplug.spotless:6.25.0"

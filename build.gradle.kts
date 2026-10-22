@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.multiJvmTesting) // Pre-configures the Java toolchains
     alias(libs.plugins.taskTree) // Helps debugging dependencies among gradle tasks
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.spotless)
     scala
 }
 
@@ -29,6 +30,12 @@ tasks.test {
     testLogging {
         events("failed")
         exceptionFormat = TestExceptionFormat.FULL
+    }
+}
+
+spotless {
+    scala {
+        scalafmt(libs.versions.scalafmt.get()).configFile(".scalafmt.conf")
     }
 }
 

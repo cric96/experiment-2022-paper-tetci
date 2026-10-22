@@ -90,6 +90,9 @@ and update it in the same commit.
 - Formatting is owned by scalafmt (`maxColumn = 120`): don't hand-format, run `spotlessApply`.
 
 ### Tests
+- `SimulationGoldenMasterSpec` runs every YAML for a few episodes (no exporters) and compares fingerprints of the
+  node states with pinned values: it is the safety net for refactoring Main, CentralAgent and the learners.
+  The pinned values depend on the PyTorch CPU kernels, so they may need re-pinning on a different machine.
 - ScalaTest `AnyFlatSpec with Matchers`; one spec per production class, same package, named `<Class>Spec`.
 - Build `AgentState` fixtures with the helpers in the test sources rather than ad-hoc maps in every test.
 - Use fixed seeds; when pinning numerical behaviour, compare with a tolerance only if the code legitimately

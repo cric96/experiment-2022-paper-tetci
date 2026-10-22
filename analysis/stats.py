@@ -12,6 +12,7 @@ Only four seeds per configuration exist, so:
   4 vs 4 seeds is 2/70 = 0.029 -- normal approximation with ties), Hedges' g
   and Cliff's delta.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
@@ -179,7 +180,9 @@ def compare(a: ArrayLike, b: ArrayLike) -> Comparison:
     )
 
 
-def summarize(frame: pd.DataFrame, by: Sequence[str], value: str, confidence: float = config.CONFIDENCE) -> pd.DataFrame:
+def summarize(
+    frame: pd.DataFrame, by: Sequence[str], value: str, confidence: float = config.CONFIDENCE
+) -> pd.DataFrame:
     """Per-group mean, t-interval bounds, standard deviation and n of ``value``."""
     rows = []
     for key, group in frame.groupby(list(by), dropna=False, sort=True):

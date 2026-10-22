@@ -4,6 +4,7 @@ Data: ``spatial/spatial_snapshots_weight-<beta>.csv`` (one row per node every
 2 s of the final episode: position, source flag, gradient, ground truth,
 wake-up period, error, cumulative rounds) and ``spatial_edges_weight-<beta>.csv``.
 """
+
 from __future__ import annotations
 
 import io
@@ -72,8 +73,14 @@ def _draw_edges(ax: Axes, edges: pd.DataFrame, color: str = "white", alpha: floa
 
 
 def _source_style(filled: bool) -> dict:
-    return {"marker": "*", "markersize": 8, "markeredgewidth": 0.6, "linestyle": "none",
-            "markerfacecolor": style.INK if filled else "white", "markeredgecolor": "white" if filled else style.INK}
+    return {
+        "marker": "*",
+        "markersize": 8,
+        "markeredgewidth": 0.6,
+        "linestyle": "none",
+        "markerfacecolor": style.INK if filled else "white",
+        "markeredgecolor": "white" if filled else style.INK,
+    }
 
 
 def _draw_sources(ax: Axes, nodes: pd.DataFrame, filled: bool = True) -> None:
@@ -116,8 +123,14 @@ def spatial_filmstrip(data: Dataset, out: Path) -> None:
             ax = axes[row, col]
             filled = _field(ax, snapshots, nodes, values, cmap, value_range)
             if col == len(FILM_TIMES_S) - 1:
-                bar = fig.colorbar(filled, ax=axes[row, :].tolist(), fraction=0.02, pad=0.01,
-                                   ticks=np.linspace(*value_range, 5), format="%g")
+                bar = fig.colorbar(
+                    filled,
+                    ax=axes[row, :].tolist(),
+                    fraction=0.02,
+                    pad=0.01,
+                    ticks=np.linspace(*value_range, 5),
+                    format="%g",
+                )
                 bar.set_label(label, fontsize=7)
                 bar.outline.set_visible(False)
         axes[0, col].set_title(f"$t$ = {t:g} s")
@@ -131,14 +144,16 @@ def rounds_per_node(snapshots: Snapshots) -> pd.DataFrame:
     """Rounds of each node over the final episode, with its distance to the nearest source and degree."""
     start, end = snapshots.at(snapshots.times[0]), snapshots.at(snapshots.times[-1])
     before, after = snapshots.at(BEFORE_SWITCH_S), snapshots.at(AFTER_SWITCH_S)
-    return pd.DataFrame({
-        "x": end.x.to_numpy(),
-        "y": end.y.to_numpy(),
-        "rounds": end.ticks.to_numpy() - start.ticks.to_numpy(),
-        # the ground truth is the shortest-path distance to the source active at that time
-        "distance": np.minimum(before.groundTruth.to_numpy(), after.groundTruth.to_numpy()),
-        "degree": snapshots.degrees(end.nodeId.to_numpy()),
-    })
+    return pd.DataFrame(
+        {
+            "x": end.x.to_numpy(),
+            "y": end.y.to_numpy(),
+            "rounds": end.ticks.to_numpy() - start.ticks.to_numpy(),
+            # the ground truth is the shortest-path distance to the source active at that time
+            "distance": np.minimum(before.groundTruth.to_numpy(), after.groundTruth.to_numpy()),
+            "degree": snapshots.degrees(end.nodeId.to_numpy()),
+        }
+    )
 
 
 def rounds_distance_correlation(data: Dataset) -> tuple[float, float] | None:
@@ -173,14 +188,24 @@ def spatial_computation(data: Dataset, out: Path) -> None:
     bar = fig.colorbar(filled, ax=map_ax, fraction=0.046, pad=0.02)
     bar.set_label("Rounds per node in the episode", fontsize=7)
     bar.outline.set_visible(False)
-    handles = [Line2D([], [], label="source, $t$ < 100 s", **_source_style(True)),
-               Line2D([], [], label="source, $t$ > 100 s", **_source_style(False))]
+    handles = [
+        Line2D([], [], label="source, $t$ < 100 s", **_source_style(True)),
+        Line2D([], [], label="source, $t$ > 100 s", **_source_style(False)),
+    ]
     map_ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2)
 
     points = scatter_ax.scatter(distance, rounds, c=degree, cmap=style.SEQUENTIAL_3, s=10, linewidths=0)
     rho, p_value = rounds_distance_correlation(data)
-    scatter_ax.text(0.98, 0.97, f"Spearman $\\rho$ = {rho:.2f} ($p$ = {p_value:.1g})", transform=scatter_ax.transAxes,
-                    ha="right", va="top", fontsize=6.5, color=style.INK_SECONDARY)
+    scatter_ax.text(
+        0.98,
+        0.97,
+        f"Spearman $\\rho = {rho:.2f}$ ($p = {p_value:.2f}$)",
+        transform=scatter_ax.transAxes,
+        ha="right",
+        va="top",
+        fontsize=6.5,
+        color=style.INK_SECONDARY,
+    )
     scatter_ax.set_xlabel("Distance to the nearest source (m)")
     scatter_ax.set_ylabel("Rounds per node in the episode")
     bar = fig.colorbar(points, ax=scatter_ax, fraction=0.046, pad=0.02)
@@ -214,8 +239,9 @@ def spatial_wave_animation(data: Dataset, out: Path) -> None:
         buffer.seek(0)
         frames.append(Image.open(buffer).convert("P", palette=Image.Palette.ADAPTIVE))
     out.mkdir(parents=True, exist_ok=True)
-    frames[0].save(out / "spatial_wave_animation.gif", save_all=True, append_images=frames[1:],
-                   duration=ANIMATION_FRAME_MS, loop=0)
+    frames[0].save(
+        out / "spatial_wave_animation.gif", save_all=True, append_images=frames[1:], duration=ANIMATION_FRAME_MS, loop=0
+    )
 
 
 FIGURES = (spatial_filmstrip, spatial_computation, spatial_wave_animation)

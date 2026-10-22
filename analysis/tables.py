@@ -4,6 +4,7 @@ Each ``.tex`` file holds only a ``tabular`` (requires ``\\usepackage{booktabs}``
 preceded by a comment with a suggested caption, so the paper keeps control of
 the floating environment: ``\\begin{table}...\\input{tables/x.tex}...\\end{table}``.
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -23,6 +24,7 @@ Row = Sequence[str] | None  # None draws a \midrule
 
 
 # --- formatting helpers ----------------------------------------------------------
+
 
 def _number(value: float, digits: int) -> str:
     return f"{value:.{digits}f}"
@@ -74,8 +76,12 @@ def _beta(weight: float) -> str:
 
 # --- tables ------------------------------------------------------------------------
 
-METRIC_COLUMNS = (("ticks", "Rounds ($\\times 10^3$)", 1e-3, 2), ("error", "Error (s)", 1.0, 2),
-                  ("unstable", "Unstable (s)", 1.0, 2), ("reward", "Return", 1.0, 2))
+METRIC_COLUMNS = (
+    ("ticks", "Rounds ($\\times 10^3$)", 1e-3, 2),
+    ("error", "Error (s)", 1.0, 2),
+    ("unstable", "Unstable (s)", 1.0, 2),
+    ("reward", "Return", 1.0, 2),
+)
 
 
 def _metric_cells(runs: pd.DataFrame) -> list[str]:
@@ -95,8 +101,10 @@ def learned_metrics_table(data: Dataset, out: Path) -> Path:
             runs = select(data.evaluation, method.key, weight=weight)
             rows.append([_beta(weight) if index == 0 else "", method.short, *_metric_cells(runs)])
     header = ["$\\beta$", "Method", *[label for _, label, _, _ in METRIC_COLUMNS]]
-    caption = ("Evaluation episodes 11-20 of the learned schedulers: mean $\\pm$ 95% t-interval half-width over "
-               f"n = {data.evaluation.seed.nunique()} seeds (per-node metrics; rounds summed over the network).")
+    caption = (
+        "Evaluation episodes 11-20 of the learned schedulers: mean $\\pm$ 95% t-interval half-width over "
+        f"n = {data.evaluation.seed.nunique()} seeds (per-node metrics; rounds summed over the network)."
+    )
     return _write(out, "learned_metrics", caption, booktabs(header, rows, "llrrrr"))
 
 
@@ -111,11 +119,17 @@ def fixed_metrics_table(data: Dataset, out: Path) -> Path:
             cells.append(format_mean_ci(ci.mean, ci.low, ci.high, 2))
         rows.append([f"{period:g} s", *cells])
     header = ["Period", *[label for _, label, _, _ in METRIC_COLUMNS[:3]], *[f"$\\beta={w:g}$" for w in config.WEIGHTS]]
-    preamble = [f"\\multicolumn{{4}}{{c}}{{}} & \\multicolumn{{{len(config.WEIGHTS)}}}{{c}}{{Return}} \\\\",
-                f"\\cmidrule(lr){{5-{4 + len(config.WEIGHTS)}}}"]
-    caption = ("Fixed-period baselines (evaluation episodes, mean $\\pm$ 95% t-interval, 4 seeds); rounds, error "
-               "and unstable time do not depend on beta, the return does.")
-    return _write(out, "fixed_metrics", caption, booktabs(header, rows, "l" + "r" * (3 + len(config.WEIGHTS)), preamble))
+    preamble = [
+        f"\\multicolumn{{4}}{{c}}{{}} & \\multicolumn{{{len(config.WEIGHTS)}}}{{c}}{{Return}} \\\\",
+        f"\\cmidrule(lr){{5-{4 + len(config.WEIGHTS)}}}",
+    ]
+    caption = (
+        "Fixed-period baselines (evaluation episodes, mean $\\pm$ 95% t-interval, 4 seeds); rounds, error "
+        "and unstable time do not depend on beta, the return does."
+    )
+    return _write(
+        out, "fixed_metrics", caption, booktabs(header, rows, "l" + "r" * (3 + len(config.WEIGHTS)), preamble)
+    )
 
 
 SIGNIFICANCE_METRICS = (("reward", "Return"), ("error", "Error"), ("ticks", "Rounds"))
@@ -129,19 +143,31 @@ def significance_table(data: Dataset, out: Path) -> Path:
             rows.append(None)
         for index, method in enumerate(LEARNED):
             first = table.loc[(weight, method.key, SIGNIFICANCE_METRICS[0][0])]
-            cells = [_beta(weight) if index == 0 else "", f"{first.best_period:g} s" if index == 0 else "", method.short]
+            cells = [
+                _beta(weight) if index == 0 else "",
+                f"{first.best_period:g} s" if index == 0 else "",
+                method.short,
+            ]
             for metric, _ in SIGNIFICANCE_METRICS:
                 row = table.loc[(weight, method.key, metric)]
                 cells += [f"${row.relative * 100:+.0f}$", f"${row.hedges_g:.1f}$", format_p(row.welch_p_holm)]
             rows.append(cells)
     groups = " & ".join(f"\\multicolumn{{3}}{{c}}{{{label}}}" for _, label in SIGNIFICANCE_METRICS)
     rules = " ".join(f"\\cmidrule(lr){{{4 + 3 * i}-{6 + 3 * i}}}" for i in range(len(SIGNIFICANCE_METRICS)))
-    header = ["$\\beta$", "Ref.", "Method"] + ["$\\Delta$\\%", "$g$", "$p_{\\mathrm{Holm}}$"] * len(SIGNIFICANCE_METRICS)
-    caption = ("Learned schedulers vs. the best fixed period of the same beta (highest return): relative "
-               "difference of the means, Hedges' g, and Welch t-test p-values Holm-corrected over the 20 "
-               "comparisons of each metric (4 vs. 4 seeds). Exact Mann-Whitney p-values are in significance.csv.")
-    return _write(out, "significance", caption,
-                  booktabs(header, rows, "lll" + "rrr" * len(SIGNIFICANCE_METRICS), [f"& & & {groups} \\\\", rules]))
+    header = ["$\\beta$", "Ref.", "Method"] + ["$\\Delta$\\%", "$g$", "$p_{\\mathrm{Holm}}$"] * len(
+        SIGNIFICANCE_METRICS
+    )
+    caption = (
+        "Learned schedulers vs. the best fixed period of the same beta (highest return): relative "
+        "difference of the means, Hedges' g, and Welch t-test p-values Holm-corrected over the 20 "
+        "comparisons of each metric (4 vs. 4 seeds). Exact Mann-Whitney p-values are in significance.csv."
+    )
+    return _write(
+        out,
+        "significance",
+        caption,
+        booktabs(header, rows, "lll" + "rrr" * len(SIGNIFICANCE_METRICS), [f"& & & {groups} \\\\", rules]),
+    )
 
 
 GAIN_COLUMNS = ("error_at_ticks", "unstable_at_ticks", "rounds_at_error", "rounds_vs_fastest", "error_vs_fastest")
@@ -160,16 +186,24 @@ def frontier_gains_table(data: Dataset, out: Path) -> Path:
                 cells.append(format_interval(row["mean"], row.low, row.high, percent=True))
             rows.append(cells)
     header = ["$\\beta$", "Method", "Error red.", "Unstable red.", "Rounds saved", "Rounds saved", "Error red."]
-    preamble = ["& & \\multicolumn{2}{c}{At equal rounds} & At equal error & \\multicolumn{2}{c}{vs. 1 s period} \\\\",
-                "\\cmidrule(lr){3-4} \\cmidrule(lr){5-5} \\cmidrule(lr){6-7}"]
-    caption = ("Gains (%) over the fixed periods with 95% percentile-bootstrap intervals (resampling the seeds of "
-               "both groups). Matched-budget columns interpolate the 1-5 s frontier; '--': the error is below the "
-               "1 s schedule's, so no fixed period reaches it (see the vs. 1 s columns).")
+    preamble = [
+        "& & \\multicolumn{2}{c}{At equal rounds} & At equal error & \\multicolumn{2}{c}{vs. 1 s period} \\\\",
+        "\\cmidrule(lr){3-4} \\cmidrule(lr){5-5} \\cmidrule(lr){6-7}",
+    ]
+    caption = (
+        "Gains (%) over the fixed periods with 95% percentile-bootstrap intervals (resampling the seeds of "
+        "both groups). Matched-budget columns interpolate the 1-5 s frontier; '--': the error is below the "
+        "1 s schedule's, so no fixed period reaches it (see the vs. 1 s columns)."
+    )
     return _write(out, "frontier_gains", caption, booktabs(header, rows, "ll" + "r" * len(GAIN_COLUMNS), preamble))
 
 
-SWITCH_COLUMNS = (("steady_period", "Steady period (s)", 2), ("min_period", "Min. period (s)", 2),
-                  ("rate_ratio", "Rate ratio", 2), ("recovery_time", "Recovery (s)", 1))
+SWITCH_COLUMNS = (
+    ("steady_period", "Steady period (s)", 2),
+    ("min_period", "Min. period (s)", 2),
+    ("rate_ratio", "Rate ratio", 2),
+    ("recovery_time", "Recovery (s)", 1),
+)
 
 
 def switch_response_table(data: Dataset, out: Path) -> Path:
@@ -191,10 +225,12 @@ def switch_response_table(data: Dataset, out: Path) -> Path:
             cells.append(text + (f"$^{{{unrecovered}}}$" if unrecovered else ""))
         rows.append(cells)
     header = ["Scheduler", *[label for _, label, _ in SWITCH_COLUMNS]]
-    caption = (f"Reaction to the source switch in the final episode (beta = {config.FOCUS_WEIGHT:g}; mean $\\pm$ 95% "
-               "t-interval over 4 seeds): mean period before the switch (60-100 s), minimum period after it "
-               "(100-140 s), ratio of the network round rate after/before, and time until |mean g - mean g*| "
-               "stays below 1 m (superscript: seeds that never recovered within the episode, excluded).")
+    caption = (
+        f"Reaction to the source switch in the final episode (beta = {config.FOCUS_WEIGHT:g}; mean $\\pm$ 95% "
+        "t-interval over 4 seeds): mean period before the switch (60-100 s), minimum period after it "
+        "(100-140 s), ratio of the network round rate after/before, and time until |mean g - mean g*| "
+        "stays below 1 m (superscript: seeds that never recovered within the episode, excluded)."
+    )
     return _write(out, "switch_response", caption, booktabs(header, rows, "l" + "r" * len(SWITCH_COLUMNS)))
 
 
@@ -212,9 +248,11 @@ def generalization_table(data: Dataset, out: Path) -> Path:
         cells.append(format_interval(gap, np.nan, np.nan, percent=True))
         rows.append(cells)
     header = ["Method", *[config.PROGRAM_SHORT_LABELS[p] for p in programs], "Gap"]
-    caption = ("Zero-shot generalization (1 seed): error reduction (%) at equal rounds w.r.t. each program's "
-               "fixed-period frontier, averaged over the beta_in values inside the frontier's range; Gap = "
-               "gradient (training program) minus the mean over the three unseen programs.")
+    caption = (
+        "Zero-shot generalization (1 seed): error reduction (%) at equal rounds w.r.t. each program's "
+        "fixed-period frontier, averaged over the beta_in values inside the frontier's range; Gap = "
+        "gradient (training program) minus the mean over the three unseen programs."
+    )
     return _write(out, "generalization", caption, booktabs(header, rows, "l" + "r" * (len(programs) + 1)))
 
 
@@ -228,8 +266,10 @@ def seed_stability_table(data: Dataset, out: Path) -> Path:
             cells.append(f"${row.ticks_cv * 100:.0f}$ ({int(row.n_collapsed)}/{int(row.n)})")
         rows.append(cells)
     header = ["Method", *[f"$\\beta={w:g}$" for w in config.WEIGHTS]]
-    caption = ("Across-seed coefficient of variation of the rounds (%) and, in brackets, seeds whose policy "
-               "collapsed to the fastest schedule (>= 85% of the 1 s rounds).")
+    caption = (
+        "Across-seed coefficient of variation of the rounds (%) and, in brackets, seeds whose policy "
+        "collapsed to the fastest schedule (>= 85% of the 1 s rounds)."
+    )
     return _write(out, "seed_stability", caption, booktabs(header, rows, "l" + "r" * len(config.WEIGHTS)))
 
 
@@ -244,8 +284,15 @@ def _write_csvs(data: Dataset, out: Path) -> None:
     data.generalization_gains.to_csv(out / "generalization_gains.csv", index=False)
 
 
-TABLES = (learned_metrics_table, fixed_metrics_table, significance_table, frontier_gains_table,
-          switch_response_table, generalization_table, seed_stability_table)
+TABLES = (
+    learned_metrics_table,
+    fixed_metrics_table,
+    significance_table,
+    frontier_gains_table,
+    switch_response_table,
+    generalization_table,
+    seed_stability_table,
+)
 
 
 def write_tables(data: Dataset, out_dir: Path) -> list[Path]:
@@ -253,4 +300,3 @@ def write_tables(data: Dataset, out_dir: Path) -> list[Path]:
     out = out_dir / "tables"
     _write_csvs(data, out)
     return [table(data, out) for table in TABLES]
-

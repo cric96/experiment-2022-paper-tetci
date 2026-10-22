@@ -1,4 +1,5 @@
 """Figure families. Each module exposes ``FIGURES``: functions ``(data, out_dir) -> None``."""
+
 from __future__ import annotations
 
 from collections.abc import Callable

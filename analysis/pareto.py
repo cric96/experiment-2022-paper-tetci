@@ -5,6 +5,7 @@ episode (x, energy proxy) against error or unstable time (y). Linear
 interpolation between consecutive periods gives the frontier a fixed schedule
 can reach; no extrapolation is done beyond the 1 s and 5 s periods.
 """
+
 from __future__ import annotations
 
 import numpy as np

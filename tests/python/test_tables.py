@@ -1,4 +1,5 @@
 """Tests for the LaTeX table helpers."""
+
 import numpy as np
 
 from analysis.tables import booktabs, format_interval, format_mean_ci, format_p
@@ -40,5 +41,5 @@ def test_booktabs_wraps_rows_in_rules() -> None:
     assert lines[0] == "\\begin{tabular}{lr}"
     assert "\\toprule" in lines and "\\bottomrule" in lines
     assert lines[lines.index("\\toprule") + 1] == "A & B \\\\"
-    assert "\\midrule" in lines[lines.index("1 & 2 \\\\"):]
+    assert "\\midrule" in lines[lines.index("1 & 2 \\\\") :]
     assert lines[-1] == "\\end{tabular}"

@@ -1,4 +1,5 @@
 """Drawing helpers shared by several figure families."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -18,8 +19,16 @@ METRIC_LABELS = {
 }
 
 
-def mean_band(ax: Axes, x: np.ndarray, matrix: np.ndarray, color: str, label: str | None = None,
-              band: bool = True, nonnegative: bool = False, **line_kwargs) -> None:
+def mean_band(
+    ax: Axes,
+    x: np.ndarray,
+    matrix: np.ndarray,
+    color: str,
+    label: str | None = None,
+    band: bool = True,
+    nonnegative: bool = False,
+    **line_kwargs,
+) -> None:
     """Mean across seeds (rows of ``matrix``) with its 95 % t-interval as a band.
 
     ``nonnegative`` clips the band at zero for quantities that cannot be negative.
@@ -32,8 +41,16 @@ def mean_band(ax: Axes, x: np.ndarray, matrix: np.ndarray, color: str, label: st
         ax.fill_between(x, low, high, color=color, alpha=BAND_ALPHA, linewidth=0)
 
 
-def method_band(ax: Axes, x: np.ndarray, matrix: np.ndarray, method: Method, markevery: int | None = None,
-                band: bool = True, nonnegative: bool = False, **overrides) -> None:
+def method_band(
+    ax: Axes,
+    x: np.ndarray,
+    matrix: np.ndarray,
+    method: Method,
+    markevery: int | None = None,
+    band: bool = True,
+    nonnegative: bool = False,
+    **overrides,
+) -> None:
     """:func:`mean_band` in the method's colour and marker."""
     kwargs = style.line_style(method, **overrides)
     if markevery is not None:
@@ -56,8 +73,9 @@ def ci_of(values) -> Interval:
 def errorbar(ax: Axes, x: Interval, y: Interval, method: Method, **overrides) -> None:
     """A (x, y) point with 95 % intervals on both axes, in the method's style."""
     kwargs = style.line_style(method, linestyle="none", elinewidth=0.6, **overrides)
-    ax.errorbar(x.mean, y.mean, xerr=[[x.mean - x.low], [x.high - x.mean]],
-                yerr=[[y.mean - y.low], [y.high - y.mean]], **kwargs)
+    ax.errorbar(
+        x.mean, y.mean, xerr=[[x.mean - x.low], [x.high - x.mean]], yerr=[[y.mean - y.low], [y.high - y.mean]], **kwargs
+    )
 
 
 def thousands(ax: Axes, axis: str = "x") -> None:

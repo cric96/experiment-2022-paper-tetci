@@ -1,4 +1,5 @@
 """Evaluation-phase trade-offs: metrics vs. beta, Pareto fronts, gains, summary at one beta."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,7 +13,7 @@ from matplotlib.ticker import FuncFormatter, NullLocator, PercentFormatter
 from .. import config, style
 from ..data import select
 from ..dataset import Dataset
-from ..methods import FIXED, LEARNED, TD3BC, Method
+from ..methods import FIXED, LEARNED, TD3BC
 from ..results import FRONTIER_GAINS, fixed_frontier, fixed_runs
 from ..stats import t_interval
 from .common import METRIC_LABELS, ci_of, errorbar, thousands
@@ -50,6 +51,7 @@ def tradeoff_vs_beta(data: Dataset, out: Path) -> None:
 
 def _period_axis(ax) -> None:
     """Secondary top axis: the same rounds expressed as the mean wake-up period."""
+
     def to_period(x):  # its own inverse; clipped so matplotlib may probe 0 safely
         return config.ticks_to_mean_period(np.maximum(np.asarray(x, dtype=float), 1.0))
 
@@ -62,10 +64,13 @@ def _period_axis(ax) -> None:
 
 
 def _gain_callout(ax, ticks: float, value: float, frontier_value: float, gain: float) -> None:
-    ax.annotate("", xy=(ticks, value), xytext=(ticks, frontier_value),
-                arrowprops={"arrowstyle": "->", "color": style.INK_SECONDARY, "linewidth": 0.7})
-    style.direct_label(ax, ticks, (value + frontier_value) / 2, f"$-${gain:.0%}",
-                       dx=3, color=style.INK, fontsize=6.5)
+    ax.annotate(
+        "",
+        xy=(ticks, value),
+        xytext=(ticks, frontier_value),
+        arrowprops={"arrowstyle": "->", "color": style.INK_SECONDARY, "linewidth": 0.7},
+    )
+    style.direct_label(ax, ticks, (value + frontier_value) / 2, f"$-${gain:.0%}", dx=3, color=style.INK, fontsize=6.5)
 
 
 def pareto_frontiers(data: Dataset, out: Path) -> None:
@@ -91,8 +96,14 @@ def pareto_frontiers(data: Dataset, out: Path) -> None:
         ticks, value = runs.ticks.mean(), runs[metric].mean()
         gain = gains.loc[(ANNOTATED_METHOD.key, config.FOCUS_WEIGHT, gain_name), "mean"]
         _gain_callout(ax, ticks, value, value / (1 - gain), gain)
-        ax.text(0.02, 0.03, "learned: $\\beta$ = 0.5, 0.8, 0.95, 0.99, 1 from left to right",
-                transform=ax.transAxes, fontsize=6, color=style.INK_MUTED)
+        ax.text(
+            0.02,
+            0.03,
+            "learned: $\\beta$ = 0.5, 0.8, 0.95, 0.99, 1 from left to right",
+            transform=ax.transAxes,
+            fontsize=6,
+            color=style.INK_MUTED,
+        )
         ax.set_xscale("log")
         ax.set_xticks(PARETO_TICKS, [f"{t / 1000:g}k" for t in PARETO_TICKS])
         ax.xaxis.set_minor_locator(NullLocator())
@@ -109,7 +120,7 @@ def pareto_frontiers(data: Dataset, out: Path) -> None:
 def _gain_cell_text(mean: float, low: float, high: float) -> str:
     if np.isnan(mean):
         return "lower error\nthan 1 s"
-    return f"{mean:.0%}\n[{low:.0%}, {high:.0%}]"
+    return f"{mean:.0%}\n[{low:.0%}, {high:.0%}]".replace("-", "\u2212")  # typographic minus
 
 
 def frontier_gains_heatmap(data: Dataset, out: Path) -> None:
@@ -128,8 +139,17 @@ def frontier_gains_heatmap(data: Dataset, out: Path) -> None:
             if np.isnan(value):
                 ax.add_patch(Rectangle((c - 0.5, r - 0.5), 1, 1, color="#ececec", zorder=2))
             light = np.isnan(value) or abs(value) < 0.35
-            ax.text(c, r, _gain_cell_text(value, low[r, c], high[r, c]), ha="center", va="center", fontsize=5.5,
-                    color=style.INK if light else "white", zorder=3, linespacing=1.1)
+            ax.text(
+                c,
+                r,
+                _gain_cell_text(value, low[r, c], high[r, c]),
+                ha="center",
+                va="center",
+                fontsize=5.5,
+                color=style.INK if light else "white",
+                zorder=3,
+                linespacing=1.1,
+            )
         ax.set_xticks(range(len(config.WEIGHTS)), [f"{w:g}" for w in config.WEIGHTS])
         ax.set_yticks(range(len(rows)), [m.short for m in LEARNED])
         ax.set_xlabel("Trade-off weight $\\beta$")
@@ -163,13 +183,23 @@ def summary_beta095(data: Dataset, out: Path) -> None:
     rng = np.random.default_rng(config.RANDOM_SEED)
     fig, axes = style.figure("double", 1.9, 1, len(metrics), sharey=True)
     for ax, metric in zip(axes, metrics):
-        for y, (label, color, marker, runs) in zip(positions, rows):
+        for y, (_, color, marker, runs) in zip(positions, rows):
             values = runs[metric].to_numpy()
             jitter = rng.uniform(-0.12, 0.12, size=len(values))
             ax.scatter(values, y + jitter, s=7, facecolors="none", edgecolors=color, linewidths=0.6, zorder=2)
             ci = t_interval(values)
-            ax.errorbar(ci.mean, y, xerr=[[ci.mean - ci.low], [ci.high - ci.mean]], color=color, marker=marker,
-                        markersize=3.5, markeredgecolor="white", markeredgewidth=0.4, elinewidth=0.9, zorder=3)
+            ax.errorbar(
+                ci.mean,
+                y,
+                xerr=[[ci.mean - ci.low], [ci.high - ci.mean]],
+                color=color,
+                marker=marker,
+                markersize=3.5,
+                markeredgecolor="white",
+                markeredgewidth=0.4,
+                elinewidth=0.9,
+                zorder=3,
+            )
         ax.set_xlabel(METRIC_LABELS[metric])
         if metric == "ticks":
             thousands(ax, "x")

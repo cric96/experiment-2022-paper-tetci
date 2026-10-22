@@ -1,4 +1,5 @@
 """Tests for the derived results (best baseline, collapse detection, switch response)."""
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -12,7 +13,9 @@ def _fixed_summary() -> pd.DataFrame:
     for weight, rewards in {0.5: {1.0: -78.0, 3.0: -6.0, 5.0: -8.0}, 1.0: {1.0: -1.0, 3.0: -4.0, 5.0: -12.0}}.items():
         for period, reward in rewards.items():
             for seed in (1, 2):
-                rows.append({"method": "fixed", "weight": weight, "period": period, "seed": seed, "reward": reward + seed * 0.1})
+                rows.append(
+                    {"method": "fixed", "weight": weight, "period": period, "seed": seed, "reward": reward + seed * 0.1}
+                )
     return pd.DataFrame(rows)
 
 

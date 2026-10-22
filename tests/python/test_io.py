@@ -1,4 +1,5 @@
 """Tests for the Alchemist CSV parser."""
+
 from pathlib import Path
 
 import numpy as np

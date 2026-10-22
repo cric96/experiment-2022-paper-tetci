@@ -1,4 +1,5 @@
 """Intra-episode dynamics of the final (evaluation) episode around the source switch."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -39,8 +40,9 @@ def source_switch_dynamics(data: Dataset, out: Path) -> None:
     for method, traces in configurations:
         seed = traces[traces.seed == SHOWN_SEED]
         gradient_ax.plot(ZOOM_GRID, np.interp(ZOOM_GRID, seed.t, seed.gradient_mean), color=method.color, linewidth=1.0)
-        method_band(deviation_ax, ZOOM_GRID, _matrix(traces, "deviation", ZOOM_GRID), method, markevery=6,
-                    nonnegative=True)
+        method_band(
+            deviation_ax, ZOOM_GRID, _matrix(traces, "deviation", ZOOM_GRID), method, markevery=6, nonnegative=True
+        )
         method_band(period_ax, ZOOM_GRID, _matrix(traces, "wakeup", ZOOM_GRID), method, markevery=6)
     for period in REFERENCE_PERIODS:
         traces = select(data.traces, FIXED.key, weight=weight, period=period)
@@ -50,8 +52,14 @@ def source_switch_dynamics(data: Dataset, out: Path) -> None:
         period_ax.plot(ZOOM_GRID, np.full_like(ZOOM_GRID, period), **_fixed_style(period))
     truth = select(data.traces, TD3BC.key, weight=weight)
     truth = truth[truth.seed == SHOWN_SEED]
-    gradient_ax.plot(ZOOM_GRID, np.interp(ZOOM_GRID, truth.t, truth.truth_mean), color=style.INK, linestyle=":",
-                     linewidth=1.1, zorder=5)
+    gradient_ax.plot(
+        ZOOM_GRID,
+        np.interp(ZOOM_GRID, truth.t, truth.truth_mean),
+        color=style.INK,
+        linestyle=":",
+        linewidth=1.1,
+        zorder=5,
+    )
     gradient_ax.set_ylabel(f"Mean gradient (m)\nseed {SHOWN_SEED}")
     deviation_ax.set_ylabel(DEVIATION_LABEL)
     period_ax.set_ylabel(PERIOD_LABEL)
@@ -76,8 +84,14 @@ def beta_effect_intra_episode(data: Dataset, out: Path) -> None:
         traces = select(data.traces, TD3BC.key, weight=weight)
         color = style.BETA_COLORS[weight]
         mean_band(period_ax, EPISODE_GRID, _matrix(traces, "wakeup", EPISODE_GRID), color, f"{weight:g}", linewidth=1.0)
-        mean_band(deviation_ax, EPISODE_GRID, _matrix(traces, "deviation", EPISODE_GRID), color, linewidth=1.0,
-                  nonnegative=True)
+        mean_band(
+            deviation_ax,
+            EPISODE_GRID,
+            _matrix(traces, "deviation", EPISODE_GRID),
+            color,
+            linewidth=1.0,
+            nonnegative=True,
+        )
     period_ax.set_ylabel(PERIOD_LABEL)
     period_ax.set_ylim(0.8, 5.2)
     deviation_ax.set_ylabel(DEVIATION_LABEL)

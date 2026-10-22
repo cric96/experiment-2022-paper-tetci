@@ -11,6 +11,7 @@
   single-hue ramps for beta and the fixed periods; single-hue sequential maps
   for magnitudes and a blue-red diverging map for signed quantities.
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
@@ -40,7 +41,6 @@ PHASE_SHADE = "#f2f2ef"
 # Ordinal ramps (validated: monotone lightness, >= 2:1 light end on white).
 BETA_COLORS = dict(zip(config.WEIGHTS, ("#fd9344", "#f36f1a", "#dd4d04", "#ae3903", "#852904")))
 REGIME_GREYS = ("#afafaf", "#7b7b7b", "#4a4a4a", "#0e0e0e")
-
 
 
 def _single_hue(name: str, start: float = 0.22) -> mpl.colors.Colormap:
@@ -108,7 +108,9 @@ def apply() -> None:
     mpl.rcParams.update(PAPER_RC)
 
 
-def figure(width: str = "double", height: float = 2.2, nrows: int = 1, ncols: int = 1, **kwargs) -> tuple[Figure, object]:
+def figure(
+    width: str = "double", height: float = 2.2, nrows: int = 1, ncols: int = 1, **kwargs
+) -> tuple[Figure, object]:
     """Create a figure ``single`` (3.5 in) or ``double`` (7.16 in) column wide."""
     inches = {"single": SINGLE_COLUMN_IN, "double": DOUBLE_COLUMN_IN}[width]
     return plt.subplots(nrows, ncols, figsize=(inches, height), **kwargs)
@@ -131,6 +133,7 @@ def save(fig: Figure, out_dir: Path, name: str) -> list[Path]:
 
 
 # --- method-level drawing helpers --------------------------------------------
+
 
 def line_style(method: Method, **overrides) -> dict:
     """Keyword arguments for ``plot``/``errorbar`` lines of a method."""
@@ -183,7 +186,9 @@ def direct_label(ax: Axes, x: float, y: float, text: str, dx: float = 3, dy: flo
     ax.annotate(text, (x, y), xytext=(dx, dy), textcoords="offset points", **kwargs)
 
 
-def label_fixed_periods(ax: Axes, xs: Iterable[float], ys: Iterable[float], periods: Iterable[float], dx: float = 3, dy: float = 2) -> None:
+def label_fixed_periods(
+    ax: Axes, xs: Iterable[float], ys: Iterable[float], periods: Iterable[float], dx: float = 3, dy: float = 2
+) -> None:
     for x, y, period in zip(xs, ys, periods):
         direct_label(ax, x, y, f"{period:g} s", dx=dx, dy=dy, va="bottom")
 
@@ -201,8 +206,16 @@ def mark_source_switch(ax: Axes, label: bool = False, label_y: float = 0.97) -> 
     """Dotted vertical line at the source switch; ``label_y`` in axes fraction."""
     ax.axvline(config.SOURCE_SWITCH_S, color=INK_MUTED, linewidth=0.7, linestyle=":", zorder=1)
     if label:
-        ax.text(config.SOURCE_SWITCH_S, label_y, " source moves", transform=ax.get_xaxis_transform(),
-                fontsize=6, color=INK_MUTED, va="top" if label_y > 0.5 else "bottom", ha="left")
+        ax.text(
+            config.SOURCE_SWITCH_S,
+            label_y,
+            " source moves",
+            transform=ax.get_xaxis_transform(),
+            fontsize=6,
+            color=INK_MUTED,
+            va="top" if label_y > 0.5 else "bottom",
+            ha="left",
+        )
 
 
 def panel_label(ax: Axes, letter: str) -> None:

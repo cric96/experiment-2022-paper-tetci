@@ -7,6 +7,7 @@ broadcast, collect). beta-conditioned policies are queried with beta_in
 so there are no across-seed intervals: whiskers show the range over the
 evaluation episodes of each point.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -34,8 +35,9 @@ def _evaluation(data: Dataset) -> pd.DataFrame:
     return table[table.episode.isin(config.EVAL_EPISODES)]
 
 
-def _episodes(data: Dataset, program: str, method: str, period: float | None = None,
-              beta_in: float | None = None) -> pd.DataFrame:
+def _episodes(
+    data: Dataset, program: str, method: str, period: float | None = None, beta_in: float | None = None
+) -> pd.DataFrame:
     """Evaluation episodes of one configuration (beta_in None: all of them)."""
     rows = _evaluation(data)
     rows = rows[(rows.program == program) & (rows.method == method)]
@@ -48,10 +50,19 @@ def _episodes(data: Dataset, program: str, method: str, period: float | None = N
 
 def _overview_entries() -> list[tuple[str, str, str, str, float | None, float | None]]:
     """(label, color, marker, method key, period, beta_in) of each overview point, left to right."""
-    entries = [(f"Fixed {p:g} s", style.fixed_period_color(p), FIXED.marker, FIXED.key, p, None)
-               for p in OVERVIEW_PERIODS]
-    entries.append((f"{HEURISTIC.label} ($\\beta_{{in}}$ = {HEURISTIC_BETA:g})", HEURISTIC.color, HEURISTIC.marker,
-                    HEURISTIC.key, None, HEURISTIC_BETA))
+    entries = [
+        (f"Fixed {p:g} s", style.fixed_period_color(p), FIXED.marker, FIXED.key, p, None) for p in OVERVIEW_PERIODS
+    ]
+    entries.append(
+        (
+            f"{HEURISTIC.label} ($\\beta_{{in}}$ = {HEURISTIC_BETA:g})",
+            HEURISTIC.color,
+            HEURISTIC.marker,
+            HEURISTIC.key,
+            None,
+            HEURISTIC_BETA,
+        )
+    )
     for method in LEARNED:
         beta = None if method is QLEARNING else LEARNED_BETA
         suffix = "" if beta is None else f" ($\\beta_{{in}}$ = {beta:g})"
@@ -76,9 +87,17 @@ def generalization_overview(data: Dataset, out: Path) -> None:
                     values = values / reference * 100.0
                 x = position + (index - (len(entries) - 1) / 2) * width
                 ax.plot([x, x], [values.min(), values.max()], color=color, linewidth=0.6)
-                ax.plot(x, values.mean(), marker=marker, color=color, markersize=3.6 * (1.3 if marker == "*" else 1),
-                        markeredgecolor="white", markeredgewidth=0.3, linestyle="none",
-                        label=label if position == 0 else None)
+                ax.plot(
+                    x,
+                    values.mean(),
+                    marker=marker,
+                    color=color,
+                    markersize=3.6 * (1.3 if marker == "*" else 1),
+                    markeredgecolor="white",
+                    markeredgewidth=0.3,
+                    linestyle="none",
+                    label=label if position == 0 else None,
+                )
         ax.set_xticks(range(len(PROGRAMS)), [config.PROGRAM_SHORT_LABELS[p] for p in PROGRAMS])
         ax.set_ylabel(labels[metric])
         ax.grid(axis="x", visible=False)

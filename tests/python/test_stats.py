@@ -1,4 +1,5 @@
 """Tests for confidence intervals, significance tests and effect sizes."""
+
 import numpy as np
 import pandas as pd
 import pytest

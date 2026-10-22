@@ -7,6 +7,7 @@ Usage:
 Outputs (in --out): <figure>.pdf/.png, spatial_wave_animation.gif, tables/*.tex (+ CSV), summary.md.
 The analysis code lives in the ``analysis`` package.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -25,12 +26,22 @@ ANIMATIONS = {"spatial_wave_animation"}
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     figures = [f.__name__ for f in all_figures()]
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--exports", type=Path, default=config.DEFAULT_EXPORTS_DIR,
-                        help="Alchemist export directory (default: %(default)s)")
-    parser.add_argument("--out", type=Path, default=config.DEFAULT_OUTPUT_DIR,
-                        help="output directory (default: %(default)s)")
-    parser.add_argument("--only", nargs="+", choices=figures, metavar="NAME",
-                        help=f"render only these figures (skips tables and summary); one of: {', '.join(figures)}")
+    parser.add_argument(
+        "--exports",
+        type=Path,
+        default=config.DEFAULT_EXPORTS_DIR,
+        help="Alchemist export directory (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--out", type=Path, default=config.DEFAULT_OUTPUT_DIR, help="output directory (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--only",
+        nargs="+",
+        choices=figures,
+        metavar="NAME",
+        help=f"render only these figures (skips tables and summary); one of: {', '.join(figures)}",
+    )
     parser.add_argument("--no-animation", action="store_true", help="skip the (slow) GIF animation")
     parser.add_argument("--strict", action="store_true", help="turn every warning into an error")
     return parser.parse_args(argv)

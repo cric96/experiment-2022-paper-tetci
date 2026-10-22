@@ -6,6 +6,7 @@ critic value ``qValue``, a physical ``regime`` label and finite-difference
 sensitivities ``sens_*``) and ``embeddings/surface_weight-<beta>.csv`` (policy
 output on a grid of self / neighbour change intensities).
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -98,30 +99,50 @@ def policy_embeddings(data: Dataset, out: Path) -> None:
     regime_ax, period_ax, value_ax = axes
     for (key, (label, marker)), color in zip(REGIMES.items(), style.REGIME_GREYS):
         rows = frame.regime.to_numpy() == key
-        regime_ax.scatter(scores[rows, 0], scores[rows, 1], s=6, marker=marker, color=color, label=label,
-                          linewidths=0, alpha=0.8)
+        regime_ax.scatter(
+            scores[rows, 0], scores[rows, 1], s=6, marker=marker, color=color, label=label, linewidths=0, alpha=0.8
+        )
     # Biplot: one arrow per feature, pointing along its correlation with (PC1, PC2).
-    loadings = {key: [np.corrcoef(frame[key], scores[:, k])[0, 1] for k in (0, 1)]
-                for key in BIPLOT_FEATURES if frame[key].std() > 1e-6}
+    loadings = {
+        key: [np.corrcoef(frame[key], scores[:, k])[0, 1] for k in (0, 1)]
+        for key in BIPLOT_FEATURES
+        if frame[key].std() > 1e-6
+    }
     longest = max(np.hypot(*v) for v in loadings.values())
     reach = 0.9 * np.abs(scores).max(axis=0) / longest
     for key, (cx, cy) in loadings.items():
         dx, dy = cx * reach[0], cy * reach[1]
-        regime_ax.annotate("", xy=(dx, dy), xytext=(0, 0),
-                           arrowprops={"arrowstyle": "->", "color": style.INK, "linewidth": 0.7})
-        regime_ax.text(dx, dy, f" {BIPLOT_FEATURES[key]} ", fontsize=5.5, color=style.INK,
-                       ha="left" if dx >= 0 else "right", va="bottom" if dy >= 0 else "top",
-                       bbox={"boxstyle": "round,pad=0.05", "facecolor": "white", "edgecolor": "none", "alpha": 0.8})
-    regime_ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=2, fontsize=6, markerscale=1.8,
-                     handletextpad=0.2, columnspacing=0.8)
+        regime_ax.annotate(
+            "", xy=(dx, dy), xytext=(0, 0), arrowprops={"arrowstyle": "->", "color": style.INK, "linewidth": 0.7}
+        )
+        regime_ax.text(
+            dx,
+            dy,
+            f" {BIPLOT_FEATURES[key]} ",
+            fontsize=5.5,
+            color=style.INK,
+            ha="left" if dx >= 0 else "right",
+            va="bottom" if dy >= 0 else "top",
+            bbox={"boxstyle": "round,pad=0.05", "facecolor": "white", "edgecolor": "none", "alpha": 0.8},
+        )
+    regime_ax.legend(
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.22),
+        ncol=2,
+        fontsize=6,
+        markerscale=1.8,
+        handletextpad=0.2,
+        columnspacing=0.8,
+    )
     for ax in (regime_ax, period_ax):
         ax.set_xlabel(f"PC1 ({explained[0]:.0%} var.)")
         ax.set_ylabel(f"PC2 ({explained[1]:.0%} var.)")
     points = period_ax.scatter(scores[:, 0], scores[:, 1], c=frame.predDt, cmap=style.SEQUENTIAL, s=5, linewidths=0)
     _scatter_colorbar(fig, period_ax, points, "Predicted period (s)")
     kernel_scores = rbf_kernel_pca(_hidden(frame))
-    points = value_ax.scatter(kernel_scores[:, 0], kernel_scores[:, 1], c=frame.qValue, cmap=style.SEQUENTIAL_3,
-                              s=5, linewidths=0)
+    points = value_ax.scatter(
+        kernel_scores[:, 0], kernel_scores[:, 1], c=frame.qValue, cmap=style.SEQUENTIAL_3, s=5, linewidths=0
+    )
     _scatter_colorbar(fig, value_ax, points, "Critic value $Q(s, \\pi(s))$")
     value_ax.set_xlabel("RBF kernel PC1")
     value_ax.set_ylabel("RBF kernel PC2")
@@ -133,9 +154,7 @@ def policy_embeddings(data: Dataset, out: Path) -> None:
 
 def feature_attribution(frame: pd.DataFrame) -> pd.Series:
     """Share (%) of each input in the policy output: mean |d pi / d x| scaled by the feature spread."""
-    impact = pd.Series(
-        {key: frame[f"sens_{key}"].mean() * max(MIN_FEATURE_STD, frame[key].std()) for key in FEATURES}
-    )
+    impact = pd.Series({key: frame[f"sens_{key}"].mean() * max(MIN_FEATURE_STD, frame[key].std()) for key in FEATURES})
     return impact / impact.sum() * 100.0
 
 
@@ -157,8 +176,13 @@ def policy_explanation(data: Dataset, out: Path) -> None:
     height = 0.8 / len(ATTRIBUTION_BETAS)
     for index, beta in enumerate(ATTRIBUTION_BETAS):
         shares = feature_attribution(_embeddings(data, beta))
-        attribution_ax.barh(positions + (1 - index) * height, shares.to_numpy(), height=height * 0.9,
-                            color=style.BETA_COLORS[beta], label=f"$\\beta$ = {beta:g}")
+        attribution_ax.barh(
+            positions + (1 - index) * height,
+            shares.to_numpy(),
+            height=height * 0.9,
+            color=style.BETA_COLORS[beta],
+            label=f"$\\beta$ = {beta:g}",
+        )
     attribution_ax.set_yticks(positions, list(FEATURES.values()))
     attribution_ax.set_xlabel("Share of policy sensitivity (%)")
     attribution_ax.grid(axis="y", visible=False)

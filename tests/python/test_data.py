@@ -1,4 +1,5 @@
 """Tests for the tidy tables built from raw Alchemist runs."""
+
 from pathlib import Path
 
 import numpy as np

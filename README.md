@@ -31,3 +31,17 @@ In this scenario, the global program shared consists in computing the gradient o
 The source node change its value after 100 seconds (the total time is 200 seconds).
 The initial source is selected randomly.
 
+
+## Charts, tables and statistics
+`plotter.py` turns the Alchemist exports in `build/exports` into the paper figures (vector PDF + PNG),
+LaTeX `booktabs` tables (`charts/tables/*.tex`, with CSV copies) and a generated `charts/summary.md`:
+
+```bash
+uv venv --python 3.13 .venv && uv pip install --python .venv/bin/python -r requirements.txt
+.venv/bin/python plotter.py --exports build/exports --out charts     # add --strict to fail on any warning
+.venv/bin/python -m pytest                                           # tests of the analysis helpers
+```
+
+The code lives in the `analysis` package: `io` (Alchemist CSV parser), `data`/`dataset` (tidy tables),
+`stats` and `pareto` (intervals, tests, frontier comparisons), `results`, `style` (IEEE paper style and
+the per-method colours/markers), `figures/*` (one module per figure family), `tables` and `report`.

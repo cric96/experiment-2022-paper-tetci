@@ -12,6 +12,7 @@ Metric names (Alchemist column -> tidy name):
     accumulatedUnstableTime[mean]  -> unstable  per-node time (s) spent with a changing output
     accumulatedError[mean]         -> error     per-node time-integral of the normalised error (s)
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
@@ -103,7 +104,9 @@ def final_episode_trace(run: AlchemistRun) -> pd.DataFrame:
     """
     data = run.data
     start = config.FINAL_EPISODE_START_S
-    in_episode = (data.time >= start + config.EPISODE_RESET_DELAY_S) & (data.time <= start + config.EPISODE_LENGTH_S + 0.5)
+    in_episode = (data.time >= start + config.EPISODE_RESET_DELAY_S) & (
+        data.time <= start + config.EPISODE_LENGTH_S + 0.5
+    )
     window = data[in_episode]
     gradient_mean = window["localComputation[sum]"].to_numpy() / config.N_NODES
     truth_mean = window["groundTruth[sum]"].to_numpy() / config.N_NODES
@@ -153,4 +156,3 @@ def select(frame: pd.DataFrame, method: str, weight: float | None = None, period
 def traces_by_seed(traces: pd.DataFrame) -> list[pd.DataFrame]:
     """Split a long trace table into one frame per seed."""
     return [group for _, group in traces.groupby("seed", sort=True)]
-

@@ -5,6 +5,7 @@ Data: ``spatial/gnn_spatiotemporal_embeddings.csv`` -- every 1 s between 85 s an
 period, the coordinates of its most-attended neighbour and 16 embedding
 dimensions ``h_*``.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,7 +14,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from matplotlib.colors import TwoSlopeNorm
-from matplotlib.lines import Line2D
 from scipy import stats as sps
 
 from .. import config, style
@@ -95,14 +95,44 @@ def gnn_attention_filmstrip(data: Dataset, out: Path) -> None:
     fig, axes = style.figure("double", 1.85, 1, len(FILM_TIMES_S), sharex=True, sharey=True)
     for ax, t in zip(axes, FILM_TIMES_S):
         nodes = _at(frame, t)
-        points = ax.scatter(nodes.x, nodes.y, c=nodes.pc1.clip(norm.vmin, norm.vmax), cmap=style.DIVERGING,
-                            norm=norm, s=12, linewidths=0.2, edgecolors=style.INK_MUTED, zorder=3)
-        ax.quiver(nodes.x, nodes.y, (nodes.bestNbrX - nodes.x) * ARROW_SHRINK, (nodes.bestNbrY - nodes.y) * ARROW_SHRINK,
-                  angles="xy", scale_units="xy", scale=1.0, color=style.INK_SECONDARY, width=0.006,
-                  headwidth=3.5, headlength=4, zorder=2)
+        points = ax.scatter(
+            nodes.x,
+            nodes.y,
+            c=nodes.pc1.clip(norm.vmin, norm.vmax),
+            cmap=style.DIVERGING,
+            norm=norm,
+            s=12,
+            linewidths=0.2,
+            edgecolors=style.INK_MUTED,
+            zorder=3,
+        )
+        ax.quiver(
+            nodes.x,
+            nodes.y,
+            (nodes.bestNbrX - nodes.x) * ARROW_SHRINK,
+            (nodes.bestNbrY - nodes.y) * ARROW_SHRINK,
+            angles="xy",
+            scale_units="xy",
+            scale=1.0,
+            color=style.INK_SECONDARY,
+            width=0.006,
+            headwidth=3.5,
+            headlength=4,
+            zorder=2,
+        )
         sources = nodes[nodes.isSource > 0.5]
-        ax.plot(sources.x, sources.y, marker="*", markersize=8, color=style.INK, markeredgecolor="white",
-                markeredgewidth=0.6, linestyle="none", zorder=5, clip_on=False)
+        ax.plot(
+            sources.x,
+            sources.y,
+            marker="*",
+            markersize=8,
+            color=style.INK,
+            markeredgecolor="white",
+            markeredgewidth=0.6,
+            linestyle="none",
+            zorder=5,
+            clip_on=False,
+        )
         ax.set_title(f"$t$ = {t:g} s")
         ax.set_aspect("equal")
         ax.grid(False)
@@ -131,12 +161,24 @@ def gnn_latent_dynamics(data: Dataset, out: Path) -> None:
     grid = window.pivot_table(index="bin", columns="tEp", values="pc1", aggfunc="mean")
     grid = grid.reindex(index=range(len(DISTANCE_BINS_M) - 1))
     norm = _pc1_norm(frame)
-    image = space_ax.imshow(grid.to_numpy(), aspect="auto", origin="lower", cmap=style.DIVERGING, norm=norm,
-                            extent=[times[0], times[-1], DISTANCE_BINS_M[0], DISTANCE_BINS_M[-1]])
+    image = space_ax.imshow(
+        grid.to_numpy(),
+        aspect="auto",
+        origin="lower",
+        cmap=style.DIVERGING,
+        norm=norm,
+        extent=[times[0], times[-1], DISTANCE_BINS_M[0], DISTANCE_BINS_M[-1]],
+    )
     front = wave_front(frame)
     front_times = np.array([front.onset, front.onset + DISTANCE_BINS_M[-1] / front.speed])
-    space_ax.plot(front_times, (front_times - front.onset) * front.speed, color=style.INK, linestyle="--",
-                  linewidth=0.8, label=f"front {front.speed:.1f} m/s\n[{front.low:.1f}, {front.high:.1f}]")
+    space_ax.plot(
+        front_times,
+        (front_times - front.onset) * front.speed,
+        color=style.INK,
+        linestyle="--",
+        linewidth=0.8,
+        label=f"front {front.speed:.1f} m/s\n[{front.low:.1f}, {front.high:.1f}]",
+    )
     space_ax.set_xlim(times[0], times[-1])
     space_ax.legend(loc="lower right", fontsize=6, handlelength=1.2)
     space_ax.set_xlabel("Time (s)")
@@ -145,10 +187,21 @@ def gnn_latent_dynamics(data: Dataset, out: Path) -> None:
     _pc1_colorbar(fig, image, space_ax, norm, fraction=0.05, pad=0.02)
 
     zones = (
-        (f"< {ZONE_RADIUS_M:g} m from new source", window.to_new < ZONE_RADIUS_M, {"color": style.INK, "linestyle": "-"}),
-        (f"< {ZONE_RADIUS_M:g} m from old source", window.to_old < ZONE_RADIUS_M, {"color": style.INK, "linestyle": "--"}),
-        ("elsewhere", (window.to_new >= ZONE_RADIUS_M) & (window.to_old >= ZONE_RADIUS_M),
-         {"color": style.INK_MUTED, "linestyle": "-"}),
+        (
+            f"< {ZONE_RADIUS_M:g} m from new source",
+            window.to_new < ZONE_RADIUS_M,
+            {"color": style.INK, "linestyle": "-"},
+        ),
+        (
+            f"< {ZONE_RADIUS_M:g} m from old source",
+            window.to_old < ZONE_RADIUS_M,
+            {"color": style.INK, "linestyle": "--"},
+        ),
+        (
+            "elsewhere",
+            (window.to_new >= ZONE_RADIUS_M) & (window.to_old >= ZONE_RADIUS_M),
+            {"color": style.INK_MUTED, "linestyle": "-"},
+        ),
     )
     for label, mask, line in zones:
         series = window[mask].groupby("tEp").pc1.mean()
@@ -161,12 +214,12 @@ def gnn_latent_dynamics(data: Dataset, out: Path) -> None:
 
     orbit = window.groupby("tEp")[["pc1", "pc2", "nextWakeUp"]].mean()
     orbit_ax.plot(orbit.pc1, orbit.pc2, color=style.INK_MUTED, linewidth=0.6, zorder=1)
-    points = orbit_ax.scatter(orbit.pc1, orbit.pc2, c=orbit.nextWakeUp, cmap=style.SEQUENTIAL, s=10, zorder=2,
-                              linewidths=0)
+    points = orbit_ax.scatter(
+        orbit.pc1, orbit.pc2, c=orbit.nextWakeUp, cmap=style.SEQUENTIAL, s=10, zorder=2, linewidths=0
+    )
     for t in ORBIT_LABEL_TIMES_S:
         nearest = orbit.index[np.argmin(np.abs(orbit.index - t))]
-        style.direct_label(orbit_ax, orbit.pc1[nearest], orbit.pc2[nearest], f"{nearest:g} s", dx=3, dy=3,
-                           fontsize=5.5)
+        style.direct_label(orbit_ax, orbit.pc1[nearest], orbit.pc2[nearest], f"{nearest:g} s", dx=3, dy=3, fontsize=5.5)
     steady = orbit.loc[orbit.index <= config.SOURCE_SWITCH_S]
     style.direct_label(orbit_ax, steady.pc1.mean(), steady.pc2.mean(), "steady state", dx=2, dy=9, fontsize=5.5)
     orbit_ax.set_xlabel("Network-mean PC1")

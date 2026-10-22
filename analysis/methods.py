@@ -6,6 +6,7 @@ palette, validated for colour-vision deficiencies on a white page (worst
 all-pairs deutan Delta E 7.6, hence the mandatory secondary encoding: one
 marker per method).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

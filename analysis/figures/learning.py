@@ -1,4 +1,5 @@
 """Learning curves: per-episode metrics during training and evaluation."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -49,8 +50,9 @@ def learning_curves_reward(data: Dataset, out: Path) -> None:
         _episode_axis(ax)
     axes[0].set_ylabel(METRIC_LABELS["reward"])
     handles = [style.legend_handle(m) for m in LEARNED]
-    handles.append(Line2D([], [], color=style.fixed_period_color(3.0), linestyle="--", linewidth=0.8,
-                            label="Best fixed period"))
+    handles.append(
+        Line2D([], [], color=style.fixed_period_color(3.0), linestyle="--", linewidth=0.8, label="Best fixed period")
+    )
     style.figure_legend(fig, handles, ncol=len(handles))
     style.save(fig, out, "learning_curves_reward")
 
@@ -76,8 +78,11 @@ def learning_curves_metrics(data: Dataset, out: Path) -> None:
             if row == len(METRIC_WEIGHTS) - 1:
                 ax.set_xlabel("Episode")
     handles = [style.legend_handle(m) for m in LEARNED]
-    handles.append(Line2D([], [], color=style.fixed_period_color(3.0), linestyle="--", linewidth=0.8,
-                            label="Fixed period (1, 3, 5 s)"))
+    handles.append(
+        Line2D(
+            [], [], color=style.fixed_period_color(3.0), linestyle="--", linewidth=0.8, label="Fixed period (1, 3, 5 s)"
+        )
+    )
     style.figure_legend(fig, handles, ncol=len(handles))
     style.save(fig, out, "learning_curves_metrics")
 

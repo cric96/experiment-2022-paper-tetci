@@ -1,8 +1,15 @@
 """Tests for the comparisons against the fixed-period frontier."""
+
 import numpy as np
 import pytest
 
-from analysis.pareto import frontier_ticks_at, frontier_value_at, matched_error_saving, matched_ticks_gain, non_dominated
+from analysis.pareto import (
+    frontier_ticks_at,
+    frontier_value_at,
+    matched_error_saving,
+    matched_ticks_gain,
+    non_dominated,
+)
 
 # A fixed-period curve: more rounds -> less error (as in the experiments).
 TICKS = np.array([4000.0, 5000.0, 6700.0, 10000.0, 19900.0])

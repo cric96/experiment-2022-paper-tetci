@@ -3,6 +3,7 @@
 All functions take the tidy tables of :mod:`analysis.data` and return
 DataFrames, so that every number appears once and is reused everywhere.
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -26,6 +27,7 @@ COMPARED_METRICS = ("reward", "error", "ticks", "unstable")
 
 
 # --- fixed-period baselines ---------------------------------------------------
+
 
 def fixed_runs(evaluation: pd.DataFrame, weight: float = config.FOCUS_WEIGHT) -> pd.DataFrame:
     """Per-seed evaluation rows of the fixed baselines.
@@ -56,6 +58,7 @@ def best_fixed_period(evaluation: pd.DataFrame, weight: float) -> float:
 
 
 # --- learned methods ------------------------------------------------------------
+
 
 def metric_table(evaluation: pd.DataFrame) -> pd.DataFrame:
     """Mean, t-interval, sd and n of every metric per (method, weight, period)."""
@@ -161,8 +164,17 @@ def frontier_gains(evaluation: pd.DataFrame) -> pd.DataFrame:
                 "error_vs_fastest": bootstrap_two_sample(runs.error, fastest.error, relative_change),
             }
             for name, ci in intervals.items():
-                rows.append({"method": method.key, "weight": weight, "gain": name,
-                             "mean": ci.mean, "low": ci.low, "high": ci.high, "n": ci.n})
+                rows.append(
+                    {
+                        "method": method.key,
+                        "weight": weight,
+                        "gain": name,
+                        "mean": ci.mean,
+                        "low": ci.low,
+                        "high": ci.high,
+                        "n": ci.n,
+                    }
+                )
     return pd.DataFrame(rows)
 
 
@@ -191,6 +203,7 @@ def stability(evaluation: pd.DataFrame) -> pd.DataFrame:
 
 
 # --- reaction to the source switch (final episode) ----------------------------
+
 
 def _window(trace: pd.DataFrame, window: tuple[float, float]) -> pd.DataFrame:
     return trace[(trace.t >= window[0]) & (trace.t < window[1])]
@@ -232,6 +245,7 @@ def switch_responses(traces: pd.DataFrame, weight: float = config.FOCUS_WEIGHT) 
 
 
 # --- generalization -------------------------------------------------------------
+
 
 def generalization_points(generalization: pd.DataFrame) -> pd.DataFrame:
     """Evaluation means per (program, method, period, beta_in).

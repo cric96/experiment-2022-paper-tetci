@@ -3,7 +3,7 @@ package it.unibo.learning.encoding
 import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.AgentState
 import it.unibo.learning.abstractions.AgentState.{NeighborInfo, Snapshot}
-import it.unibo.learning.encoding.NeighbourhoodSignals._
+import it.unibo.learning.encoding.NeighbourhoodSignals.*
 
 /** Star-graph encoder for the EdgeGAT networks: the ego node features followed by one slot of features for each of the
   * `MaxNeighbors` nearest neighbours (padded with idle slots).
@@ -79,12 +79,12 @@ object StarGraph {
   }
 
   private def edgeDrift(now: Double, before: Double, reference: Reference): Double =
-    if (reference.ownNow.isFinite && reference.ownBefore.isFinite) {
+    if reference.ownNow.isFinite && reference.ownBefore.isFinite then {
       math.tanh(math.abs((reference.ownNow - now) - (reference.ownBefore - before)) / reference.scale)
     } else {
       0.0
     }
 
   private def relativeOrder(now: Double, reference: Reference): Double =
-    if (reference.ownNow.isFinite) math.tanh((now - reference.ownNow) / reference.scale) else 0.0
+    if reference.ownNow.isFinite then math.tanh((now - reference.ownNow) / reference.scale) else 0.0
 }

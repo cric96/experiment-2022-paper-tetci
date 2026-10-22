@@ -6,7 +6,7 @@ import org.scalatest.matchers.should.Matchers
 
 import java.io.File
 import java.nio.file.Files
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.*
 
 class AttentionSnapshotRecorderSpec extends AnyFlatSpec with Matchers {
   "The attention snapshots" should "not be written before something is recorded" in {

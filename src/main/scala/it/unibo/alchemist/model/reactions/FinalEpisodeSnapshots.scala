@@ -30,7 +30,7 @@ final class FinalEpisodeSnapshots[T, P <: Position[P]](
 
   /** Called by the central agent at every step. */
   def observe(time: Double): Unit =
-    if (learningInfo.randomSeed == InspectedRun) {
+    if learningInfo.randomSeed == InspectedRun then {
       learner match {
         case _: OfflineLearnerContinuous => observeNodes(time - episodeStart)
         case graphLearner: OfflineLearnerGNN => observeAttention(graphLearner, time - episodeStart)
@@ -39,14 +39,14 @@ final class FinalEpisodeSnapshots[T, P <: Position[P]](
     }
 
   private def observeNodes(timeInEpisode: Double): Unit =
-    if (SpatialWindow.contains(timeInEpisode) && SpatialWeights.exists(isWeight(weightOr(NoWeight), _))) {
+    if SpatialWindow.contains(timeInEpisode) && SpatialWeights.exists(isWeight(weightOr(NoWeight), _)) then {
       spatialRecorder.record(timeInEpisode, nodes.map(viewOf), links)
-      if (timeInEpisode >= SpatialWindow.flushFrom) spatialRecorder.flush()
+      if timeInEpisode >= SpatialWindow.flushFrom then spatialRecorder.flush()
     }
 
   private def observeAttention(graphLearner: OfflineLearnerGNN, timeInEpisode: Double): Unit = {
     val weight = weightOr(AttentionWeight)
-    if (isWeight(weight, AttentionWeight) && AttentionWindow.contains(timeInEpisode)) {
+    if isWeight(weight, AttentionWeight) && AttentionWindow.contains(timeInEpisode) then {
       val positions = nodes.map(node => node.getId -> coordinatesOf(node)).toMap
       nodes.foreach { node =>
         stateOf(node).foreach { state =>
@@ -56,7 +56,7 @@ final class FinalEpisodeSnapshots[T, P <: Position[P]](
           attentionRecorder.record(timeInEpisode, viewOf(node), summary, inspection.embedding)
         }
       }
-      if (timeInEpisode >= AttentionWindow.flushFrom) attentionRecorder.flush()
+      if timeInEpisode >= AttentionWindow.flushFrom then attentionRecorder.flush()
     }
   }
 

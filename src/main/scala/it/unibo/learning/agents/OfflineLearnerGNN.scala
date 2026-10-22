@@ -5,12 +5,12 @@ import ai.djl.ndarray.{NDArray, NDManager}
 import ai.djl.nn.Activation
 import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.{AgentState, Trajectory}
-import it.unibo.learning.agents.OfflineLearnerGNN._
+import it.unibo.learning.agents.OfflineLearnerGNN.*
 import it.unibo.learning.agents.offline.BatchTensors.{column, rows}
-import it.unibo.learning.agents.offline._
+import it.unibo.learning.agents.offline.*
 import it.unibo.learning.encoding.StarGraph
 import it.unibo.learning.network.{EdgeGATBlock, MinMaxActionScaler, TorchNetwork}
-import it.unibo.learning.network.NDArrayOps._
+import it.unibo.learning.network.NDArrayOps.*
 
 /** Offline actor-critic on the node's star graph: an edge-conditioned graph-attention actor (EdgeGAT) and twin
   * multi-objective critics that predict [Q_convergence, Q_energy], scalarized with the objective weights of each
@@ -88,7 +88,7 @@ final class OfflineLearnerGNN(
   override def policy: AgentState => Double = policyForWeight(weight)
 
   override def policyForWeight(customWeight: Double): AgentState => Double = { state =>
-    if (random.nextDouble() < schedule.epsilonAt(currentEpisode)) {
+    if random.nextDouble() < schedule.epsilonAt(currentEpisode) then {
       min + random.nextDouble() * (max - min)
     } else {
       actionScaler.unscale(fastActor(StarGraph.encode(state, customWeight, max)).toDouble)

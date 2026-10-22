@@ -14,12 +14,12 @@ final case class TrainingSchedule(
   def isExploring(episode: Int): Boolean = episode < explorationEpisodes
 
   def epsilonAt(episode: Int): Double =
-    if (isExploring(episode)) initialEpsilon - initialEpsilon * episode.toDouble / explorationEpisodes.toDouble
+    if isExploring(episode) then initialEpsilon - initialEpsilon * episode.toDouble / explorationEpisodes.toDouble
     else 0.0
 
   /** The number of gradient steps to perform at the end of `episode`, if the learner still trains. */
   def trainingStepsAfter(episode: Int): Option[Int] =
-    if (isExploring(episode)) Some(stepsPerEpisode)
+    if isExploring(episode) then Some(stepsPerEpisode)
     else Option.when(episode == explorationEpisodes)(stepsPerEpisode * finalTrainingMultiplier)
 }
 

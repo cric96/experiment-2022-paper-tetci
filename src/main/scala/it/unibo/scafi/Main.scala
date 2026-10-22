@@ -55,7 +55,7 @@ class Main
 
   private def broadcast(isSource: Boolean): Double = {
     val potential = classicGradient(isSource)
-    val payload = if (isSource) BuildingBlock.Broadcast.payloadOf(mid()) else 0.0
+    val payload = if isSource then BuildingBlock.Broadcast.payloadOf(mid()) else 0.0
     rep(payload) { value =>
       mux(potential == 0.0)(payload) {
         excludingSelf.minHoodSelector[Double, Double](nbr(potential) + nbrRange())(nbr(value)).getOrElse(payload)
@@ -101,7 +101,7 @@ class Main
     val block = activeBlock
     val groundTruth = centralAgent.groundTruth(mid(), block)
     node.put(Sensors.accumulatedReward, accumulated(reward))
-    node.put(Sensors.accumulatedUnstableTime, accumulated(if (hasChanged(output)) elapsedTime else 0.0))
+    node.put(Sensors.accumulatedUnstableTime, accumulated(if hasChanged(output) then elapsedTime else 0.0))
     node.put(Sensors.accumulatedError, accumulated(block.normalizedError(output, groundTruth) * elapsedTime))
     node.put(Sensors.groundTruth, groundTruth)
     node.put(Sensors.error, block.absoluteError(output, groundTruth))

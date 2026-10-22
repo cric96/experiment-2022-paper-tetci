@@ -35,7 +35,7 @@ abstract class EpisodicOfflineLearner[T](
   override def endEpisode(trajectories: Seq[Trajectory]): Unit = {
     schedule.trainingStepsAfter(episode).foreach { steps =>
       trajectories.foreach(record)
-      if (!transitions.isEmpty) {
+      if !transitions.isEmpty then {
         train(steps)
         onTrained()
       }

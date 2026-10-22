@@ -14,7 +14,7 @@ object TemporalInfo {
       .sliding(2, 1)
       .toList
       .map(x =>
-        if (x.size == 1) { 0.0 }
+        if x.size == 1 then { 0.0 }
         else { (x.last - x.head).sign }
       )
 }

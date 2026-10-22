@@ -11,9 +11,9 @@ final class ReplayBuffer(capacity: Int, random: Random) {
   private var writePosition: Int = 0
 
   def put(stateT: AgentState, actionT: Int, trueAction: Double, rewardTPlus: Double, stateTPlus: AgentState): Unit =
-    if (capacity > 0) {
+    if capacity > 0 then {
       val experience = Experience(stateT, actionT, trueAction, rewardTPlus, stateTPlus)
-      if (buffer.size < capacity) {
+      if buffer.size < capacity then {
         buffer += experience
       } else {
         buffer(writePosition) = experience
@@ -23,8 +23,8 @@ final class ReplayBuffer(capacity: Int, random: Random) {
 
   /** Samples `batchSize` distinct experiences uniformly (all of them, shuffled, if the buffer is smaller). */
   def sample(batchSize: Int): Seq[Experience] =
-    if (buffer.isEmpty || batchSize <= 0) Seq.empty
-    else if (batchSize >= buffer.size) random.shuffle(buffer.toSeq)
+    if buffer.isEmpty || batchSize <= 0 then Seq.empty
+    else if batchSize >= buffer.size then random.shuffle(buffer.toSeq)
     else Iterator.continually(random.nextInt(buffer.size)).distinct.take(batchSize).map(buffer).toSeq
 
   def totalSize: Int = buffer.size

@@ -1,6 +1,6 @@
 package it.unibo.learning.encoding
 
-import it.unibo.testing.AgentStates._
+import it.unibo.testing.AgentStates.*
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 

@@ -2,7 +2,7 @@ package it.unibo.learning.encoding
 
 import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.AgentState
-import it.unibo.learning.encoding.NeighbourhoodSignals._
+import it.unibo.learning.encoding.NeighbourhoodSignals.*
 
 /** Spatial-temporal encoder with topological role and trade-off conditioning. Features, all in [−1, 1]:
   *   - 0: latest trend of the node's output (−1, 0, +1)

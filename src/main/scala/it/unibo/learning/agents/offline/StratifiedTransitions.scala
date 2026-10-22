@@ -11,7 +11,7 @@ final class StratifiedTransitions[T] {
   private val stable: ArrayBuffer[T] = ArrayBuffer.empty
 
   def add(transition: T, isUnstable: Boolean): Unit =
-    if (isUnstable) unstable += transition else stable += transition
+    if isUnstable then unstable += transition else stable += transition
 
   def size: Int = unstable.size + stable.size
 
@@ -21,8 +21,8 @@ final class StratifiedTransitions[T] {
     * batch from the only non-empty regime).
     */
   def sample(batchSize: Int, random: Random): Vector[T] =
-    if (unstable.isEmpty) draw(stable, batchSize, random)
-    else if (stable.isEmpty) draw(unstable, batchSize, random)
+    if unstable.isEmpty then draw(stable, batchSize, random)
+    else if stable.isEmpty then draw(unstable, batchSize, random)
     else {
       val unstableHalf = draw(unstable, batchSize / 2, random)
       unstableHalf ++ draw(stable, batchSize - batchSize / 2, random)

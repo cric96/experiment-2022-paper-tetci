@@ -4,7 +4,7 @@ import ai.djl.ndarray.types.Shape
 import ai.djl.ndarray.{NDArray, NDManager}
 import ai.djl.nn.Block
 import it.unibo.learning.TradeOff
-import it.unibo.learning.agents.offline.ActorInspection._
+import it.unibo.learning.agents.offline.ActorInspection.*
 import it.unibo.learning.network.{MinMaxActionScaler, TorchNetwork}
 import it.unibo.util.Csv
 
@@ -25,7 +25,7 @@ final class ActorInspection(
   private val rootManager: NDManager = NDManager.newBaseManager()
 
   def save(states: Vector[Array[Float]], weight: Double): Unit =
-    if (states.nonEmpty) {
+    if states.nonEmpty then {
       TorchNetwork.withSubManager(rootManager) { manager =>
         exportEmbeddings(states, weight, manager)
         exportSurface(weight, manager)

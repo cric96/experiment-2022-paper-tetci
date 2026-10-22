@@ -5,7 +5,7 @@ import org.scalatest.matchers.should.Matchers
 
 import java.nio.file.Files
 import java.util.Locale
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.*
 
 class CsvSpec extends AnyFlatSpec with Matchers {
 

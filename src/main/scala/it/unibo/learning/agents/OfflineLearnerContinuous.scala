@@ -4,12 +4,12 @@ import ai.djl.ndarray.{NDArray, NDManager}
 import ai.djl.nn.{Activation, SequentialBlock}
 import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.{AgentState, Trajectory}
-import it.unibo.learning.agents.OfflineLearnerContinuous._
+import it.unibo.learning.agents.OfflineLearnerContinuous.*
 import it.unibo.learning.agents.offline.BatchTensors.{column, rows}
-import it.unibo.learning.agents.offline._
+import it.unibo.learning.agents.offline.*
 import it.unibo.learning.encoding.SpatialTemporal
 import it.unibo.learning.network.{MinMaxActionScaler, TorchNetwork}
-import it.unibo.learning.network.NDArrayOps._
+import it.unibo.learning.network.NDArrayOps.*
 
 import java.io.File
 
@@ -67,7 +67,7 @@ final class OfflineLearnerContinuous(
   override def policy: AgentState => Double = policyForWeight(weight)
 
   override def policyForWeight(customWeight: Double): AgentState => Double = { state =>
-    if (random.nextDouble() < schedule.epsilonAt(currentEpisode)) {
+    if random.nextDouble() < schedule.epsilonAt(currentEpisode) then {
       min + random.nextDouble() * (max - min)
     } else {
       actionScaler.unscale(fastActor(SpatialTemporal.encode(state, customWeight, max))(0).toDouble)
@@ -121,7 +121,7 @@ final class OfflineLearnerContinuous(
 
   override protected def onTrained(): Unit = {
     fastActor = actor.snapshotFastMLP(useTanh = true)
-    if (currentEpisode == explorationEpisodes && math.abs(randomKey - InspectedRun) < RunTolerance) {
+    if currentEpisode == explorationEpisodes && math.abs(randomKey - InspectedRun) < RunTolerance then {
       new ActorInspection(actor, critic1, actionScaler, stateDim, inspectionDirectory)
         .save(transitions.oldest(ActorInspection.SamplesPerRegime).map(_.state), weight)
     }

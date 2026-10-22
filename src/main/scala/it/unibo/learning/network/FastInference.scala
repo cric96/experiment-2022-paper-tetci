@@ -3,7 +3,7 @@ package it.unibo.learning.network
 import ai.djl.nn.Block
 import ai.djl.nn.core.Linear
 
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.*
 
 /** Forward passes re-implemented on a snapshot of the network parameters. Policies are evaluated by every node in every
   * round: going through DJL for single samples is slow and serialized, so the nodes use these lock-free
@@ -18,15 +18,15 @@ object FastInference {
     def apply(input: Array[Float], relu: Boolean): Array[Float] = {
       val output = new Array[Float](outputs)
       var unit = 0
-      while (unit < outputs) {
+      while unit < outputs do {
         var sum = bias(unit)
         val row = unit * inputs
         var feature = 0
-        while (feature < inputs) {
+        while feature < inputs do {
           sum += weights(row + feature) * input(feature)
           feature += 1
         }
-        output(unit) = if (relu && sum < 0.0f) 0.0f else sum
+        output(unit) = if relu && sum < 0.0f then 0.0f else sum
         unit += 1
       }
       output
@@ -53,7 +53,7 @@ object FastInference {
   def mlp(layers: Seq[DenseLayer], tanhOutput: Boolean): Array[Float] => Array[Float] = { input =>
     val hidden = layers.init.foldLeft(input)((activation, layer) => layer(activation, relu = true))
     val output = layers.last(hidden, relu = false)
-    if (tanhOutput) output.map(value => math.tanh(value.toDouble).toFloat) else output
+    if tanhOutput then output.map(value => math.tanh(value.toDouble).toFloat) else output
   }
 
   /** Numerically stable softmax, in single precision. */

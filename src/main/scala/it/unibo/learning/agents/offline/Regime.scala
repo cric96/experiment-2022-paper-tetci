@@ -43,9 +43,9 @@ object Regime {
       features(Feature.ChangedRatio) > ChangedRatioThreshold ||
       features(Feature.Residual) > ResidualThreshold
     val isBackbone = features(Feature.ChildrenRatio) > BackboneThreshold
-    if (isHit && isBackbone) BackboneWave
-    else if (isHit) LeafWave
-    else if (isWarned) NeighbourEarlyWarning
+    if isHit && isBackbone then BackboneWave
+    else if isHit then LeafWave
+    else if isWarned then NeighbourEarlyWarning
     else SteadyState
   }
 }

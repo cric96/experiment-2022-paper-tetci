@@ -12,7 +12,7 @@ object EvaluationProtocol {
   def isTraining(episode: Int): Boolean = episode < TrainingEpisodes
 
   def blockAt(episode: Int, target: BuildingBlock): BuildingBlock =
-    if (isTraining(episode)) BuildingBlock.Gradient else target
+    if isTraining(episode) then BuildingBlock.Gradient else target
 
   /** The trade-off weight under evaluation in `episode`, once training is over. */
   def evaluationWeightAt(episode: Int): Option[Double] =

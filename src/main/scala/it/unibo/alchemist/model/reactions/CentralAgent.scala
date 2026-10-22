@@ -41,16 +41,16 @@ final class CentralAgent[T, P <: Position[P]](
 
   override protected def react(): Unit = {
     val now = environment.getSimulation.getTime
-    if (steps > 0) { // the first step happens at the very beginning, before any round
+    if steps > 0 then { // the first step happens at the very beginning, before any round
       trainOnline()
-      if (steps % learningInfo.episodeSize == 0) endEpisode()
+      if steps % learningInfo.episodeSize == 0 then endEpisode()
     }
     steps += 1
     snapshots.observe(now.toDouble)
   }
 
   private def trainOnline(): Unit =
-    if (memory.totalSize >= learningInfo.batchSize) learner.update(memory.sample(learningInfo.batchSize))
+    if memory.totalSize >= learningInfo.batchSize then learner.update(memory.sample(learningInfo.batchSize))
 
   private def endEpisode(): Unit = {
     learner.endEpisode(agents.map(_.valueOf[Queue[Step]](Sensors.experiences).getOrElse(Queue.empty)))

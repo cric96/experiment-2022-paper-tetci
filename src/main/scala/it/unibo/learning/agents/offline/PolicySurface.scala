@@ -24,15 +24,15 @@ object PolicySurface {
   val IdleNeighbourPeriod: Float = 0.8f
 
   final case class SurfacePoint(selfChange: Float, neighbourChange: Float, childrenRatio: Float) {
-    def latestTrend: Float = if (selfChange > ActivityThreshold) 1.0f else 0.0f
+    def latestTrend: Float = if selfChange > ActivityThreshold then 1.0f else 0.0f
 
     def changedRatio: Float =
-      if (neighbourChange > ActivityThreshold) math.min(1.0f, neighbourChange * ChangedRatioPerChange) else 0.0f
+      if neighbourChange > ActivityThreshold then math.min(1.0f, neighbourChange * ChangedRatioPerChange) else 0.0f
 
     def residual: Float = neighbourChange * ResidualPerChange
 
     def shortestNeighbourPeriod: Float =
-      if (neighbourChange > BusyNeighbourhoodThreshold) BusyNeighbourPeriod else IdleNeighbourPeriod
+      if neighbourChange > BusyNeighbourhoodThreshold then BusyNeighbourPeriod else IdleNeighbourPeriod
 
     /** The spatial-temporal features of the point (the previous trend is always stable). */
     def features(betaFeature: Float): Array[Float] =

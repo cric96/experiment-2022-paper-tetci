@@ -13,7 +13,7 @@ import ai.djl.training.tracker.Tracker
 import ai.djl.training.{DefaultTrainingConfig, ParameterStore, Trainer}
 import it.unibo.learning.network.TorchNetwork.serialized
 
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.*
 import scala.util.Using
 
 /** A trainable DJL (PyTorch) network made of `block`, optimized with Adam and gradient clipping. All the DJL calls go
@@ -52,7 +52,7 @@ final class TorchNetwork[+B <: Block](
   def manager: NDManager = trainer.getManager
 
   def forward(input: NDArray, training: Boolean = false): NDArray = serialized {
-    if (training) trainer.forward(new NDList(input)).singletonOrThrow()
+    if training then trainer.forward(new NDList(input)).singletonOrThrow()
     else trainer.evaluate(new NDList(input)).singletonOrThrow()
   }
 

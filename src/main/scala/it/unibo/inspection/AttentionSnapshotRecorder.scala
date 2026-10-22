@@ -1,6 +1,6 @@
 package it.unibo.inspection
 
-import it.unibo.inspection.AttentionSnapshotRecorder._
+import it.unibo.inspection.AttentionSnapshotRecorder.*
 import it.unibo.util.Csv
 
 import java.io.File
@@ -15,7 +15,7 @@ final class AttentionSnapshotRecorder(directory: File) {
       embedding.take(EmbeddingUnits).map(Csv.number(_, EmbeddingDecimals))
 
   /** Writes the file, if something has been recorded. */
-  def flush(): Unit = if (rows.nonEmpty) Csv.write(directory, FileName, Header, rows)
+  def flush(): Unit = if rows.nonEmpty then Csv.write(directory, FileName, Header, rows)
 
   private def summaryColumns(summary: AttentionSummary): Seq[String] =
     Seq(

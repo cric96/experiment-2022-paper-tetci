@@ -5,7 +5,7 @@ import org.scalatest.matchers.should.Matchers
 
 import java.io.File
 import java.nio.file.Files
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.*
 
 class SpatialSnapshotRecorderSpec extends AnyFlatSpec with Matchers {
   private def linesOf(directory: File, name: String): Seq[String] =

@@ -1,6 +1,6 @@
 package it.unibo.inspection
 
-import it.unibo.inspection.NodeView._
+import it.unibo.inspection.NodeView.*
 import it.unibo.util.Csv
 
 /** What the snapshot exporters record of a node at a given time. */
@@ -25,7 +25,7 @@ final case class NodeView(
     id.toString,
     Csv.number(x, CoordinateDecimals),
     Csv.number(y, CoordinateDecimals),
-    if (isSource) "1" else "0",
+    if isSource then "1" else "0",
     Csv.number(boundedOutput, ValueDecimals),
     Csv.number(boundedGroundTruth, ValueDecimals),
     Csv.number(period, PeriodDecimals),
@@ -45,7 +45,7 @@ object NodeView {
   /** Header of [[NodeView.columns]]. */
   val Header: Seq[String] = Seq("nodeId", "x", "y", "isSource", "gradient", "groundTruth", "nextWakeUp", "error")
 
-  private def bounded(value: Double): Double = if (value.isFinite) value else UnboundedOutput
+  private def bounded(value: Double): Double = if value.isFinite then value else UnboundedOutput
 }
 
 /** A link of the network between two nodes, with their positions. */

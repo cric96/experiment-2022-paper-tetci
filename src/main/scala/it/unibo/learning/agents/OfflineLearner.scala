@@ -5,12 +5,12 @@ import ai.djl.nn.SequentialBlock
 import ai.djl.training.loss.Loss
 import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.{AgentState, Trajectory}
-import it.unibo.learning.agents.OfflineLearner._
+import it.unibo.learning.agents.OfflineLearner.*
 import it.unibo.learning.agents.offline.BatchTensors.{column, indexColumn, rows}
-import it.unibo.learning.agents.offline._
+import it.unibo.learning.agents.offline.*
 import it.unibo.learning.encoding.SpatialTemporal
 import it.unibo.learning.network.{FastInference, TorchNetwork}
-import it.unibo.learning.network.NDArrayOps._
+import it.unibo.learning.network.NDArrayOps.*
 
 /** Discrete Batch-Constrained Q-Learning (BCQ) over the spatial-temporal state, conditioned on the trade-off weight β:
   * a Q network chooses among the actions that an imitation network deems likely enough under the logged behaviour.
@@ -59,7 +59,7 @@ final class OfflineLearner(
   override def policyForWeight(customWeight: Double): AgentState => Double = { state =>
     val isRandom = schedule.isExploring(currentEpisode) && random.nextDouble() < schedule.epsilonAt(currentEpisode)
     val action =
-      if (isRandom) random.nextInt(actionSpace.size)
+      if isRandom then random.nextInt(actionSpace.size)
       else bcqAction(SpatialTemporal.encode(state, customWeight, maxAction))
     actionSpace(action)
   }

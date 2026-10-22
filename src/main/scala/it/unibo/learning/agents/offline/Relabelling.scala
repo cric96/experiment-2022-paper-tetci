@@ -23,7 +23,7 @@ final case class RelabelledStep(
 ) {
   def isUnstable: Boolean = intensity > 0.0
 
-  def terminalFlag: Float = if (isTerminal) 1.0f else 0.0f
+  def terminalFlag: Float = if isTerminal then 1.0f else 0.0f
 }
 
 /** Hindsight relabelling of the trajectories collected with one trade-off weight for many others. */
@@ -53,7 +53,7 @@ object Relabelling {
     val states = trajectory.map(step => encode(step.state)).toIndexedSeq
     trajectory.zipWithIndex.flatMap { case (step, index) =>
       val isTerminal = index == trajectory.size - 1
-      val nextState = if (isTerminal) states(index) else states(index + 1)
+      val nextState = if isTerminal then states(index) else states(index + 1)
       val intensity = InstabilityIntensity.of(step.state)
       val discount = math.pow(gamma, math.max(MinDiscountPeriod, step.action)).toFloat
       targetWeights(ownWeight).map { beta =>

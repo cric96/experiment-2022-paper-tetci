@@ -11,8 +11,8 @@ sealed abstract class BuildingBlock(val name: String, val code: Int, val errorSc
 
   /** How far `output` is from `groundTruth`: zero if both are unbounded, the whole `errorScale` if only one is. */
   def absoluteError(output: Double, groundTruth: Double): Double =
-    if (output.isFinite && groundTruth.isFinite) math.abs(output - groundTruth)
-    else if (!output.isFinite && !groundTruth.isFinite) 0.0
+    if output.isFinite && groundTruth.isFinite then math.abs(output - groundTruth)
+    else if !output.isFinite && !groundTruth.isFinite then 0.0
     else errorScale
 
   /** The absolute error relative to the scale of the block's outputs, saturated at one. */

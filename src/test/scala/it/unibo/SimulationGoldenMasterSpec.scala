@@ -79,7 +79,7 @@ class SimulationGoldenMasterSpec extends AnyFlatSpec with Matchers {
   scenarios.foreach { case (yaml, variables, expected) =>
     val behaviour = yaml should "keep its observable dynamics"
     def check(): Unit = Simulations.run(yaml, variables, checkpoints) shouldBe expected
-    if (neuralScenarios.contains(yaml)) behaviour taggedAs PyTorchNumerics in check() else behaviour in check()
+    if neuralScenarios.contains(yaml) then behaviour taggedAs PyTorchNumerics in check() else behaviour in check()
   }
 
   /** After the training episodes, the generalization scenario switches to its target program and cycles β. */

@@ -1,7 +1,7 @@
 package it.unibo.learning.encoding
 
 import it.unibo.learning.abstractions.AgentState
-import it.unibo.learning.encoding.NeighbourhoodSignals._
+import it.unibo.learning.encoding.NeighbourhoodSignals.*
 import it.unibo.util.TemporalInfo
 
 /** How urgently a node should run its next round, I(s) ∈ [0, 1]: maximal when its own output just changed, partial (and
@@ -35,10 +35,10 @@ object InstabilityIntensity {
     val ownTrends = TemporalInfo.computeDeltaTrend(state.ownOutputs.takeRight(OwnHistoryLength))
     val roleMultiplier = LeafRoleMultiplier + BackboneRoleBonus * downstreamChildrenRatio(state)
     val intensity =
-      if (ownTrends.takeRight(RecentTrends).exists(_ != 0.0)) {
+      if ownTrends.takeRight(RecentTrends).exists(_ != 0.0) then {
         1.0
       } else {
-        neighbourhoodSignal(state).fold(if (ownTrends.exists(_ != 0.0)) Cooldown * roleMultiplier else 0.0) { signal =>
+        neighbourhoodSignal(state).fold(if ownTrends.exists(_ != 0.0) then Cooldown * roleMultiplier else 0.0) { signal =>
           math.min(1.0, math.max(NeighbourhoodFloor, signal) * roleMultiplier)
         }
       }

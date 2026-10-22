@@ -127,7 +127,7 @@ final case class FastEdgeGAT(
   def output(graph: Array[Float]): Float = {
     val (embedding, _) = embeddingAndAttention(graph)
     val value = readoutLayers.last(embedding, relu = false)(0)
-    if (tanhOutput) math.tanh(value.toDouble).toFloat else value
+    if tanhOutput then math.tanh(value.toDouble).toFloat else value
   }
 
   private def messageOf(ego: Array[Float], graph: Array[Float], slot: Int): Array[Float] = {
@@ -142,6 +142,6 @@ final case class FastEdgeGAT(
 
   private def maxPooling(messages: Seq[Array[Float]]): Array[Float] =
     Array.tabulate(messages.head.length) { unit =>
-      messages.foldLeft(Float.NegativeInfinity)((max, message) => if (message(unit) > max) message(unit) else max)
+      messages.foldLeft(Float.NegativeInfinity)((max, message) => if message(unit) > max then message(unit) else max)
     }
 }

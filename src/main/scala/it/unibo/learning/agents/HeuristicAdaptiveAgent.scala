@@ -2,7 +2,7 @@ package it.unibo.learning.agents
 
 import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.AgentState
-import it.unibo.learning.agents.HeuristicAdaptiveAgent._
+import it.unibo.learning.agents.HeuristicAdaptiveAgent.*
 import it.unibo.util.TemporalInfo
 
 /** Hand-crafted adaptive baseline (local trend thresholding): a node wakes up fast as soon as its own output changes,
@@ -17,8 +17,8 @@ final class HeuristicAdaptiveAgent(actionSpace: Seq[Double], weight: Double = De
 
   override def policyForWeight(customWeight: Double): AgentState => Double = { state =>
     val trends = TemporalInfo.computeDeltaTrend(state.ownOutputs.takeRight(HistoryLength))
-    if (trends.lastOption.exists(_ != 0.0)) fastPeriod(customWeight)
-    else if (trends.exists(_ != 0.0)) (fastPeriod(customWeight) + steadyPeriod(customWeight)) * RampFactor
+    if trends.lastOption.exists(_ != 0.0) then fastPeriod(customWeight)
+    else if trends.exists(_ != 0.0) then (fastPeriod(customWeight) + steadyPeriod(customWeight)) * RampFactor
     else steadyPeriod(customWeight)
   }
 

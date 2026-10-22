@@ -37,7 +37,7 @@ abstract class AbstractGlobalReaction[T, P <: Position[P]](
 
   private def scheduleAfter(currentTime: Time): Unit = {
     val start = AbstractGlobalReaction.startOf(distribution)
-    val from = if (currentTime.compareTo(start) > 0) currentTime else start
+    val from = if currentTime.compareTo(start) > 0 then currentTime else start
     setNextOccurrence(from.plus(distribution.sample()))
   }
 

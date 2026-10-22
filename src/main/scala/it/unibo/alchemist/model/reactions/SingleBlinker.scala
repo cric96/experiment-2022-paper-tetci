@@ -38,7 +38,7 @@ final class SingleBlinker[T, P <: Position[P]](
     val origin = environment.getCurrentPosition(source)
     def distance(node: Node[T]): Double = environment.getCurrentPosition(node).distanceTo(origin)
     val candidates = agents.filter(distance(_) > minimumDistance)
-    if (candidates.nonEmpty) Some(candidates(choices.nextInt(candidates.size)))
+    if candidates.nonEmpty then Some(candidates(choices.nextInt(candidates.size)))
     else agents.maxByOption(distance)(Ordering.Double.TotalOrdering)
   }
 

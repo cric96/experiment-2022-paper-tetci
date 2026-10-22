@@ -13,15 +13,15 @@ object GroundTruth {
   def shortestPaths(topology: Topology, sources: Set[Int]): Map[Int, Double] = {
     val queue = mutable.PriorityQueue.empty[(Double, Int)](using Ordering.by[(Double, Int), Double](-_._1))
     @tailrec def settle(distances: Map[Int, Double]): Map[Int, Double] =
-      if (queue.isEmpty) {
+      if queue.isEmpty then {
         distances
       } else {
         val (distance, node) = queue.dequeue()
-        if (distance > distanceOf(distances, node)) settle(distances)
+        if distance > distanceOf(distances, node) then settle(distances)
         else
           settle(topology.neighboursOf(node).foldLeft(distances) { case (current, (neighbour, length)) =>
             val candidate = distance + length
-            if (candidate < distanceOf(current, neighbour)) {
+            if candidate < distanceOf(current, neighbour) then {
               queue.enqueue((candidate, neighbour))
               current.updated(neighbour, candidate)
             } else {
@@ -52,7 +52,7 @@ object GroundTruth {
     * the parent of a node is its neighbour with the lowest potential (then the lowest id).
     */
   def collectCounts(topology: Topology, potentials: Map[Int, Double]): Map[Int, Double] =
-    if (potentials.isEmpty) {
+    if potentials.isEmpty then {
       Map.empty
     } else {
       val potential = distanceOf(potentials, _: Int)

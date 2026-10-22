@@ -2,7 +2,7 @@ package it.unibo.learning.agents
 
 import it.unibo.learning.abstractions.ReplayBuffer.Experience
 import it.unibo.learning.abstractions.{AgentState, DecayReference, Trajectory}
-import it.unibo.learning.agents.QLearning._
+import it.unibo.learning.agents.QLearning.*
 import it.unibo.util.TemporalInfo
 
 import scala.util.Random
@@ -23,7 +23,7 @@ final class QLearning(
 
   def encodeState(state: AgentState): QState = {
     val ownTrends = TemporalInfo.computeDeltaTrend(state.ownOutputs.takeRight(HistoryLength))
-    ownTrends :+ (if (anyNeighbourChanged(state)) 1.0 else 0.0)
+    ownTrends :+ (if anyNeighbourChanged(state) then 1.0 else 0.0)
   }
 
   private def anyNeighbourChanged(state: AgentState): Boolean =
@@ -32,7 +32,7 @@ final class QLearning(
     }
 
   override def policy: AgentState => Double = { state =>
-    if (random.nextDouble() < epsilon.value) actionSpace(random.nextInt(actionSpace.size))
+    if random.nextDouble() < epsilon.value then actionSpace(random.nextInt(actionSpace.size))
     else actionSpace(greedyAction(encodeState(state)))
   }
 
@@ -45,7 +45,7 @@ final class QLearning(
   }
 
   override def update(batch: Seq[Experience]): Unit =
-    if (episodes <= LearningEpisodes) {
+    if episodes <= LearningEpisodes then {
       batch.filter(experience => actionSpace.indices.contains(experience.actionT)).foreach(learnFrom)
     }
 

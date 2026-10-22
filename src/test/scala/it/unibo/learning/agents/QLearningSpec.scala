@@ -1,7 +1,7 @@
 package it.unibo.learning.agents
 
 import it.unibo.learning.abstractions.{DecayReference, ReplayBuffer}
-import it.unibo.testing.AgentStates._
+import it.unibo.testing.AgentStates.*
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 

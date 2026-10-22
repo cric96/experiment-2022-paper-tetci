@@ -41,19 +41,20 @@ object NeighbourhoodSignals {
   private def isPlausible(output: Double): Boolean = output.isFinite && math.abs(output) < MaxPlausibleOutput
 
   /** `output` itself if finite, otherwise a value [[UnboundedChangeInScales]] local scales large. */
-  def bounded(output: Double, scale: Double): Double = if (output.isFinite) output else scale * UnboundedChangeInScales
+  def bounded(output: Double, scale: Double): Double =
+    if output.isFinite then output else scale * UnboundedChangeInScales
 
   /** Magnitude of the last change of the node's own output, in [0, 1]. */
   def selfChangeMagnitude(state: AgentState, scale: Double): Double = {
     val recent = state.ownOutputs.takeRight(2).replaceInfinite()
-    if (recent.size >= 2) math.tanh(math.abs(recent.last - recent.head) / scale) else 0.0
+    if recent.size >= 2 then math.tanh(math.abs(recent.last - recent.head) / scale) else 0.0
   }
 
   /** Largest change (normalized in [0, 1]) and fraction of the neighbours whose output changed in the last round. */
   def neighbourhoodChange(state: AgentState, scale: Double): NeighbourhoodChange =
     state.lastTwoSnapshots.fold(NeighbourhoodChange.None) { case (previous, current) =>
       val neighbours = state.neighboursIn(current)
-      if (neighbours.isEmpty) {
+      if neighbours.isEmpty then {
         NeighbourhoodChange.None
       } else {
         val changes = outputChanges(previous, neighbours, scale)
@@ -71,7 +72,7 @@ object NeighbourhoodSignals {
     }
 
   private def outputChange(before: Double, now: Double, scale: Double): Double =
-    if (before.isFinite && now.isFinite) math.abs(now - before) else scale * UnboundedChangeInScales
+    if before.isFinite && now.isFinite then math.abs(now - before) else scale * UnboundedChangeInScales
 
   /** How much the differences between the node's output and its neighbours' drifted in the last round, in [0, 1]: a
     * non-zero value means that the local Bellman-Ford equation is not yet stable.
@@ -81,7 +82,7 @@ object NeighbourhoodSignals {
       val ownNow = current.get(state.me).fold(0.0)(_.data)
       val ownBefore = previous.get(state.me).fold(0.0)(_.data)
       val neighbours = state.neighboursIn(current)
-      if (neighbours.isEmpty || !ownNow.isFinite || !ownBefore.isFinite) 0.0
+      if neighbours.isEmpty || !ownNow.isFinite || !ownBefore.isFinite then 0.0
       else math.tanh(maxEdgeDrift(previous, neighbours, ownNow, ownBefore) / localScale(state))
     }
 

@@ -1,6 +1,6 @@
 package it.unibo.scafi
 
-import it.unibo.scafi.BuildingBlock._
+import it.unibo.scafi.BuildingBlock.*
 
 /** The ground truths of every building block for one configuration of the network (its topology and sources). */
 final case class GroundTruths(

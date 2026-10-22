@@ -3,7 +3,7 @@ package it.unibo.learning.agents.offline
 import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.{AgentState, Step}
 import it.unibo.learning.encoding.InstabilityIntensity
-import it.unibo.testing.AgentStates._
+import it.unibo.testing.AgentStates.*
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 

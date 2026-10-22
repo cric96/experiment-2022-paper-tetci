@@ -20,7 +20,7 @@ final case class AttentionSummary(
   private def attending(origin: (Double, Double), weight: Float, position: (Double, Double)): AttentionSummary = {
     val (x, y) = position
     val pointed = copy(direction = (direction._1 + weight * (x - origin._1), direction._2 + weight * (y - origin._2)))
-    if (weight > maxAttention) pointed.copy(maxAttention = weight, focus = position) else pointed
+    if weight > maxAttention then pointed.copy(maxAttention = weight, focus = position) else pointed
   }
 }
 
@@ -36,7 +36,7 @@ object AttentionSummary {
     attention.zip(positions).foldLeft(AttentionSummary(0.0f, 0.0, (0.0, 0.0), origin)) {
       case (summary, (weight, position)) =>
         val withEntropy =
-          if (weight > NegligibleAttention) summary.copy(entropy = summary.entropy - weight * math.log(weight))
+          if weight > NegligibleAttention then summary.copy(entropy = summary.entropy - weight * math.log(weight))
           else summary
         position.fold(withEntropy)(withEntropy.attending(origin, weight, _))
     }

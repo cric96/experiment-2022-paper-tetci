@@ -1,7 +1,6 @@
 package it.unibo.learning.agents
 
-import it.unibo.alchemist.model.implementations.timedistributions.reactions.CentralAgent
-import it.unibo.learning.abstractions.{AgentState, DecayReference, ReplayBuffer}
+import it.unibo.learning.abstractions.{AgentState, DecayReference, ReplayBuffer, Trajectory}
 import it.unibo.util.TemporalInfo
 
 import scala.util.Random
@@ -47,10 +46,6 @@ class QLearning(
     }
   }
 
-  override def store(where: String): Unit = {}
-
-  override def load(where: String): AgentState => Double = policy
-
   override def update(batch: Seq[ReplayBuffer.Experience]): Unit = {
     if (ticks > learningSteps) return
     batch.foreach { experience =>
@@ -69,10 +64,9 @@ class QLearning(
     }
   }
 
-  override def endEpisode(replyBuffer: Seq[Seq[(AgentState, Int, Double, Double)]]): Unit = ticks += 1
+  override def endEpisode(trajectories: Seq[Trajectory]): Unit = ticks += 1
 
   override def injectRandom(random: Random): Unit = this.random = random
 
-  override def injectCentralAgent(agent: CentralAgent[_, _]): Unit =
-    agent.attachDecayable("epsilon" -> epsilon, "alpha" -> alpha)
+  override def decayingParameters: Seq[(String, DecayReference[Double])] = Seq("epsilon" -> epsilon, "alpha" -> alpha)
 }

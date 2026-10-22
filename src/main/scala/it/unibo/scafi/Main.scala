@@ -6,7 +6,7 @@ import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist._
 import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.AgentState.NeighborInfo
 import it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal
-import it.unibo.learning.abstractions.{AgentState, Contextual, ReplayBuffer}
+import it.unibo.learning.abstractions.{AgentState, ReplayBuffer, Step}
 import it.unibo.util.TemporalInfo
 import scala.collection.immutable.Queue
 import scala.concurrent.duration.FiniteDuration
@@ -81,11 +81,11 @@ class Main
       }._1
       val accumulatedUnstableTime = rep(0.0)(acc => acc + unstableTime)
       node.put("accumulatedUnstableTime", accumulatedUnstableTime)
-      val allExperience = rep(Queue.empty[(AgentState, Int, Double, Double)]) { queue =>
+      val allExperience = rep(Queue.empty[Step]) { queue =>
         oldState.zip(oldAction) match {
           case Some((stateT, actionT)) =>
             val index = if (actionSpace.contains(actionT)) actionSpace.indexOf(actionT) else -1
-            queue :+ (stateT, index, actionT, reward)
+            queue :+ Step(stateT, index, actionT, reward)
           case None =>
             queue
         }

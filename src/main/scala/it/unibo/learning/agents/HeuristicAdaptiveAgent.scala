@@ -1,11 +1,8 @@
 package it.unibo.learning.agents
 
-import it.unibo.alchemist.model.implementations.timedistributions.reactions.CentralAgent
 import it.unibo.learning.TradeOff
-import it.unibo.learning.abstractions.{AgentState, ReplayBuffer}
+import it.unibo.learning.abstractions.AgentState
 import it.unibo.util.TemporalInfo
-
-import scala.util.Random
 
 /** Hand-crafted Adaptive Heuristic Baseline (AIMD / Local Trend Thresholding): Wakes up fast when the node's own output
   * changes, ramps up on the next step, and sleeps at the steady-state period when stable.
@@ -35,13 +32,4 @@ class HeuristicAdaptiveAgent(
 
   override def policy: AgentState => Double = policyForWeight(weight)
 
-  override def store(where: String): Unit = {}
-
-  override def load(where: String): AgentState => Double = policy
-
-  override def update(batch: Seq[ReplayBuffer.Experience]): Unit = {}
-
-  override def injectRandom(random: Random): Unit = {}
-
-  override def injectCentralAgent(agent: CentralAgent[_, _]): Unit = {}
 }

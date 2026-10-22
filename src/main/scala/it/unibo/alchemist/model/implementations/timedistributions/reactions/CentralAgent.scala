@@ -5,7 +5,7 @@ import it.unibo.alchemist.model.implementations.nodes.SimpleNodeManager
 import it.unibo.alchemist.model.implementations.times.DoubleTime
 import it.unibo.alchemist.model.interfaces._
 import it.unibo.learning.{Box, LearningInfo}
-import it.unibo.learning.abstractions.{AgentState, DecayReference, ReplayBuffer}
+import it.unibo.learning.abstractions.{AgentState, ReplayBuffer, Step}
 import it.unibo.learning.agents.Learner
 import it.unibo.scafi.Sensors
 import org.apache.commons.math3.random.RandomGenerator
@@ -24,7 +24,6 @@ class CentralAgent[T, P <: Position[P]](
     environmentBox: Box
 ) extends AbstractGlobalReaction[T, P](environment, distribution) {
   private val scalaRandom = new Random(learningInfo.randomSeed)
-  private var references: List[(String, DecayReference[Double])] = List.empty
   private var stepTicks = 0
   private var episodeCounter = 0
   private var cachedSourceKey: (Int, Set[Int]) = (-1, Set.empty)
@@ -39,12 +38,9 @@ class CentralAgent[T, P <: Position[P]](
   private var initialSnapshot: List[Node[T]] =
     List.empty[Node[T]]
   val memory: ReplayBuffer = new ReplayBuffer(learningInfo.bufferSize, scalaRandom)
-  learner.injectCentralAgent(this)
   learner.injectRandom(scalaRandom)
 
   private val evalBetaSchedule = Array(0.50, 0.80, 0.95, 0.99, 1.00)
-
-  def attachDecayable(elements: (String, DecayReference[Double])*) = references = references ::: (elements.toList)
 
   def policy = {
     if (episodeCounter >= 10 && managers.headOption.exists(_.has("program"))) {
@@ -63,7 +59,7 @@ class CentralAgent[T, P <: Position[P]](
       }
       if (stepTicks % learningInfo.episodeSize == 0) {
         val allExperiences = managers.map { m =>
-          if (m.has("experiences")) m.get[Queue[(AgentState, Int, Double, Double)]]("experiences")
+          if (m.has("experiences")) m.get[Queue[Step]]("experiences")
           else Queue.empty
         }
         learner.endEpisode(allExperiences)
@@ -76,7 +72,7 @@ class CentralAgent[T, P <: Position[P]](
           episodeCounter += 1
           cachedSourceKey = (-1, Set.empty)
         }
-        references.foreach(_._2.update())
+        learner.decayingParameters.foreach { case (_, parameter) => parameter.update() }
       }
     }
     stepTicks += 1
@@ -219,7 +215,7 @@ class CentralAgent[T, P <: Position[P]](
     initialSnapshot = agents.map(_.cloneNode(Time.ZERO))
 
   def decayVariableOf(name: String): Double =
-    references.find(_._1 == name).map(_._2.value).getOrElse(0.0)
+    learner.decayingParameters.collectFirst { case (`name`, parameter) => parameter.value }.getOrElse(0.0)
 
   /** During training (first 10 episodes) always uses "gradient"; during exploitation (episodes 10+) switches to
     * targetProgram for zero-shot transfer.

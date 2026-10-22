@@ -3,10 +3,8 @@ package it.unibo.learning.agents
 import ai.djl.ndarray.{NDList, NDManager}
 import ai.djl.ndarray.types.Shape
 import ai.djl.nn.Activation
-import it.unibo.alchemist.model.implementations.timedistributions.reactions.CentralAgent
 import it.unibo.learning.TradeOff
-import it.unibo.learning.abstractions.AgentState
-import it.unibo.learning.abstractions.ReplayBuffer.Experience
+import it.unibo.learning.abstractions.{AgentState, Step, Trajectory}
 import it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal
 import it.unibo.learning.network.TorchNetwork
 import it.unibo.learning.network.TorchNetwork._
@@ -110,18 +108,10 @@ class OfflineLearnerContinuous(
 
   override def policy: AgentState => Double = policyForWeight(weight)
 
-  override def store(where: String): Unit = {}
-
-  override def load(where: String): AgentState => Double = policy
-
-  override def update(batch: Seq[Experience]): Unit = {}
-
   override def injectRandom(random: Random): Unit = this.random = random
 
-  override def injectCentralAgent(agent: CentralAgent[_, _]): Unit = {}
-
-  override def endEpisode(replayBuffer: Seq[Seq[(AgentState, Int, Double, Double)]]): Unit = {
-    appendEpisodeTrajectories(replayBuffer)
+  override def endEpisode(trajectories: Seq[Trajectory]): Unit = {
+    appendEpisodeTrajectories(trajectories)
     if (ticks <= explorationSteps && (unstableTransitions.nonEmpty || stableTransitions.nonEmpty)) {
       val nSteps = if (ticks < explorationSteps) steps else steps * learningStepAfter
       fit(nSteps)
@@ -240,13 +230,13 @@ class OfflineLearnerContinuous(
     copy
   }
 
-  private def appendEpisodeTrajectories(episodes: Seq[Seq[(AgentState, Int, Double, Double)]]): Unit =
+  private def appendEpisodeTrajectories(episodes: Seq[Trajectory]): Unit =
     episodes.foreach { trajectory =>
-      val baseStates = trajectory.map(step => encode(step._1, weight)).toIndexedSeq
-      val intensities = trajectory.map(step => SpatialTemporal.instabilityIntensity(step._1)).toIndexedSeq
+      val baseStates = trajectory.map(step => encode(step.state, weight)).toIndexedSeq
+      val intensities = trajectory.map(step => SpatialTemporal.instabilityIntensity(step.state)).toIndexedSeq
       val weightsToTrain = Array(weight, weight) ++ counterfactualWeights
       trajectory.indices.foreach { i =>
-        val (_, _, rawAction, _) = trajectory(i)
+        val rawAction = trajectory(i).action
         val isTerminal = i == trajectory.size - 1
         val nextBase = if (isTerminal) baseStates(i) else baseStates(i + 1)
         val scaledAct = actionScaler.scale(rawAction)

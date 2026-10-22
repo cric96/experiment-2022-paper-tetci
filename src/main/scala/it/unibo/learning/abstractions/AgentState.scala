@@ -5,11 +5,7 @@ import it.unibo.learning.abstractions.AgentState.{NeighborInfo, Snapshot}
 import scala.collection.immutable.Queue
 
 /** What node `me` observed in its last rounds, oldest snapshot first; every snapshot includes the node itself. */
-final case class AgentState(
-    me: Int,
-    neighborhoodOutput: Queue[Snapshot],
-    neighborhoodSensing: Queue[Snapshot]
-) {
+final case class AgentState(me: Int, neighborhoodOutput: Queue[Snapshot]) {
 
   /** The node's own outputs, oldest first. */
   def ownOutputs: Queue[Double] = neighborhoodOutput.flatMap(_.get(me)).map(_.data)

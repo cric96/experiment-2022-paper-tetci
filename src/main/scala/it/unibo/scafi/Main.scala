@@ -42,17 +42,13 @@ class Main
   }
 
   def update(localComputation: Double, elements: Queue[Double]): Unit = {
-    val localSensing = perception()
     val (_, Some(action)) = rep((Option.empty[AgentState], Option.empty[Double])) { case (oldState, oldAction) =>
       val fieldComputation =
         includingSelf.reifyField(NeighborInfo(nbr(localComputation), nbrRange(), nbr(oldAction).getOrElse(1.0)))
-      val fieldSensing =
-        includingSelf.reifyField(NeighborInfo(nbr(localSensing), nbrRange(), nbr(oldAction).getOrElse(1.0)))
 
       val windowComputation = window(fieldComputation)
-      val windowFieldSensing = window(fieldSensing)
 
-      val state = new AgentState(mid(), windowComputation, windowFieldSensing)
+      val state = AgentState(mid(), windowComputation)
       val reward = oldState.map(evalReward).getOrElse(0.0)
       val (action) = policy(state)
       oldState.zip(oldAction).foreach { case (stateT, actionT) =>
@@ -95,9 +91,7 @@ class Main
       node.put(Sensors.accumulatedReward, accumulatedReward)
       node.put(Sensors.reward, reward)
       node.put(Sensors.fieldComputation, fieldComputation)
-      node.put(Sensors.fieldSensing, fieldSensing)
       node.put(Sensors.localComputationWindow, windowComputation)
-      node.put(Sensors.windowSensing, windowFieldSensing)
       node.put(Sensors.ticks, roundCounter())
       node.put(Sensors.nextWakeUp, action) // Actuation
       (Some(state), Some(action))
@@ -132,7 +126,6 @@ class Main
       }
     }
   }
-  def perception(): Double = 0.0 // what I need from my neighborhood for computing the state
 
   def window(snapshot: Map[ID, NeighborInfo]): Queue[Map[ID, NeighborInfo]] =
     rep(Queue.empty[Map[ID, NeighborInfo]])(queue => (queue :+ snapshot).takeRight(localWindowSize))

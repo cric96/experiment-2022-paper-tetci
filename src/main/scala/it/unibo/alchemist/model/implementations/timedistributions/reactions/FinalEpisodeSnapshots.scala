@@ -94,8 +94,7 @@ final class FinalEpisodeSnapshots[T, P <: Position[P]](
   /** The state the node's policy observed in its last round, if it has run at least once. */
   private def stateOf(node: Node[T]): Option[AgentState] = {
     val outputs = node.valueOf[Queue[Snapshot]](Sensors.localComputationWindow).getOrElse(Queue.empty)
-    val sensing = node.valueOf[Queue[Snapshot]](Sensors.windowSensing).getOrElse(Queue.empty)
-    Option.when(outputs.nonEmpty)(AgentState(node.getId, outputs, sensing))
+    Option.when(outputs.nonEmpty)(AgentState(node.getId, outputs))
   }
 }
 

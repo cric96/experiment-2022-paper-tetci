@@ -14,7 +14,7 @@ object AgentStates {
   /** A state of node `me` from its oldest to its newest neighbourhood snapshot. */
   def of(me: Int, snapshots: Map[Int, Reading]*): AgentState = {
     val history = Queue.from(snapshots.map(_.view.mapValues(r => NeighborInfo(r.output, r.distance, r.action)).toMap))
-    AgentState(me, history, history.map(_.view.mapValues(_.copy(data = 0.0)).toMap))
+    AgentState(me, history)
   }
 
   /** Node 0 on a line 0 - 1 - 2 (10 m apart) of a gradient from node 2, whose source moves to node 0. */

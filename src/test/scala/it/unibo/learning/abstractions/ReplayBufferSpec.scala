@@ -7,7 +7,7 @@ import scala.collection.immutable.Queue
 import scala.util.Random
 
 class ReplayBufferSpec extends AnyFlatSpec with Matchers {
-  private val state = AgentState(0, Queue.empty, Queue.empty)
+  private val state = AgentState(0, Queue.empty)
 
   /** A buffer filled with experiences whose action index is 0 until `count`, in insertion order. */
   private def bufferWith(count: Int, capacity: Int, seed: Int = 42): ReplayBuffer = {

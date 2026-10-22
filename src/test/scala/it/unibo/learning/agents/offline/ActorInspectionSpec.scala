@@ -1,7 +1,7 @@
 package it.unibo.learning.agents.offline
 
 import ai.djl.nn.Activation
-import it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal
+import it.unibo.learning.encoding.SpatialTemporal
 import it.unibo.learning.network.{MinMaxActionScaler, TorchNetwork}
 import it.unibo.testing.AgentStates
 import org.scalatest.flatspec.AnyFlatSpec

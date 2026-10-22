@@ -5,7 +5,7 @@ import it.unibo.alchemist.model.implementations.timedistributions.reactions.Cent
 import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist._
 import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.AgentState.NeighborInfo
-import it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal
+import it.unibo.learning.encoding.InstabilityIntensity
 import it.unibo.learning.abstractions.{AgentState, ReplayBuffer, Step}
 import it.unibo.util.TemporalInfo
 import scala.collection.immutable.Queue
@@ -157,7 +157,7 @@ class Main
     val myOutput = state.neighborhoodOutput.flatMap(_.get(state.me)).takeRight(4)
     val history = TemporalInfo.computeDeltaTrend(myOutput.map(_.data))
     node.put(Sensors.history, history)
-    val intensity = SpatialTemporal.instabilityIntensity(state)
+    val intensity = InstabilityIntensity.of(state)
     TradeOff.onlineReward(intensity, deltaFixed, weightForConvergence, TradeOff.FastestPeriod, actionSpace.max)
   }
 

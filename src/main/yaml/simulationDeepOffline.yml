@@ -55,7 +55,6 @@ variables:
     formula: |
       import it.unibo.learning.abstractions.DecayReference;
       import it.unibo.learning.agents.OfflineLearner;
-      import it.unibo.learning.network.NeuralNetworkRL;
       import it.unibo.scripting._;
       new OfflineLearner(actionSpaceEvaluated.as[Seq[Double]], random.as[Double], weight.as[Double])
     language: scala

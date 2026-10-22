@@ -2,7 +2,7 @@ package it.unibo.learning.agents.offline
 
 import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.{AgentState, Step, Trajectory}
-import it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal
+import it.unibo.learning.encoding.InstabilityIntensity
 
 /** A logged step relabelled for a target trade-off weight `beta`: both states are conditioned on `beta`, so that a
   * single β-conditioned policy can be trained for every trade-off from the same experience.
@@ -54,7 +54,7 @@ object Relabelling {
     trajectory.zipWithIndex.flatMap { case (step, index) =>
       val isTerminal = index == trajectory.size - 1
       val nextState = if (isTerminal) states(index) else states(index + 1)
-      val intensity = SpatialTemporal.instabilityIntensity(step.state)
+      val intensity = InstabilityIntensity.of(step.state)
       val discount = math.pow(gamma, math.max(MinDiscountPeriod, step.action)).toFloat
       targetWeights(ownWeight).map { beta =>
         def conditioned(features: Array[Float]) = withBetaFeature(features, beta, betaFeatureIndex)

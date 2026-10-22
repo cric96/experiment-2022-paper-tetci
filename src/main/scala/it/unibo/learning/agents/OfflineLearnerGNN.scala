@@ -8,7 +8,7 @@ import it.unibo.learning.abstractions.{AgentState, Trajectory}
 import it.unibo.learning.agents.OfflineLearnerGNN._
 import it.unibo.learning.agents.offline.BatchTensors.{column, rows}
 import it.unibo.learning.agents.offline._
-import it.unibo.learning.network.NeuralNetworkRL.StarGraph
+import it.unibo.learning.encoding.StarGraph
 import it.unibo.learning.network.{EdgeGATBlock, MinMaxActionScaler, TorchNetwork}
 import it.unibo.learning.network.NDArrayOps._
 
@@ -81,9 +81,7 @@ final class OfflineLearnerGNN(
   /** The actor's readout embedding of `state`, its attention over the neighbours, and the neighbours' ids. */
   def inspectEmbeddingAndAttention(state: AgentState, targetWeight: Double = weight): AttentionInspection = {
     val (embedding, attention) = fastEmbeddingAndAttention(StarGraph.encode(state, targetWeight, max))
-    val neighbours = state.latestSnapshot
-      .fold(List.empty[Int])(state.neighboursIn(_).toList.sortBy { case (_, info) => info.distance }.map(_._1))
-      .take(StarGraph.MaxNeighbors)
+    val neighbours = state.latestSnapshot.fold(List.empty[Int])(StarGraph.nearestNeighbours(state, _).map(_._1))
     AttentionInspection(embedding, attention, neighbours)
   }
 

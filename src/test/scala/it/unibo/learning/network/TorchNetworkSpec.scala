@@ -2,7 +2,7 @@ package it.unibo.learning.network
 
 import ai.djl.ndarray.NDManager
 import ai.djl.nn.{Activation, Block}
-import it.unibo.learning.network.NeuralNetworkRL.StarGraph
+import it.unibo.learning.encoding.StarGraph
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 

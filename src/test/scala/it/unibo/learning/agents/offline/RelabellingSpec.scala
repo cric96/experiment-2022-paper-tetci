@@ -2,7 +2,7 @@ package it.unibo.learning.agents.offline
 
 import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.{AgentState, Step}
-import it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal
+import it.unibo.learning.encoding.InstabilityIntensity
 import it.unibo.testing.AgentStates._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -54,6 +54,6 @@ class RelabellingSpec extends AnyFlatSpec with Matchers {
 
   it should "attach the instability intensity of the step" in {
     relabelled.grouped(weightsPerStep).map(_.head.intensity).toSeq shouldBe
-      trajectory.map(step => SpatialTemporal.instabilityIntensity(step.state))
+      trajectory.map(step => InstabilityIntensity.of(step.state))
   }
 }

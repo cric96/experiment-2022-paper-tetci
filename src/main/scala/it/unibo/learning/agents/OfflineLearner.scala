@@ -8,7 +8,7 @@ import it.unibo.learning.abstractions.{AgentState, Trajectory}
 import it.unibo.learning.agents.OfflineLearner._
 import it.unibo.learning.agents.offline.BatchTensors.{column, indexColumn, rows}
 import it.unibo.learning.agents.offline._
-import it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal
+import it.unibo.learning.encoding.SpatialTemporal
 import it.unibo.learning.network.{FastInference, TorchNetwork}
 import it.unibo.learning.network.NDArrayOps._
 

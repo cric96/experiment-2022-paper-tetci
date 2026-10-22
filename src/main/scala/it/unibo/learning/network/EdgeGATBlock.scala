@@ -10,7 +10,7 @@ import ai.djl.util.PairList
 import it.unibo.learning.network.FastInference.DenseLayer
 
 /** Edge-conditioned graph attention with relational max-pooling (EdgeGAT) over a star graph, encoded as the ego
-  * features followed by `maxNeighbors` slots of `neighDim` features (see [[NeuralNetworkRL.StarGraph]]).
+  * features followed by `maxNeighbors` slots of `neighDim` features (see [[it.unibo.learning.encoding.StarGraph]]).
   *
   * Each (ego, neighbour) pair is turned into a message by an edge MLP; messages are pooled both with attention weights
   * (softmax of a linear score) and with an element-wise max, and the readout MLP maps ego features and pooled messages

@@ -1,6 +1,6 @@
 package it.unibo.learning.agents.offline
 
-import it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal.Feature
+import it.unibo.learning.encoding.SpatialTemporal.Feature
 
 /** The operating regime of a node, read from its spatial-temporal features: used to colour the inspected states. */
 sealed abstract class Regime(val label: String)

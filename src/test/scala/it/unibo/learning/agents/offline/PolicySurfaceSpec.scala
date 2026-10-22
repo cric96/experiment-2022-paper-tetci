@@ -1,6 +1,6 @@
 package it.unibo.learning.agents.offline
 
-import it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal
+import it.unibo.learning.encoding.SpatialTemporal
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 

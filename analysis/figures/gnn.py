@@ -40,7 +40,8 @@ class WaveFront:
     r: float
 
 
-def _load(data: Dataset) -> pd.DataFrame | None:
+def load_embeddings(data: Dataset) -> pd.DataFrame | None:
+    """GNN embedding snapshots with PC1/PC2 of the embedding (PC1 > 0 = active node); None if missing."""
     path = data.spatial_dir / "gnn_spatiotemporal_embeddings.csv"
     if not path.exists():
         return None
@@ -87,7 +88,7 @@ def wave_front(frame: pd.DataFrame) -> WaveFront:
 
 def gnn_attention_filmstrip(data: Dataset, out: Path) -> None:
     """Embedding PC1 over the network and each node's most-attended neighbour, around the switch."""
-    frame = _load(data)
+    frame = load_embeddings(data)
     if frame is None:
         return
     norm = _pc1_norm(frame)
@@ -113,7 +114,7 @@ def gnn_attention_filmstrip(data: Dataset, out: Path) -> None:
 
 def gnn_latent_dynamics(data: Dataset, out: Path) -> None:
     """Space-time diagram with the fitted wave front, PC1 per zone, and the network's latent orbit."""
-    frame = _load(data)
+    frame = load_embeddings(data)
     if frame is None:
         return
     new_source, old_source = _source(frame, AFTER_SWITCH_S), _source(frame, BEFORE_SWITCH_S)

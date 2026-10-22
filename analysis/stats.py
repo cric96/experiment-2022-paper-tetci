@@ -7,9 +7,10 @@ Only four seeds per configuration exist, so:
   badly under-covers);
 * ratios such as "% rounds saved" use a two-sample percentile bootstrap,
   resampling the seeds of both groups independently;
-* group comparisons report Welch's t-test (primary), the exact Mann-Whitney U
-  test (robustness check; with 4 vs 4 seeds its smallest two-sided p is
-  2/70 = 0.029), Hedges' g and Cliff's delta.
+* group comparisons report Welch's t-test (primary), the Mann-Whitney U test
+  (robustness check; exact without ties -- then its smallest two-sided p with
+  4 vs 4 seeds is 2/70 = 0.029 -- normal approximation with ties), Hedges' g
+  and Cliff's delta.
 """
 from __future__ import annotations
 

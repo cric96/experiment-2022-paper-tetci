@@ -127,21 +127,43 @@ def spatial_filmstrip(data: Dataset, out: Path) -> None:
     style.save(fig, out, "spatial_filmstrip")
 
 
+def rounds_per_node(snapshots: Snapshots) -> pd.DataFrame:
+    """Rounds of each node over the final episode, with its distance to the nearest source and degree."""
+    start, end = snapshots.at(snapshots.times[0]), snapshots.at(snapshots.times[-1])
+    before, after = snapshots.at(BEFORE_SWITCH_S), snapshots.at(AFTER_SWITCH_S)
+    return pd.DataFrame({
+        "x": end.x.to_numpy(),
+        "y": end.y.to_numpy(),
+        "rounds": end.ticks.to_numpy() - start.ticks.to_numpy(),
+        # the ground truth is the shortest-path distance to the source active at that time
+        "distance": np.minimum(before.groundTruth.to_numpy(), after.groundTruth.to_numpy()),
+        "degree": snapshots.degrees(end.nodeId.to_numpy()),
+    })
+
+
+def rounds_distance_correlation(data: Dataset) -> tuple[float, float] | None:
+    """Spearman correlation (rho, p) between rounds per node and distance to the nearest source."""
+    snapshots = Snapshots.load(data)
+    if snapshots is None:
+        return None
+    nodes = rounds_per_node(snapshots)
+    result = sps.spearmanr(nodes.distance, nodes.rounds)
+    return float(result.statistic), float(result.pvalue)
+
+
 def spatial_computation(data: Dataset, out: Path) -> None:
     """Rounds per node over the final episode: map, and against distance to the sources."""
     snapshots = Snapshots.load(data)
     if snapshots is None:
         return
-    start, end = snapshots.at(snapshots.times[0]), snapshots.at(snapshots.times[-1])
     before, after = snapshots.at(BEFORE_SWITCH_S), snapshots.at(AFTER_SWITCH_S)
-    rounds = end.ticks.to_numpy() - start.ticks.to_numpy()
-    distance = np.minimum(before.groundTruth.to_numpy(), after.groundTruth.to_numpy())
-    degree = snapshots.degrees(end.nodeId.to_numpy())
+    nodes = rounds_per_node(snapshots)
+    rounds, distance, degree = nodes.rounds.to_numpy(), nodes.distance.to_numpy(), nodes.degree.to_numpy()
 
     fig, (map_ax, scatter_ax) = style.figure("double", 2.6, 1, 2)
     filled = map_ax.tricontourf(snapshots.triangulation, rounds, levels=14, cmap=style.SEQUENTIAL)
     _draw_edges(map_ax, snapshots.edges, color=style.INK, alpha=0.25)
-    map_ax.scatter(end.x, end.y, s=3, color=style.INK, linewidths=0, zorder=3)
+    map_ax.scatter(nodes.x, nodes.y, s=3, color=style.INK, linewidths=0, zorder=3)
     _draw_sources(map_ax, before, filled=True)
     _draw_sources(map_ax, after, filled=False)
     map_ax.set_aspect("equal")
@@ -156,7 +178,7 @@ def spatial_computation(data: Dataset, out: Path) -> None:
     map_ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2)
 
     points = scatter_ax.scatter(distance, rounds, c=degree, cmap=style.SEQUENTIAL_3, s=10, linewidths=0)
-    rho, p_value = sps.spearmanr(distance, rounds)
+    rho, p_value = rounds_distance_correlation(data)
     scatter_ax.text(0.98, 0.97, f"Spearman $\\rho$ = {rho:.2f} ($p$ = {p_value:.1g})", transform=scatter_ax.transAxes,
                     ha="right", va="top", fontsize=6.5, color=style.INK_SECONDARY)
     scatter_ax.set_xlabel("Distance to the nearest source (m)")

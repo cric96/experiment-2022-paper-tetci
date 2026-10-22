@@ -1,222 +1,142 @@
 package it.unibo.learning.agents
 
-import ai.djl.ndarray.{NDList, NDManager}
-import ai.djl.ndarray.types.Shape
+import ai.djl.ndarray.{NDArray, NDManager}
 import ai.djl.nn.Activation
 import it.unibo.learning.TradeOff
-import it.unibo.learning.abstractions.{AgentState, Step, Trajectory}
-import it.unibo.learning.agents.offline.ActorInspection
+import it.unibo.learning.abstractions.{AgentState, Trajectory}
+import it.unibo.learning.agents.OfflineLearnerContinuous._
+import it.unibo.learning.agents.offline.BatchTensors.{column, rows}
+import it.unibo.learning.agents.offline._
 import it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal
 import it.unibo.learning.network.TorchNetwork
 import it.unibo.learning.network.TorchNetwork._
 
-import scala.collection.mutable.ArrayBuffer
-import scala.util.Random
+import java.io.File
 
-class OfflineLearnerContinuous(
+/** Offline actor-critic with twin critics (clipped double Q-learning) over the spatial-temporal state, conditioned on
+  * the trade-off weight β: the actor outputs a continuous wake-up period in [`min`, `max`].
+  */
+final class OfflineLearnerContinuous(
     min: Double,
     max: Double,
     randomKey: Double,
     weight: Double,
-    val stateDim: Int = SpatialTemporal.FeatureDim,
-    val hiddenSize: Int = 64,
-    val gamma: Float = 0.9f,
-    val lr: Float = 1e-3f,
-    val batchSize: Int = 64,
-    val steps: Int = 160,
-    val explorationSteps: Int = 10,
-    val learningStepAfter: Int = 3
-) extends Learner {
+    stateDim: Int = SpatialTemporal.FeatureDim,
+    hiddenSize: Int = 64,
+    gamma: Float = 0.9f,
+    lr: Float = 1e-3f,
+    batchSize: Int = 64,
+    stepsPerEpisode: Int = 160,
+    explorationEpisodes: Int = 10,
+    finalTrainingMultiplier: Int = 3,
+    inspectionDirectory: File = ActorInspection.DefaultDirectory
+) extends EpisodicOfflineLearner[ContinuousTransition](
+      randomKey,
+      weight,
+      TrainingSchedule(explorationEpisodes, stepsPerEpisode, finalTrainingMultiplier),
+      batchSize
+    ) {
+  private val actionScaler: MinMaxActionScaler = MinMaxActionScaler(min, max)
+  private val networkSeed: Int = LearnerSeeds.networks(randomKey, weight)
+  private val actor: TorchNetwork = actorNetwork("actor", seedOffset = 1)
+  private val targetActor: TorchNetwork = actorNetwork("target-actor", seedOffset = 2)
+  targetActor.softUpdateFrom(actor, TargetNetworks.HardCopy)
+  private val critic1: TorchNetwork = criticNetwork("critic-1", seedOffset = 4)
+  private val targetCritic1: TorchNetwork = criticNetwork("target-critic-1", seedOffset = 5)
+  targetCritic1.softUpdateFrom(critic1, TargetNetworks.HardCopy)
+  private val critic2: TorchNetwork = criticNetwork("critic-2", seedOffset = 6)
+  private val targetCritic2: TorchNetwork = criticNetwork("target-critic-2", seedOffset = 7)
+  targetCritic2.softUpdateFrom(critic2, TargetNetworks.HardCopy)
+  @volatile private var fastActor: Array[Float] => Array[Float] = actor.snapshotFastMLP(useTanh = true)
 
-  private var random: Random = new Random((randomKey.toLong * 31L) ^ java.lang.Double.doubleToLongBits(weight))
-  private val rootManager: NDManager = NDManager.newBaseManager()
-  private val actionScaler: TorchNetwork.MinMaxActionScaler = TorchNetwork.MinMaxActionScaler(min, max)
-
-  private val baseSeed: Int = (randomKey.toInt * 1009) ^ weight.hashCode()
-  private val actor: TorchNetwork =
+  private def actorNetwork(name: String, seedOffset: Int): TorchNetwork =
     TorchNetwork.createMLP(
-      "actor",
+      name,
       stateDim,
       Seq(hiddenSize, hiddenSize),
-      1,
+      outputSize = 1,
       Some(Activation.tanhBlock()),
-      lr = lr * 0.5f,
-      seed = baseSeed + 1
+      lr = lr * ActorLearningRateRatio,
+      seed = networkSeed + seedOffset
     )
-  private val targetActor: TorchNetwork =
-    TorchNetwork.createMLP(
-      "target-actor",
-      stateDim,
-      Seq(hiddenSize, hiddenSize),
-      1,
-      Some(Activation.tanhBlock()),
-      lr = lr * 0.5f,
-      seed = baseSeed + 2
-    )
-  targetActor.softUpdateFrom(actor, 1.0f)
 
-  private val critic1: TorchNetwork =
-    TorchNetwork.createMLP("critic-1", stateDim + 1, Seq(hiddenSize, hiddenSize), 1, lr = lr, seed = baseSeed + 4)
-  private val targetCritic1: TorchNetwork =
-    TorchNetwork.createMLP(
-      "target-critic-1",
-      stateDim + 1,
-      Seq(hiddenSize, hiddenSize),
-      1,
-      lr = lr,
-      seed = baseSeed + 5
-    )
-  targetCritic1.softUpdateFrom(critic1, 1.0f)
-
-  private val critic2: TorchNetwork =
-    TorchNetwork.createMLP("critic-2", stateDim + 1, Seq(hiddenSize, hiddenSize), 1, lr = lr, seed = baseSeed + 6)
-  private val targetCritic2: TorchNetwork =
-    TorchNetwork.createMLP(
-      "target-critic-2",
-      stateDim + 1,
-      Seq(hiddenSize, hiddenSize),
-      1,
-      lr = lr,
-      seed = baseSeed + 7
-    )
-  targetCritic2.softUpdateFrom(critic2, 1.0f)
-
-  private val epsilon: Double = 0.99
-  private val targetUpdateTau: Float = 0.02f
-  private val counterfactualWeights: Array[Double] = Array(0.5, 0.8, 0.95, 0.99, 1.0)
-
-  private var ticks: Int = 0
-  private val unstableTransitions: ArrayBuffer[OfflineLearnerContinuous.ContinuousTransition] = ArrayBuffer.empty
-  private val stableTransitions: ArrayBuffer[OfflineLearnerContinuous.ContinuousTransition] = ArrayBuffer.empty
-  @volatile private var fastActorEval: Array[Float] => Array[Float] = actor.snapshotFastMLP(useTanh = true)
-
-  private def encode(state: AgentState, targetWeight: Double = weight): Array[Float] =
-    SpatialTemporal.encode(state, targetWeight, max)
-
-  def linearScaler(start: Double, end: Double, totalSteps: Int, current: Int): Double =
-    if (current >= totalSteps) end
-    else start + (end - start) * current.toDouble / totalSteps.toDouble
-
-  override def policyForWeight(customWeight: Double): AgentState => Double = { state =>
-    val choice = random.nextDouble()
-    if (choice < linearScaler(epsilon, 0.0, explorationSteps, ticks)) {
-      min + random.nextDouble() * (max - min)
-    } else {
-      val scaledAction = fastActorEval(encode(state, customWeight))(0).toDouble
-      actionScaler.unscale(scaledAction)
-    }
-  }
+  /** A critic takes the state followed by the scaled action. */
+  private def criticNetwork(name: String, seedOffset: Int): TorchNetwork =
+    TorchNetwork.createMLP(name, stateDim + 1, Seq(hiddenSize, hiddenSize), 1, lr = lr, seed = networkSeed + seedOffset)
 
   override def policy: AgentState => Double = policyForWeight(weight)
 
-  override def injectRandom(random: Random): Unit = this.random = random
-
-  override def endEpisode(trajectories: Seq[Trajectory]): Unit = {
-    appendEpisodeTrajectories(trajectories)
-    if (ticks <= explorationSteps && (unstableTransitions.nonEmpty || stableTransitions.nonEmpty)) {
-      val nSteps = if (ticks < explorationSteps) steps else steps * learningStepAfter
-      fit(nSteps)
-      fastActorEval = actor.snapshotFastMLP(useTanh = true)
-      if (ticks == explorationSteps && math.abs(randomKey - 2.0) < 1e-6) {
-        new ActorInspection(actor, critic1, actionScaler, stateDim, new java.io.File("build/exports/embeddings"))
-          .export((unstableTransitions.take(400) ++ stableTransitions.take(400)).toVector.map(_.state), weight)
-      }
-    }
-    ticks += 1
-  }
-
-  private def counterfactualReward(rawIntensity: Double, dt: Double, beta: Double): Float =
-    TradeOff.offlineReward(rawIntensity, dt, beta, min, max).toFloat
-
-  private def withWeight(baseFeatures: Array[Float], beta: Double): Array[Float] = {
-    val copy = baseFeatures.clone()
-    copy(copy.length - 1) = TradeOff.betaFeature(beta)
-    copy
-  }
-
-  private def appendEpisodeTrajectories(episodes: Seq[Trajectory]): Unit =
-    episodes.foreach { trajectory =>
-      val baseStates = trajectory.map(step => encode(step.state, weight)).toIndexedSeq
-      val intensities = trajectory.map(step => SpatialTemporal.instabilityIntensity(step.state)).toIndexedSeq
-      val weightsToTrain = Array(weight, weight) ++ counterfactualWeights
-      trajectory.indices.foreach { i =>
-        val rawAction = trajectory(i).action
-        val isTerminal = i == trajectory.size - 1
-        val nextBase = if (isTerminal) baseStates(i) else baseStates(i + 1)
-        val scaledAct = actionScaler.scale(rawAction)
-        val smdpDiscount = math.pow(gamma.toDouble, math.max(0.5, rawAction)).toFloat
-        val intensity = intensities(i)
-        val targetBuffer = if (intensity > 0.0) unstableTransitions else stableTransitions
-        weightsToTrain.foreach { beta =>
-          targetBuffer += OfflineLearnerContinuous.ContinuousTransition(
-            state = withWeight(baseStates(i), beta),
-            scaledAction = scaledAct,
-            reward = counterfactualReward(intensity, rawAction, beta),
-            nextState = withWeight(nextBase, beta),
-            terminal = if (isTerminal) 1.0f else 0.0f,
-            discountFactor = smdpDiscount
-          )
-        }
-      }
-    }
-
-  private def sampleStratifiedBatch(effectiveBatch: Int): Vector[OfflineLearnerContinuous.ContinuousTransition] = {
-    if (unstableTransitions.isEmpty) {
-      Vector.fill(effectiveBatch)(stableTransitions(random.nextInt(stableTransitions.size)))
-    } else if (stableTransitions.isEmpty) {
-      Vector.fill(effectiveBatch)(unstableTransitions(random.nextInt(unstableTransitions.size)))
+  override def policyForWeight(customWeight: Double): AgentState => Double = { state =>
+    if (random.nextDouble() < schedule.epsilonAt(currentEpisode)) {
+      min + random.nextDouble() * (max - min)
     } else {
-      val half = effectiveBatch / 2
-      val unstPart = Vector.fill(half)(unstableTransitions(random.nextInt(unstableTransitions.size)))
-      val stabPart = Vector.fill(effectiveBatch - half)(stableTransitions(random.nextInt(stableTransitions.size)))
-      unstPart ++ stabPart
+      actionScaler.unscale(fastActor(SpatialTemporal.encode(state, customWeight, max))(0).toDouble)
     }
   }
 
-  private def fit(nSteps: Int): Unit = {
-    val dataSize = unstableTransitions.size + stableTransitions.size
-    if (dataSize == 0) return
-    val effectiveBatch = math.min(batchSize, dataSize)
+  override protected def record(trajectory: Trajectory): Unit =
+    Relabelling
+      .relabel(trajectory, weight, gamma.toDouble, encodeForOwnWeight, SpatialTemporal.FeatureDim - 1)
+      .foreach(relabelled => transitions.add(toTransition(relabelled), relabelled.isUnstable))
 
-    (0 until nSteps).foreach { _ =>
-      val batch = sampleStratifiedBatch(effectiveBatch)
-      withSubManager(rootManager) { sub =>
-        val states = sub.create(batch.map(_.state).toArray)
-        val nextStates = sub.create(batch.map(_.nextState).toArray)
-        val actions = sub.create(batch.map(_.scaledAction).toArray, new Shape(effectiveBatch, 1))
-        val rewards = sub.create(batch.map(_.reward).toArray, new Shape(effectiveBatch, 1))
-        val terminals = sub.create(batch.map(_.terminal).toArray, new Shape(effectiveBatch, 1))
-        val discounts = sub.create(batch.map(_.discountFactor).toArray, new Shape(effectiveBatch, 1))
+  private def encodeForOwnWeight(state: AgentState): Array[Float] = SpatialTemporal.encode(state, weight, max)
 
-        val nextActions = targetActor.evaluate(nextStates)
-        val nextStateActions = nextStates.concat(nextActions, 1)
-        val nextQ = targetCritic1.evaluate(nextStateActions).minimum(targetCritic2.evaluate(nextStateActions))
-        val targetQ = (rewards + nextQ * discounts * (-terminals + 1.0f)).stopGradient()
+  private def toTransition(relabelled: RelabelledStep): ContinuousTransition = {
+    val period = relabelled.step.action
+    ContinuousTransition(
+      state = relabelled.state,
+      scaledAction = actionScaler.scale(period),
+      reward = TradeOff.offlineReward(relabelled.intensity, period, relabelled.beta, min, max).toFloat,
+      nextState = relabelled.nextState,
+      terminal = relabelled.terminalFlag,
+      discountFactor = relabelled.discount
+    )
+  }
 
-        val stateActions = states.concat(actions, 1)
-        critic1.trainStep {
-          TorchNetwork.smoothL1Loss(critic1.forward(stateActions, training = true), targetQ)
-        }
-        critic2.trainStep {
-          TorchNetwork.smoothL1Loss(critic2.forward(stateActions, training = true), targetQ)
-        }
-        critic1.withFrozenParameters {
-          actor.trainStep {
-            val piActions = actor.forward(states, training = true)
-            val qValues = critic1.forward(states.concat(piActions, 1), training = true)
-            -qValues.mean()
-          }
-        }
+  override protected def trainOn(batch: Vector[ContinuousTransition], manager: NDManager): Unit = {
+    val tensors = ContinuousBatch(batch, manager)
+    val targets = clippedDoubleQTargets(tensors)
+    val stateActions = tensors.states.concat(tensors.actions, 1)
+    Seq(critic1, critic2).foreach { critic =>
+      critic.trainStep(TorchNetwork.smoothL1Loss(critic.forward(stateActions, training = true), targets))
+    }
+    critic1.withFrozenParameters(actor.trainStep(actorLoss(tensors.states)))
+    targetCritic1.softUpdateFrom(critic1, TargetNetworks.UpdateRate)
+    targetCritic2.softUpdateFrom(critic2, TargetNetworks.UpdateRate)
+    targetActor.softUpdateFrom(actor, TargetNetworks.UpdateRate)
+  }
 
-        targetCritic1.softUpdateFrom(critic1, targetUpdateTau)
-        targetCritic2.softUpdateFrom(critic2, targetUpdateTau)
-        targetActor.softUpdateFrom(actor, targetUpdateTau)
-      }
+  /** r + γ^Δt · min(Q1_target, Q2_target)(s', π_target(s')). */
+  private def clippedDoubleQTargets(tensors: ContinuousBatch): NDArray = {
+    val nextStateActions = tensors.nextStates.concat(targetActor.evaluate(tensors.nextStates), 1)
+    val nextValues = targetCritic1.evaluate(nextStateActions).minimum(targetCritic2.evaluate(nextStateActions))
+    (tensors.rewards + nextValues * tensors.discounts * (-tensors.terminals + 1.0f)).stopGradient()
+  }
+
+  /** The actor maximizes the first critic's value of its own actions. */
+  private def actorLoss(states: NDArray): NDArray = {
+    val actions = actor.forward(states, training = true)
+    -critic1.forward(states.concat(actions, 1), training = true).mean()
+  }
+
+  override protected def onTrained(): Unit = {
+    fastActor = actor.snapshotFastMLP(useTanh = true)
+    if (currentEpisode == explorationEpisodes && math.abs(randomKey - InspectedRun) < RunTolerance) {
+      new ActorInspection(actor, critic1, actionScaler, stateDim, inspectionDirectory)
+        .export(transitions.oldest(ActorInspection.SamplesPerRegime).map(_.state), weight)
     }
   }
 }
 
 object OfflineLearnerContinuous {
+
+  /** The actor learns more slowly than the critics. */
+  val ActorLearningRateRatio: Float = 0.5f
+
+  /** Seed of the run whose final policy is inspected and exported. */
+  val InspectedRun: Double = 2.0
+  val RunTolerance: Double = 1e-6
+
   final case class ContinuousTransition(
       state: Array[Float],
       scaledAction: Float,
@@ -225,4 +145,26 @@ object OfflineLearnerContinuous {
       terminal: Float,
       discountFactor: Float
   )
+
+  /** A batch of continuous transitions as tensors; the scalar fields are columns. */
+  final private case class ContinuousBatch(
+      states: NDArray,
+      nextStates: NDArray,
+      actions: NDArray,
+      rewards: NDArray,
+      terminals: NDArray,
+      discounts: NDArray
+  )
+
+  private object ContinuousBatch {
+    def apply(batch: Vector[ContinuousTransition], manager: NDManager): ContinuousBatch =
+      ContinuousBatch(
+        states = rows(batch.map(_.state), manager),
+        nextStates = rows(batch.map(_.nextState), manager),
+        actions = column(batch.map(_.scaledAction), manager),
+        rewards = column(batch.map(_.reward), manager),
+        terminals = column(batch.map(_.terminal), manager),
+        discounts = column(batch.map(_.discountFactor), manager)
+      )
+  }
 }

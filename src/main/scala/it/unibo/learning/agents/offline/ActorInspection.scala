@@ -114,3 +114,12 @@ final class ActorInspection(
     }
   }
 }
+
+object ActorInspection {
+
+  /** Where the inspections of the experiments are exported. */
+  val DefaultDirectory: File = new File("build/exports/embeddings")
+
+  /** Number of transitions of each regime that are inspected. */
+  val SamplesPerRegime: Int = 400
+}

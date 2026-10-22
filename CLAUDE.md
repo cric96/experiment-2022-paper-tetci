@@ -13,18 +13,27 @@ with tabular, offline-deep and graph-based reinforcement learning.
 - Format: `./gradlew spotlessApply` (scalafmt, configuration in `.scalafmt.conf`); `spotlessCheck` must pass.
 - One Gradle task per simulation file: `src/main/yaml/simulationDeepOffline.yml` → `./gradlew runSimulationDeepOffline`.
   `gradle.properties` sets `batch=true` (headless) and the variables to sweep; exports land in `build/exports/`.
-- Charts: `plotter.py` (Python, only for figures; see `requirements.txt`). Use `uv` — the system Python has no matplotlib.
+- Charts, tables and statistics: `plotter.py` over the `analysis` package (Python, only for the paper outputs).
+  The system Python has no matplotlib, use `uv`:
+  `uv venv --python 3.13 .venv && uv pip install --python .venv/bin/python -r requirements.txt`, then
+  `.venv/bin/python plotter.py --exports build/exports --out charts --strict` and `.venv/bin/python -m pytest`.
+  Figures follow an IEEE two-column style with one colour/marker per method (`analysis/style.py`).
 
 ## Architecture
 
 | Package | Role |
 | --- | --- |
-| `it.unibo.scafi.Main` | Aggregate program executed by every node: computes the building block (gradient, hop gradient, broadcast, collect), builds the `AgentState`, computes the reward and actuates the next wake-up (`nextWakeUp` molecule). |
-| `it.unibo.alchemist.model.implementations.timedistributions.reactions.CentralAgent` | Global reaction: trains the learner, closes episodes by re-deploying the nodes, computes ground truths, exports spatial snapshots. |
+| `it.unibo.scafi` | `Main`, the aggregate program of every node (runs the active `BuildingBlock`, observes its neighbourhood, asks the policy for the next wake-up, logs rewards, errors and trajectories); `BuildingBlock`, `Topology`, `GroundTruth(s)` and `EvaluationProtocol` (training on the gradient, then evaluation on the target block and on each β). |
+| `...timedistributions.reactions` | `CentralAgent`, the global reaction that runs the episode loop (online/offline training, `Redeployment` of the nodes, ground truths); `FinalEpisodeSnapshots` (spatial and attention exports of the inspected run); `SingleBlinker` (moves the source). |
 | `...timedistributions.NextWakeUp` | Time distribution that reads `nextWakeUp` to schedule the node's next round. |
-| `it.unibo.learning.agents` | `Learner` implementations: `QLearning`, `OfflineLearner` (discrete BCQ), `OfflineLearnerContinuous` (TD3+BC-like), `OfflineLearnerGNN` (EdgeGAT actor-critic), `HeuristicAdaptiveAgent`, `SameActionAgent` (fixed-period baselines). |
-| `it.unibo.learning.network` | State encoders (`NeuralNetworkRL`) and the DJL/PyTorch wrapper (`TorchNetwork`). |
-| `it.unibo.alchemist.loader.export` | Custom Alchemist extractors used by the YAML `export` sections. |
+| `it.unibo.learning` | `TradeOff` (the convergence/energy objective, β feature and rewards), `Box`, `LearningInfo`. |
+| `it.unibo.learning.abstractions` | `AgentState` (windows of neighbourhood snapshots), `Step`/`Trajectory`, `ReplayBuffer`, `DecayReference`. |
+| `it.unibo.learning.encoding` | State features: `NeighbourhoodSignals`, `InstabilityIntensity`, `OwnTrends`, and the `SpatialTemporal` (MLP) and `StarGraph` (GNN) encoders. |
+| `it.unibo.learning.agents` | `Learner` implementations: `QLearning`, `OfflineLearner` (discrete BCQ), `OfflineLearnerContinuous` (twin-critic actor-critic), `OfflineLearnerGNN` (EdgeGAT actor with multi-objective critics), `HeuristicAdaptiveAgent`, `SameActionAgent` (fixed-period baselines). |
+| `it.unibo.learning.agents.offline` | What the offline learners share: `EpisodicOfflineLearner` (end-of-episode training loop), `TrainingSchedule`, `Relabelling` (hindsight relabelling for every β), `StratifiedTransitions`, `LearnerSeeds`, `TargetNetworks`, `BatchTensors`, and the post-training `ActorInspection` (`Regime`, `PolicySurface`). |
+| `it.unibo.learning.network` | DJL/PyTorch: `TorchNetwork`, `EdgeGATBlock`, `FastInference` (lock-free forward passes used by the nodes every round), `MinMaxActionScaler`, `NDArrayOps`. |
+| `it.unibo.inspection` | Testable recorders of the snapshot CSV files (`NodeView`, `AttentionSummary`, ...). |
+| `it.unibo.alchemist` | `Molecules` (typed molecule access) and the custom Alchemist extractors used by the YAML `export` sections. |
 
 **The YAML files are a public API.** They instantiate learners and value objects through embedded Scala snippets
 (e.g. `new OfflineLearnerGNN(0.5, 5.0, random.as[Double], weight.as[Double])`) and refer to classes, molecules and
@@ -107,6 +116,13 @@ and update it in the same commit.
 - `SimulationGoldenMasterSpec` runs every YAML for a few episodes (no exporters) and compares fingerprints of the
   node states with pinned values: it is the safety net for refactoring Main, CentralAgent and the learners.
   The pinned values depend on the PyTorch CPU kernels, so they may need re-pinning on a different machine.
+  The tests run PyTorch single-threaded (see `build.gradle.kts`): multi-threaded BLAS is not reproducible.
+- `SimulationFilesSpec` loads every YAML (and every algorithm of the generalization scenario), so that the embedded
+  Scala snippets are compiled by the build.
+- Code that only runs late in an experiment (offline training after episode 2, inspection at episode 10, snapshots
+  at episode 19) is not covered by the golden masters: verify it by running the full simulation before and after the
+  change in two scratch git worktrees and comparing the outputs (never write into the real `build/exports`). Full
+  GNN runs need a larger test heap (`maxHeapSize`).
 - ScalaTest `AnyFlatSpec with Matchers`; one spec per production class, same package, named `<Class>Spec`.
 - Build `AgentState` fixtures with the helpers in the test sources rather than ad-hoc maps in every test.
 - Use fixed seeds; when pinning numerical behaviour, compare with a tolerance only if the code legitimately

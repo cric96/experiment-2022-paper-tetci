@@ -1,11 +1,11 @@
 package it.unibo.learning.agents
 
-import ai.djl.ndarray.types.Shape
 import ai.djl.ndarray.{NDArray, NDList, NDManager}
 import ai.djl.training.loss.Loss
 import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.{AgentState, Trajectory}
 import it.unibo.learning.agents.OfflineLearner._
+import it.unibo.learning.agents.offline.BatchTensors.{column, indexColumn, rows}
 import it.unibo.learning.agents.offline._
 import it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal
 import it.unibo.learning.network.TorchNetwork
@@ -37,7 +37,7 @@ final class OfflineLearner(
   private val networkSeed: Int = LearnerSeeds.networks(randomKey, weight)
   private val qNetwork: TorchNetwork = network("bcq-q", seedOffset = 1)
   private val targetQNetwork: TorchNetwork = network("bcq-target-q", seedOffset = 2)
-  targetQNetwork.softUpdateFrom(qNetwork, HardCopy)
+  targetQNetwork.softUpdateFrom(qNetwork, TargetNetworks.HardCopy)
   private val imitationNetwork: TorchNetwork = network("bcq-imitator", seedOffset = 3)
   private val crossEntropyLoss: Loss = Loss.softmaxCrossEntropyLoss()
   @volatile private var fastQValues: Array[Float] => Array[Float] = qNetwork.snapshotFastMLP()
@@ -102,7 +102,7 @@ final class OfflineLearner(
       TorchNetwork.smoothL1Loss(qNetwork.forward(tensors.states, training = true).gather(tensors.actions, 1), targets)
     }
     imitationNetwork.trainStep(imitationLoss(tensors))
-    targetQNetwork.softUpdateFrom(qNetwork, TargetUpdateRate)
+    targetQNetwork.softUpdateFrom(qNetwork, TargetNetworks.UpdateRate)
   }
 
   /** r + γ^Δt · Q_target(s', a*), with a* the best next action among those the imitation network allows. */
@@ -132,12 +132,6 @@ final class OfflineLearner(
 
 object OfflineLearner {
 
-  /** Soft-update rate of the target Q network after every gradient step. */
-  val TargetUpdateRate: Float = 0.02f
-
-  /** Soft-update rate that copies the source network. */
-  val HardCopy: Float = 1.0f
-
   /** Q value given to the actions the imitation network forbids, so that they are never the best ones. */
   val ForbiddenActionValue: Float = -1e8f
 
@@ -165,18 +159,16 @@ object OfflineLearner {
   )
 
   private object DiscreteBatch {
-    def apply(batch: Vector[DiscreteTransition], manager: NDManager): DiscreteBatch = {
-      val column = new Shape(batch.size.toLong, 1)
+    def apply(batch: Vector[DiscreteTransition], manager: NDManager): DiscreteBatch =
       DiscreteBatch(
         size = batch.size,
-        states = manager.create(batch.map(_.state).toArray),
-        nextStates = manager.create(batch.map(_.nextState).toArray),
-        actions = manager.create(batch.map(_.action.toLong).toArray, column),
-        rewards = manager.create(batch.map(_.reward).toArray, column),
-        terminals = manager.create(batch.map(_.terminal).toArray, column),
-        discounts = manager.create(batch.map(_.discountFactor).toArray, column)
+        states = rows(batch.map(_.state), manager),
+        nextStates = rows(batch.map(_.nextState), manager),
+        actions = indexColumn(batch.map(_.action), manager),
+        rewards = column(batch.map(_.reward), manager),
+        terminals = column(batch.map(_.terminal), manager),
+        discounts = column(batch.map(_.discountFactor), manager)
       )
-    }
   }
 
   /** Numerically stable softmax, in single precision like the fast inference path. */

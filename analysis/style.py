@@ -177,9 +177,9 @@ def shade_evaluation(ax: Axes, label: bool = False) -> None:
     """Shade the evaluation episodes (policy frozen) behind the learning curves."""
     start = config.TRAINING_EPISODES + 0.5
     ax.axvspan(start, config.N_EPISODES + 0.5, color=PHASE_SHADE, zorder=0, linewidth=0)
-    if label:
-        ax.text(0.02, 0.97, "training", transform=ax.transAxes, fontsize=6, color=INK_MUTED, va="top")
-        ax.text(0.98, 0.97, "evaluation", transform=ax.transAxes, fontsize=6, color=INK_MUTED, va="top", ha="right")
+    if label:  # above the plotting area, so it never covers data
+        ax.text(0.0, 1.01, "training", transform=ax.transAxes, fontsize=6, color=INK_MUTED, va="bottom")
+        ax.text(1.0, 1.01, "evaluation", transform=ax.transAxes, fontsize=6, color=INK_MUTED, va="bottom", ha="right")
 
 
 def mark_source_switch(ax: Axes, label: bool = False) -> None:

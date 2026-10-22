@@ -64,6 +64,17 @@ def t_interval(values: ArrayLike, confidence: float = config.CONFIDENCE) -> Inte
     return Interval(mean, mean - half, mean + half, n)
 
 
+def t_band(matrix: np.ndarray, confidence: float = config.CONFIDENCE) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Column-wise mean and t-interval of a (seeds x points) matrix, e.g. a learning curve."""
+    matrix = np.asarray(matrix, dtype=float)
+    n = matrix.shape[0]
+    mean = matrix.mean(axis=0)
+    if n < 2:
+        return mean, mean.copy(), mean.copy()
+    half = sps.t.ppf(0.5 + confidence / 2.0, df=n - 1) * matrix.std(axis=0, ddof=1) / np.sqrt(n)
+    return mean, mean - half, mean + half
+
+
 def _percentile_interval(estimate: float, replicates: np.ndarray, confidence: float, n: int) -> Interval:
     """Percentile interval of the defined replicates (NaN when none is defined)."""
     finite = replicates[np.isfinite(replicates)]

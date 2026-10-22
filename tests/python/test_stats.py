@@ -12,6 +12,7 @@ from analysis.stats import (
     holm,
     relative_change,
     summarize,
+    t_band,
     t_interval,
 )
 
@@ -34,6 +35,14 @@ def test_t_interval_of_a_single_value_has_no_bounds() -> None:
 
 def test_t_interval_ignores_nan() -> None:
     assert t_interval([1.0, np.nan, 3.0]).n == 2
+
+
+def test_t_band_gives_one_interval_per_column() -> None:
+    matrix = np.array([[1.0, 10.0], [2.0, 10.0], [3.0, 10.0], [4.0, 10.0]])
+    mean, low, high = t_band(matrix)
+    assert mean.tolist() == [2.5, 10.0]
+    assert low[0] == pytest.approx(t_interval(matrix[:, 0]).low)
+    assert (low[1], high[1]) == (10.0, 10.0)
 
 
 def test_bootstrap_ci_of_constant_sample_is_degenerate() -> None:

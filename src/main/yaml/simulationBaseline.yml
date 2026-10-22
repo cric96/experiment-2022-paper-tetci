@@ -73,7 +73,7 @@ environment:
         type: DiracComb
         parameters: [0.01, 1]
       type: CentralAgent
-      parameters: [ *learningInfo, *actionSpaceEvaluated, *learner, *environmentBox]
+      parameters: [ *learningInfo, *learner, *environmentBox ]
     - time-distribution:
         type: DiracComb
         parameters: [ 0.02, 0.01 ]

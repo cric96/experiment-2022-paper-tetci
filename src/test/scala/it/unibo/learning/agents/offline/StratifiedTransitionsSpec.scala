@@ -1,0 +1,50 @@
+package it.unibo.learning.agents.offline
+
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
+
+import scala.util.Random
+
+class StratifiedTransitionsSpec extends AnyFlatSpec with Matchers {
+  private val unstable = Seq("u1", "u2", "u3")
+  private val stable = Seq("s1", "s2")
+
+  private def transitionsWith(unstable: Seq[String], stable: Seq[String]): StratifiedTransitions[String] = {
+    val transitions = new StratifiedTransitions[String]
+    unstable.foreach(transitions.add(_, isUnstable = true))
+    stable.foreach(transitions.add(_, isUnstable = false))
+    transitions
+  }
+
+  "StratifiedTransitions" should "count the transitions of both regimes" in {
+    transitionsWith(unstable, stable).size shouldBe 5
+    transitionsWith(Seq.empty, Seq.empty).isEmpty shouldBe true
+  }
+
+  it should "sample the first half of a batch from the unstable regime and the rest from the stable one" in {
+    val batch = transitionsWith(unstable, stable).sample(5, new Random(1))
+    batch.take(2).foreach(unstable should contain(_))
+    batch.drop(2).foreach(stable should contain(_))
+  }
+
+  it should "sample everything from the only regime available" in {
+    transitionsWith(unstable, Seq.empty).sample(4, new Random(1)).foreach(unstable should contain(_))
+    transitionsWith(Seq.empty, stable).sample(4, new Random(1)).foreach(stable should contain(_))
+  }
+
+  it should "be reproducible for a given seed" in {
+    val transitions = transitionsWith(unstable, stable)
+    transitions.sample(8, new Random(3)) shouldBe transitions.sample(8, new Random(3))
+  }
+
+  it should "draw indices in the order unstable first, then stable (reproducibility of the experiments)" in {
+    val random = new Random(5)
+    val expectedUnstable = Vector.fill(2)(unstable(random.nextInt(unstable.size)))
+    val expectedStable = Vector.fill(3)(stable(random.nextInt(stable.size)))
+    transitionsWith(unstable, stable).sample(5, new Random(5)) shouldBe expectedUnstable ++ expectedStable
+  }
+
+  it should "expose the oldest transitions of each regime" in {
+    transitionsWith(unstable, stable).oldest(2) shouldBe Vector("u1", "u2", "s1", "s2")
+  }
+}

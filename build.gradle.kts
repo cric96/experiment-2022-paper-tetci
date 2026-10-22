@@ -4,7 +4,6 @@ plugins {
     application
     alias(libs.plugins.multiJvmTesting) // Pre-configures the Java toolchains
     alias(libs.plugins.taskTree) // Helps debugging dependencies among gradle tasks
-    alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.spotless)
     scala
 }
@@ -18,6 +17,8 @@ dependencies {
     implementation(libs.bundles.alchemist)
     implementation(libs.bundles.djl)
     implementation(libs.scalacompiler)
+    // The Scala compiler reads the Kotlin signatures of the Alchemist API.
+    implementation(libs.kotlin.stdlib)
     testImplementation(libs.scalatest)
     testRuntimeOnly(libs.scalatest.junit.runner)
     testRuntimeOnly(libs.junit.platform.launcher)
@@ -56,6 +57,7 @@ spotless {
 
 multiJvm {
     jvmVersionForCompilation.set(17)
+    testByDefaultWith(17)
 }
 
 val batch: String by project

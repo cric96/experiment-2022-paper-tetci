@@ -1,7 +1,7 @@
 [versions]
 alchemist = "25.4.0"
-kotlin = "1.8.0"
 scalaVersion = "2.13.10"
+kotlin = "1.8.0"
 djl = "0.27.0"
 scalatest = "3.2.19"
 scalatest-junit-runner = "0.2.0"
@@ -9,8 +9,8 @@ junit-platform = "1.10.2"
 scalafmt = "3.6.1"
 [libraries]
 alchemist = { module = "it.unibo.alchemist:alchemist", version.ref = "alchemist" }
-alchemist-incarnation-protelis = { module = "it.unibo.alchemist:alchemist-incarnation-protelis", version.ref = "alchemist" }
 alchemist-swingui = { module = "it.unibo.alchemist:alchemist-swingui", version.ref = "alchemist" }
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
 scalacompiler = { module = "org.scala-lang:scala-compiler", version.ref = "scalaVersion" }
 alchemist-incarnation-scafi = { module = "it.unibo.alchemist:alchemist-incarnation-scafi", version.ref = "alchemist"}
 djl-api = { module = "ai.djl:api", version.ref = "djl" }
@@ -23,7 +23,6 @@ alchemist = ["alchemist", "alchemist-incarnation-scafi", "alchemist-swingui"]
 djl = ["djl-api", "djl-pytorch-engine"]
 
 [plugins]
-multiJvmTesting = "org.danilopianini.multi-jvm-test-plugin:0.4.15"
-taskTree = "com.dorongold.task-tree:2.1.0"
-kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
-spotless = "com.diffplug.spotless:6.25.0"
+multiJvmTesting = "org.danilopianini.multi-jvm-test-plugin:4.5.11"
+taskTree = "com.dorongold.task-tree:4.0.2"
+spotless = "com.diffplug.spotless:8.10.4"

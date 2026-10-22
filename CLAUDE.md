@@ -6,8 +6,8 @@ with tabular, offline-deep and graph-based reinforcement learning.
 
 ## Build, run, test
 
-- Gradle 8.8 does **not** run on the system JDK 25. Use the JDK 17 already provisioned by Gradle:
-  `export JAVA_HOME=~/.gradle/jdks/eclipse_adoptium-17-amd64-linux.2`
+- Gradle runs on any JDK ≥ 17 (the system JDK 25 is fine); compilation, tests and simulations use a JDK 17
+  toolchain, downloaded automatically through the Foojay resolver when missing.
 - Compile: `./gradlew compileScala`
 - Tests: `./gradlew test` (ScalaTest, specs live in `src/test/scala`, mirroring the main packages)
 - Format: `./gradlew spotlessApply` (scalafmt, configuration in `.scalafmt.conf`); `spotlessCheck` must pass.

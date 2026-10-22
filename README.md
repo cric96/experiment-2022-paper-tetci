@@ -37,8 +37,8 @@ without retraining, on the other building blocks.
 
 ## Running the simulations
 
-Requirements: a JDK supported by the Gradle wrapper (see `CLAUDE.md`; JDK 17 is provisioned automatically for the
-simulations). PyTorch is downloaded by DJL on first use.
+Requirements: a JDK ≥ 17 to run Gradle; the JDK used by the simulations is downloaded automatically, and so is
+PyTorch (by DJL, on first use).
 
 ```bash
 ./gradlew runSimulationDeepOfflineGNN   # one experiment

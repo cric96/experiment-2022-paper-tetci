@@ -49,6 +49,11 @@ def test_bootstrap_ci_brackets_the_mean_and_is_reproducible() -> None:
     assert 1.5 < first.low < 4.5 and 4.5 < first.high < 7.5
 
 
+def test_bootstrap_with_undefined_statistic_has_no_bounds() -> None:
+    ci = bootstrap_two_sample([1.0, 2.0], [3.0, 4.0], lambda a, b: float("nan"))
+    assert np.isnan(ci.low) and np.isnan(ci.high)
+
+
 def test_relative_change_is_fraction_saved_against_reference() -> None:
     assert relative_change([50.0, 50.0], [100.0, 100.0]) == pytest.approx(0.5)
     assert relative_change([150.0], [100.0]) == pytest.approx(-0.5)

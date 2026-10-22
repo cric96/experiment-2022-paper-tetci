@@ -65,8 +65,12 @@ def t_interval(values: ArrayLike, confidence: float = config.CONFIDENCE) -> Inte
 
 
 def _percentile_interval(estimate: float, replicates: np.ndarray, confidence: float, n: int) -> Interval:
+    """Percentile interval of the defined replicates (NaN when none is defined)."""
+    finite = replicates[np.isfinite(replicates)]
+    if len(finite) == 0:
+        return Interval(estimate, float("nan"), float("nan"), n)
     tail = (1.0 - confidence) / 2.0 * 100.0
-    low, high = np.nanpercentile(replicates, [tail, 100.0 - tail])
+    low, high = np.percentile(finite, [tail, 100.0 - tail])
     return Interval(estimate, float(low), float(high), n)
 
 

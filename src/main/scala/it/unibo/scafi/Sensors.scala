@@ -1,5 +1,6 @@
 package it.unibo.scafi
 
+/** Names of the molecules the aggregate program reads (configuration) and writes (state, exports). */
 object Sensors {
   val nextWakeUp = "nextWakeUp"
   val groundTruth = "groundTruth"

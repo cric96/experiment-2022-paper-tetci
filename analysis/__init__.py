@@ -5,8 +5,10 @@ Modules:
     methods  -- registry of compared methods (labels, colors, markers)
     io       -- parser for Alchemist CSV exports
     data     -- tidy tables built from the raw runs
+    dataset  -- loads every export once and caches the derived results
     stats    -- confidence intervals, significance tests, effect sizes
     pareto   -- comparisons against the fixed-period frontier
+    results  -- derived results (significance, frontier gains, stability, switch response, generalization)
     style    -- shared IEEE paper style
     figures  -- one module per figure family
     tables   -- LaTeX booktabs tables

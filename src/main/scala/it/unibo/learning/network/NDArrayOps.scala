@@ -4,7 +4,7 @@ import ai.djl.ndarray.NDArray
 
 /** Arithmetic operators on DJL arrays, so that losses and targets read like their formulas. */
 object NDArrayOps {
-  implicit final class RichNDArray(private val self: NDArray) extends AnyVal {
+  extension (self: NDArray) {
     def +(other: NDArray): NDArray = self.add(other)
     def +(scalar: Number): NDArray = self.add(scalar)
     def -(other: NDArray): NDArray = self.sub(other)

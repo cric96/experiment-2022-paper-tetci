@@ -20,7 +20,7 @@ object DecayReference {
     override def value: Double = initialValue * math.pow(1 - rate, episodes)
   }
 
-  implicit final class BoundedDecay(private val reference: DecayReference[Double]) extends AnyVal {
+  extension (reference: DecayReference[Double]) {
 
     /** The same decay, never below `min`. */
     def bounded(min: Double): DecayReference[Double] = new DecayReference[Double] {

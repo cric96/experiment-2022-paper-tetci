@@ -4,3 +4,6 @@ package it.unibo.learning.abstractions
   * action is continuous), the action itself (the wake-up period) and the reward that followed.
   */
 final case class Step(state: AgentState, actionIndex: Int, action: Double, reward: Double)
+
+/** The steps of one node during one episode, oldest first. */
+type Trajectory = Seq[Step]

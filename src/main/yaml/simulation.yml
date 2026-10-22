@@ -61,8 +61,7 @@ variables:
         DecayReference.exponentialDecay(0.9, 0.27).bounded(0.00),
         DecayReference.exponentialDecay(0.5, 0.01).bounded(0.1),
         0.9,
-        random.as[Double].toInt,
-        weight.as[Double]
+        random.as[Double].toInt
       )
     language: scala
 seeds:

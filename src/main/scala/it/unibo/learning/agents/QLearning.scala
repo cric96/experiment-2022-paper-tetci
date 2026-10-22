@@ -1,72 +1,83 @@
 package it.unibo.learning.agents
 
-import it.unibo.learning.abstractions.{AgentState, DecayReference, ReplayBuffer, Trajectory}
+import it.unibo.learning.abstractions.ReplayBuffer.Experience
+import it.unibo.learning.abstractions.{AgentState, DecayReference, Trajectory}
+import it.unibo.learning.agents.QLearning._
 import it.unibo.util.TemporalInfo
 
 import scala.util.Random
 
-class QLearning(
+/** Tabular Q-Learning over a hand-crafted state (own output trends and whether a neighbour changed), trained online
+  * from the shared replay buffer during the first `LearningEpisodes` episodes, with semi-Markov discounting.
+  */
+final class QLearning(
     actionSpace: List[Double],
     epsilon: DecayReference[Double],
     alpha: DecayReference[Double],
     gamma: Double,
-    seed: Int,
-    weightConvergence: Double
+    seed: Int
 ) extends Learner {
-  type QState = List[Double]
-  var ticks: Int = 0
-  val learningSteps: Int = 10
+  private var random: Random = new Random(seed)
+  private var qTable: Map[(QState, Int), Double] = Map.empty.withDefaultValue(0.0)
+  private var episodes: Int = 0
 
   def encodeState(state: AgentState): QState = {
-    val me = state.neighborhoodOutput.flatMap(_.get(state.me)).takeRight(4)
-    val selfTrend = TemporalInfo.computeDeltaTrend(me.map(_.data))
-    val snaps = state.neighborhoodOutput.takeRight(2)
-    val neighChanged = if (snaps.size == 2) {
-      val prev = snaps.head
-      val curr = snaps.last
-      if (curr.exists { case (id, info) => id != state.me && prev.get(id).exists(p => p.data != info.data) }) 1.0
-      else 0.0
-    } else 0.0
-    selfTrend :+ neighChanged
+    val ownTrends = TemporalInfo.computeDeltaTrend(state.ownOutputs.takeRight(HistoryLength))
+    ownTrends :+ (if (anyNeighbourChanged(state)) 1.0 else 0.0)
   }
 
-  private var random = new Random(seed)
-  private var Q: Map[(QState, Int), Double] = Map.empty.withDefaultValue(0.0)
+  private def anyNeighbourChanged(state: AgentState): Boolean =
+    state.lastTwoSnapshots.exists { case (previous, current) =>
+      state.neighboursIn(current).exists { case (id, now) => previous.get(id).exists(_.data != now.data) }
+    }
 
   override def policy: AgentState => Double = { state =>
-    if (random.nextDouble() < epsilon.value) {
-      actionSpace(random.nextInt(actionSpace.size))
-    } else {
-      val qState = encodeState(state)
-      val qValues = actionSpace.indices.map(a => a -> Q((qState, a)))
-      val maxQ = qValues.map(_._2).max
-      val bestActions = qValues.filter(_._2 == maxQ).map(_._1)
-      val chosenAction = bestActions(random.nextInt(bestActions.size))
-      actionSpace(chosenAction)
-    }
+    if (random.nextDouble() < epsilon.value) actionSpace(random.nextInt(actionSpace.size))
+    else actionSpace(greedyAction(encodeState(state)))
   }
 
-  override def update(batch: Seq[ReplayBuffer.Experience]): Unit = {
-    if (ticks > learningSteps) return
-    batch.foreach { experience =>
-      if (experience.actionT >= 0 && experience.actionT < actionSpace.size) {
-        val stateKey = encodeState(experience.stateT)
-        val nextStateKey = encodeState(experience.stateTPlus)
-        val currentValue = Q((stateKey, experience.actionT))
-        val reward = experience.rewardTPlus
-        val nextBest = actionSpace.indices.map(action => Q((nextStateKey, action))).max
-        // SMDP continuous-time discounting: gamma^(Delta t)
-        val smdpDiscount = math.pow(gamma, math.max(1.0, experience.trueAction))
-        val diff = smdpDiscount * nextBest - currentValue
-        val delta = reward + diff
-        Q = Q.updated((stateKey, experience.actionT), currentValue + delta * alpha.value)
-      }
-    }
+  /** The index of an action with the highest Q value, ties broken at random. */
+  private def greedyAction(state: QState): Int = {
+    val values = actionSpace.indices.map(action => action -> qTable((state, action)))
+    val best = values.map { case (_, value) => value }.max
+    val bestActions = values.collect { case (action, value) if value == best => action }
+    bestActions(random.nextInt(bestActions.size))
   }
 
-  override def endEpisode(trajectories: Seq[Trajectory]): Unit = ticks += 1
+  override def update(batch: Seq[Experience]): Unit =
+    if (episodes <= LearningEpisodes) {
+      batch.filter(experience => actionSpace.indices.contains(experience.actionT)).foreach(learnFrom)
+    }
+
+  private def learnFrom(experience: Experience): Unit = {
+    val state = encodeState(experience.stateT)
+    val nextState = encodeState(experience.stateTPlus)
+    val current = qTable((state, experience.actionT))
+    val nextBest = actionSpace.indices.map(action => qTable((nextState, action))).max
+    // Semi-Markov (continuous-time) discounting: gamma^(Delta t)
+    val discount = math.pow(gamma, math.max(MinDiscountPeriod, experience.trueAction))
+    val temporalDifference = experience.rewardTPlus + (discount * nextBest - current)
+    qTable = qTable.updated((state, experience.actionT), current + temporalDifference * alpha.value)
+  }
+
+  override def endEpisode(trajectories: Seq[Trajectory]): Unit = episodes += 1
 
   override def injectRandom(random: Random): Unit = this.random = random
 
   override def decayingParameters: Seq[(String, DecayReference[Double])] = Seq("epsilon" -> epsilon, "alpha" -> alpha)
+}
+
+object QLearning {
+
+  /** Own output trends followed by 1 if a neighbour changed in the last round, 0 otherwise. */
+  type QState = List[Double]
+
+  /** Number of own outputs inspected to compute the trends. */
+  val HistoryLength: Int = 4
+
+  /** The Q table is updated only during the first episodes; afterwards the policy is only exploited. */
+  val LearningEpisodes: Int = 10
+
+  /** Wake-up periods shorter than this are discounted as if they lasted this long. */
+  val MinDiscountPeriod: Double = 1.0
 }

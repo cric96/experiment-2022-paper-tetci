@@ -15,14 +15,14 @@ import it.unibo.learning.encoding.NeighbourhoodSignals.*
   *   - 7: shortest wake-up period among the neighbours, divided by the longest admissible period
   *   - 8: the trade-off weight β (see [[TradeOff.betaFeature]])
   */
-object SpatialTemporal {
+object SpatialTemporal:
   val FeatureDim: Int = 9
 
   /** Number of trends of the node's own output among the features (latest and previous). */
   val TrendFeatures: Int = 2
 
   /** Positions of the features in the encoded vector. */
-  object Feature {
+  object Feature:
     val LatestTrend: Int = 0
     val PreviousTrend: Int = 1
     val SelfChange: Int = 2
@@ -32,9 +32,8 @@ object SpatialTemporal {
     val ChildrenRatio: Int = 6
     val ShortestNeighbourPeriod: Int = 7
     val Beta: Int = 8
-  }
 
-  def encode(state: AgentState, weight: Double, maxAction: Double): Array[Float] = {
+  def encode(state: AgentState, weight: Double, maxAction: Double): Array[Float] =
     val scale = localScale(state)
     val trends = OwnTrends.recent(state, TrendFeatures)
     val change = neighbourhoodChange(state, scale)
@@ -49,11 +48,10 @@ object SpatialTemporal {
       shortestNeighbourPeriod(state, maxAction),
       TradeOff.betaFeature(weight)
     )
-  }
 
   /** The shortest wake-up period among the neighbours over `maxAction` (1 if the node has no neighbours). */
   private def shortestNeighbourPeriod(state: AgentState, maxAction: Double): Float =
     state.latestSnapshot
       .flatMap(state.neighboursIn(_).values.map(_.oldAction).minOption)
       .fold(1.0f)(period => (period / maxAction).toFloat)
-}
+end SpatialTemporal

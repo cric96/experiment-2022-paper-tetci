@@ -7,7 +7,7 @@ import java.io.File
 import scala.collection.mutable.ArrayBuffer
 
 /** Records, for every node over time, where a graph-attention policy looks and its readout embedding. */
-final class AttentionSnapshotRecorder(directory: File) {
+final class AttentionSnapshotRecorder(directory: File):
   private val rows: ArrayBuffer[Seq[String]] = ArrayBuffer.empty
 
   def record(timeInEpisode: Double, node: NodeView, summary: AttentionSummary, embedding: Array[Float]): Unit =
@@ -23,9 +23,8 @@ final class AttentionSnapshotRecorder(directory: File) {
       Csv.number(summary.entropy, AttentionDecimals)
     ) ++ Seq(summary.direction._1, summary.direction._2, summary.focus._1, summary.focus._2)
       .map(Csv.number(_, NodeView.CoordinateDecimals))
-}
 
-object AttentionSnapshotRecorder {
+object AttentionSnapshotRecorder:
   val FileName: String = "gnn_spatiotemporal_embeddings.csv"
 
   /** Number of embedding units exported. */
@@ -39,4 +38,3 @@ object AttentionSnapshotRecorder {
     Seq("maxAlpha", "attEntropy", "attDx", "attDy", "bestNbrX", "bestNbrY") ++ (0 until EmbeddingUnits).map(unit =>
       s"h_$unit"
     )
-}

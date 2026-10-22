@@ -3,7 +3,7 @@ package it.unibo.learning
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class TradeOffSpec extends AnyFlatSpec with Matchers {
+class TradeOffSpec extends AnyFlatSpec with Matchers:
   private val tolerance = 1e-9
 
   "The energy weight" should "be 1 - beta, but never below its minimum" in {
@@ -53,4 +53,4 @@ class TradeOffSpec extends AnyFlatSpec with Matchers {
     TradeOff.onlineReward(intensity = 0.5, period = 2.0, beta = 0.9, min = 0.5, max = 5.0) shouldBe
       expected +- tolerance
   }
-}
+end TradeOffSpec

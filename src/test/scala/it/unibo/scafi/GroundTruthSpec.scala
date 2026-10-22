@@ -3,7 +3,7 @@ package it.unibo.scafi
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class GroundTruthSpec extends AnyFlatSpec with Matchers {
+class GroundTruthSpec extends AnyFlatSpec with Matchers:
 
   /** 0 - 1 - 2 - 3 with 10 m links, plus an isolated node 9. */
   private val line = Topology(
@@ -51,4 +51,4 @@ class GroundTruthSpec extends AnyFlatSpec with Matchers {
   it should "be empty without potentials" in {
     GroundTruth.collectCounts(line, Map.empty) shouldBe empty
   }
-}
+end GroundTruthSpec

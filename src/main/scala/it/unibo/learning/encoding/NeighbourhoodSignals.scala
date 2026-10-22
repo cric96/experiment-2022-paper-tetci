@@ -6,7 +6,7 @@ import it.unibo.learning.abstractions.AgentState.{NeighborInfo, Snapshot}
 /** Signals that tell how much, and how, the outputs around a node are changing; differences of outputs are normalized
   * by the [[localScale]] of the neighbourhood.
   */
-object NeighbourhoodSignals {
+object NeighbourhoodSignals:
 
   /** Scale used when the node has no finite output to compare with. */
   val DefaultScale: Double = 50.0
@@ -27,9 +27,8 @@ object NeighbourhoodSignals {
   /** How the neighbours' outputs changed between the last two rounds. */
   final case class NeighbourhoodChange(maxMagnitude: Double, changedRatio: Double)
 
-  object NeighbourhoodChange {
+  object NeighbourhoodChange:
     val None: NeighbourhoodChange = NeighbourhoodChange(0.0, 0.0)
-  }
 
   /** Magnitude of the outputs around the node, used to normalize every difference of outputs. */
   def localScale(state: AgentState): Double =
@@ -45,24 +44,21 @@ object NeighbourhoodSignals {
     if output.isFinite then output else scale * UnboundedChangeInScales
 
   /** Magnitude of the last change of the node's own output, in [0, 1]. */
-  def selfChangeMagnitude(state: AgentState, scale: Double): Double = {
+  def selfChangeMagnitude(state: AgentState, scale: Double): Double =
     val recent = state.ownOutputs.takeRight(2).replaceInfinite()
     if recent.size >= 2 then math.tanh(math.abs(recent.last - recent.head) / scale) else 0.0
-  }
 
   /** Largest change (normalized in [0, 1]) and fraction of the neighbours whose output changed in the last round. */
   def neighbourhoodChange(state: AgentState, scale: Double): NeighbourhoodChange =
     state.lastTwoSnapshots.fold(NeighbourhoodChange.None) { case (previous, current) =>
       val neighbours = state.neighboursIn(current)
-      if neighbours.isEmpty then {
-        NeighbourhoodChange.None
-      } else {
+      if neighbours.isEmpty then NeighbourhoodChange.None
+      else
         val changes = outputChanges(previous, neighbours, scale)
         NeighbourhoodChange(
           maxMagnitude = math.tanh(changes.foldLeft(0.0)(math.max) / scale),
           changedRatio = changes.size.toDouble / neighbours.size.toDouble
         )
-      }
     }
 
   /** The absolute changes of the neighbours whose output changed since the `previous` snapshot. */
@@ -88,27 +84,24 @@ object NeighbourhoodSignals {
 
   private def maxEdgeDrift(previous: Snapshot, neighbours: Snapshot, ownNow: Double, ownBefore: Double): Double =
     neighbours.foldLeft(0.0) { case (drift, (id, now)) =>
-      previous.get(id) match {
+      previous.get(id) match
         case Some(before) if now.data.isFinite && before.data.isFinite =>
           math.max(drift, math.abs((ownNow - now.data) - (ownBefore - before.data)))
         case _ => drift
-      }
     }
 
   /** Fraction of the neighbours that route their shortest path through this node (g_j ≈ g_i + d_ij). */
-  def downstreamChildrenRatio(state: AgentState): Double = {
-    val ratio = for {
+  def downstreamChildrenRatio(state: AgentState): Double =
+    val ratio = for
       current <- state.latestSnapshot
       own <- current.get(state.me).map(_.data) if own.isFinite
       neighbours = state.neighboursIn(current) if neighbours.nonEmpty
-    } yield neighbours.count { case (_, neighbour) => isChild(own, neighbour) }.toDouble / neighbours.size.toDouble
+    yield neighbours.count { case (_, neighbour) => isChild(own, neighbour) }.toDouble / neighbours.size.toDouble
     ratio.getOrElse(0.0)
-  }
 
-  private def isChild(own: Double, neighbour: NeighborInfo): Boolean = {
+  private def isChild(own: Double, neighbour: NeighborInfo): Boolean =
     val tolerance = math.max(MinChildTolerance, ChildToleranceRatio * neighbour.distance)
     neighbour.data.isFinite && neighbour.data > own && math.abs(
       neighbour.data - (own + neighbour.distance)
     ) <= tolerance
-  }
-}
+end NeighbourhoodSignals

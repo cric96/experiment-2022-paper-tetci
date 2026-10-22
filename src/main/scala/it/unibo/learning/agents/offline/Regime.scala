@@ -3,7 +3,7 @@ package it.unibo.learning.agents.offline
 import it.unibo.learning.encoding.SpatialTemporal.Feature
 
 /** The operating regime of a node, read from its spatial-temporal features: used to colour the inspected states. */
-enum Regime(val label: String) {
+enum Regime(val label: String):
 
   /** The wave of change is crossing the node, which routes other nodes. */
   case BackboneWave extends Regime("Backbone_Wave")
@@ -16,9 +16,8 @@ enum Regime(val label: String) {
 
   /** Nothing is changing around the node. */
   case SteadyState extends Regime("Steady_State")
-}
 
-object Regime {
+object Regime:
 
   /** Trends whose magnitude is below this value are considered stable. */
   val TrendThreshold: Float = 0.01f
@@ -34,7 +33,7 @@ object Regime {
   /** A node with a children ratio above this value belongs to the backbone of the shortest-path tree. */
   val BackboneThreshold: Float = 0.15f
 
-  def of(features: Array[Float]): Regime = {
+  def of(features: Array[Float]): Regime =
     val isHit = math.abs(features(Feature.LatestTrend)) > TrendThreshold ||
       math.abs(features(Feature.PreviousTrend)) > TrendThreshold ||
       features(Feature.SelfChange) > SelfChangeThreshold
@@ -46,5 +45,4 @@ object Regime {
     else if isHit then LeafWave
     else if isWarned then NeighbourEarlyWarning
     else SteadyState
-  }
-}
+end Regime

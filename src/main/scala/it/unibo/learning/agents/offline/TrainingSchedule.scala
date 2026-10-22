@@ -10,7 +10,7 @@ final case class TrainingSchedule(
     stepsPerEpisode: Int,
     finalTrainingMultiplier: Int,
     initialEpsilon: Double = TrainingSchedule.DefaultInitialEpsilon
-) {
+):
   def isExploring(episode: Int): Boolean = episode < explorationEpisodes
 
   def epsilonAt(episode: Int): Double =
@@ -21,10 +21,8 @@ final case class TrainingSchedule(
   def trainingStepsAfter(episode: Int): Option[Int] =
     if isExploring(episode) then Some(stepsPerEpisode)
     else Option.when(episode == explorationEpisodes)(stepsPerEpisode * finalTrainingMultiplier)
-}
 
-object TrainingSchedule {
+object TrainingSchedule:
 
   /** Probability of a random action in the first episode. */
   val DefaultInitialEpsilon: Double = 0.99
-}

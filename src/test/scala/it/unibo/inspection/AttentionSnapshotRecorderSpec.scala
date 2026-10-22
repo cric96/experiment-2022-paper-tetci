@@ -8,7 +8,7 @@ import java.io.File
 import java.nio.file.Files
 import scala.jdk.CollectionConverters.*
 
-class AttentionSnapshotRecorderSpec extends AnyFlatSpec with Matchers {
+class AttentionSnapshotRecorderSpec extends AnyFlatSpec with Matchers:
   "The attention snapshots" should "not be written before something is recorded" in {
     val directory = Files.createTempDirectory("attention").toFile
     new AttentionSnapshotRecorder(directory).flush()
@@ -28,4 +28,3 @@ class AttentionSnapshotRecorderSpec extends AnyFlatSpec with Matchers {
     lines(1) shouldBe "85.0,3,1.25,-5.50,0,12.25,12.50,1.5000,0.25,0.7500,0.5000,7.50,1.00,10.00,0.00," +
       (0 until 16).map(unit => Csv.number(unit * 0.5, 4)).mkString(",")
   }
-}

@@ -9,30 +9,27 @@ import it.unibo.util.TemporalInfo
   * ramps up in the following rounds and sleeps at the steady-state period while its output is stable. Both periods
   * depend on the trade-off weight β.
   */
-final class HeuristicAdaptiveAgent(actionSpace: Seq[Double], weight: Double = DefaultWeight) extends Learner {
+final class HeuristicAdaptiveAgent(actionSpace: Seq[Double], weight: Double = DefaultWeight) extends Learner:
   private val fastest: Double = actionSpace.min
   private val slowest: Double = actionSpace.max
 
   override def policy: AgentState => Double = policyForWeight(weight)
 
-  override def policyForWeight(customWeight: Double): AgentState => Double = { state =>
+  override def policyForWeight(customWeight: Double): AgentState => Double = state =>
     val trends = TemporalInfo.computeDeltaTrend(state.ownOutputs.takeRight(HistoryLength))
     if trends.lastOption.exists(_ != 0.0) then fastPeriod(customWeight)
     else if trends.exists(_ != 0.0) then (fastPeriod(customWeight) + steadyPeriod(customWeight)) * RampFactor
     else steadyPeriod(customWeight)
-  }
 
   /** Period right after a change: the fastest one when only convergence matters, slower as β decreases. */
   private def fastPeriod(beta: Double): Double = math.max(fastest, fastest + (1.0 - beta) * FastPeriodSlope)
 
   /** Period of a stable node: the steady-state share of the energy objective of the action range. */
-  private def steadyPeriod(beta: Double): Double = {
+  private def steadyPeriod(beta: Double): Double =
     val energy = math.max(MinEnergyWeight, 1.0 - beta)
     fastest + (slowest - fastest) * (energy / (energy + TradeOff.SteadyStateIntensity * beta))
-  }
-}
 
-object HeuristicAdaptiveAgent {
+object HeuristicAdaptiveAgent:
   val DefaultWeight: Double = 0.95
 
   /** Number of own outputs inspected, i.e. the last two trends. */
@@ -46,4 +43,3 @@ object HeuristicAdaptiveAgent {
 
   /** While ramping up, the period is this fraction of the sum of the fast and of the steady period. */
   val RampFactor: Double = 0.55
-}

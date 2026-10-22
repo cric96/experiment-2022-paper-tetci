@@ -3,7 +3,7 @@ package it.unibo.scafi
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class EvaluationProtocolSpec extends AnyFlatSpec with Matchers {
+class EvaluationProtocolSpec extends AnyFlatSpec with Matchers:
   private val lastTrainingEpisode = EvaluationProtocol.TrainingEpisodes - 1
 
   "The protocol" should "train on the gradient, then run the target building block" in {
@@ -20,4 +20,3 @@ class EvaluationProtocolSpec extends AnyFlatSpec with Matchers {
     EvaluationProtocol.evaluationWeightAt(firstEvaluation + EvaluationProtocol.EpisodesPerWeight) shouldBe Some(0.8)
     EvaluationProtocol.evaluationWeightAt(firstEvaluation + 100) shouldBe Some(1.0)
   }
-}

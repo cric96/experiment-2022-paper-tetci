@@ -6,16 +6,15 @@ import it.unibo.learning.abstractions.AgentState.NeighborInfo
 import scala.collection.immutable.Queue
 
 /** Builders of [[AgentState]] fixtures. */
-object AgentStates {
+object AgentStates:
 
   /** What a node knows about one device (itself included) in one snapshot. */
   final case class Reading(output: Double, distance: Double = 0.0, action: Double = 1.0)
 
   /** A state of node `me` from its oldest to its newest neighbourhood snapshot. */
-  def of(me: Int, snapshots: Map[Int, Reading]*): AgentState = {
+  def of(me: Int, snapshots: Map[Int, Reading]*): AgentState =
     val history = Queue.from(snapshots.map(_.view.mapValues(r => NeighborInfo(r.output, r.distance, r.action)).toMap))
     AgentState(me, history)
-  }
 
   /** Node 0 on a line 0 - 1 - 2 (10 m apart) of a gradient from node 2, whose source moves to node 0. */
   val sourceMovingTowardsMe: AgentState = of(
@@ -43,4 +42,4 @@ object AgentStates {
   val isolated: AgentState = of(me = 7, Map(7 -> Reading(Double.PositiveInfinity)))
 
   val fixtures: Seq[AgentState] = Seq(sourceMovingTowardsMe, neighbourBecameUnreachable, stableBackbone, isolated)
-}
+end AgentStates

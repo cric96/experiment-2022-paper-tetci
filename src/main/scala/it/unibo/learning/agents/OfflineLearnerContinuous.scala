@@ -35,7 +35,7 @@ final class OfflineLearnerContinuous(
       weight,
       TrainingSchedule(explorationEpisodes, stepsPerEpisode, finalTrainingMultiplier),
       batchSize
-    ) {
+    ):
   private val actionScaler: MinMaxActionScaler = MinMaxActionScaler(min, max)
   private val networkSeed: Int = LearnerSeeds.networks(randomKey, weight)
   private val actor: TorchNetwork[SequentialBlock] = actorNetwork("actor", seedOffset = 1)
@@ -66,13 +66,9 @@ final class OfflineLearnerContinuous(
 
   override def policy: AgentState => Double = policyForWeight(weight)
 
-  override def policyForWeight(customWeight: Double): AgentState => Double = { state =>
-    if random.nextDouble() < schedule.epsilonAt(currentEpisode) then {
-      min + random.nextDouble() * (max - min)
-    } else {
-      actionScaler.unscale(fastActor(SpatialTemporal.encode(state, customWeight, max))(0).toDouble)
-    }
-  }
+  override def policyForWeight(customWeight: Double): AgentState => Double = state =>
+    if random.nextDouble() < schedule.epsilonAt(currentEpisode) then min + random.nextDouble() * (max - min)
+    else actionScaler.unscale(fastActor(SpatialTemporal.encode(state, customWeight, max))(0).toDouble)
 
   override protected def record(trajectory: Trajectory): Unit =
     Relabelling
@@ -81,7 +77,7 @@ final class OfflineLearnerContinuous(
 
   private def encodeForOwnWeight(state: AgentState): Array[Float] = SpatialTemporal.encode(state, weight, max)
 
-  private def toTransition(relabelled: RelabelledStep): ContinuousTransition = {
+  private def toTransition(relabelled: RelabelledStep): ContinuousTransition =
     val period = relabelled.step.action
     ContinuousTransition(
       state = relabelled.state,
@@ -91,9 +87,8 @@ final class OfflineLearnerContinuous(
       terminal = relabelled.terminalFlag,
       discountFactor = relabelled.discount
     )
-  }
 
-  override protected def trainOn(batch: Vector[ContinuousTransition], manager: NDManager): Unit = {
+  override protected def trainOn(batch: Vector[ContinuousTransition], manager: NDManager): Unit =
     val tensors = ContinuousBatch(batch, manager)
     val targets = clippedDoubleQTargets(tensors)
     val stateActions = tensors.states.concat(tensors.actions, 1)
@@ -104,31 +99,26 @@ final class OfflineLearnerContinuous(
     targetCritic1.softUpdateFrom(critic1, TargetNetworks.UpdateRate)
     targetCritic2.softUpdateFrom(critic2, TargetNetworks.UpdateRate)
     targetActor.softUpdateFrom(actor, TargetNetworks.UpdateRate)
-  }
 
   /** r + γ^Δt · min(Q1_target, Q2_target)(s', π_target(s')). */
-  private def clippedDoubleQTargets(tensors: ContinuousBatch): NDArray = {
+  private def clippedDoubleQTargets(tensors: ContinuousBatch): NDArray =
     val nextStateActions = tensors.nextStates.concat(targetActor.evaluate(tensors.nextStates), 1)
     val nextValues = targetCritic1.evaluate(nextStateActions).minimum(targetCritic2.evaluate(nextStateActions))
     (tensors.rewards + nextValues * tensors.discounts * (-tensors.terminals + 1.0f)).stopGradient()
-  }
 
   /** The actor maximizes the first critic's value of its own actions. */
-  private def actorLoss(states: NDArray): NDArray = {
+  private def actorLoss(states: NDArray): NDArray =
     val actions = actor.forward(states, training = true)
     -critic1.forward(states.concat(actions, 1), training = true).mean()
-  }
 
-  override protected def onTrained(): Unit = {
+  override protected def onTrained(): Unit =
     fastActor = actor.snapshotFastMLP(useTanh = true)
-    if currentEpisode == explorationEpisodes && math.abs(randomKey - InspectedRun) < RunTolerance then {
+    if currentEpisode == explorationEpisodes && math.abs(randomKey - InspectedRun) < RunTolerance then
       new ActorInspection(actor, critic1, actionScaler, stateDim, inspectionDirectory)
         .save(transitions.oldest(ActorInspection.SamplesPerRegime).map(_.state), weight)
-    }
-  }
-}
+end OfflineLearnerContinuous
 
-object OfflineLearnerContinuous {
+object OfflineLearnerContinuous:
 
   /** The actor learns more slowly than the critics. */
   val ActorLearningRateRatio: Float = 0.5f
@@ -156,7 +146,7 @@ object OfflineLearnerContinuous {
       discounts: NDArray
   )
 
-  private object ContinuousBatch {
+  private object ContinuousBatch:
     def apply(batch: Vector[ContinuousTransition], manager: NDManager): ContinuousBatch =
       ContinuousBatch(
         states = rows(batch.map(_.state), manager),
@@ -166,5 +156,4 @@ object OfflineLearnerContinuous {
         terminals = column(batch.map(_.terminal), manager),
         discounts = column(batch.map(_.discountFactor), manager)
       )
-  }
-}
+end OfflineLearnerContinuous

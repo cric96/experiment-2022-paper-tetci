@@ -5,16 +5,15 @@ import org.scalatest.matchers.should.Matchers
 
 import scala.util.Random
 
-class StratifiedTransitionsSpec extends AnyFlatSpec with Matchers {
+class StratifiedTransitionsSpec extends AnyFlatSpec with Matchers:
   private val unstable = Seq("u1", "u2", "u3")
   private val stable = Seq("s1", "s2")
 
-  private def transitionsWith(unstable: Seq[String], stable: Seq[String]): StratifiedTransitions[String] = {
+  private def transitionsWith(unstable: Seq[String], stable: Seq[String]): StratifiedTransitions[String] =
     val transitions = new StratifiedTransitions[String]
     unstable.foreach(transitions.add(_, isUnstable = true))
     stable.foreach(transitions.add(_, isUnstable = false))
     transitions
-  }
 
   "StratifiedTransitions" should "count the transitions of both regimes" in {
     transitionsWith(unstable, stable).size shouldBe 5
@@ -47,4 +46,4 @@ class StratifiedTransitionsSpec extends AnyFlatSpec with Matchers {
   it should "expose the oldest transitions of each regime" in {
     transitionsWith(unstable, stable).oldest(2) shouldBe Vector("u1", "u2", "s1", "s2")
   }
-}
+end StratifiedTransitionsSpec

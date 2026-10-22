@@ -26,7 +26,7 @@ final class TorchNetwork[+B <: Block](
     val lr: Float = TorchNetwork.DefaultLearningRate,
     val clipGrad: Float = TorchNetwork.DefaultGradientClip,
     val seed: Int = TorchNetwork.DefaultSeed
-) extends AutoCloseable {
+) extends AutoCloseable:
 
   val model: Model = serialized {
     val model = Model.newInstance(name)
@@ -42,12 +42,11 @@ final class TorchNetwork[+B <: Block](
     trainer
   }
 
-  private def trainingConfiguration: DefaultTrainingConfig = {
+  private def trainingConfiguration: DefaultTrainingConfig =
     val optimizer = Optimizer.adam().optLearningRateTracker(Tracker.fixed(lr)).optClipGrad(clipGrad).build()
     new DefaultTrainingConfig(Loss.l2Loss())
       .optOptimizer(optimizer)
       .optInitializer(new XavierInitializer(), Parameter.Type.WEIGHT)
-  }
 
   def manager: NDManager = trainer.getManager
 
@@ -101,13 +100,12 @@ final class TorchNetwork[+B <: Block](
     }
   }
 
-  override def close(): Unit = {
+  override def close(): Unit =
     trainer.close()
     model.close()
-  }
-}
+end TorchNetwork
 
-object TorchNetwork {
+object TorchNetwork:
   val DefaultLearningRate: Float = 1e-3f
   val DefaultGradientClip: Float = 10.0f
   val DefaultSeed: Int = 42
@@ -125,12 +123,11 @@ object TorchNetwork {
     serialized(Using.resource(parent.newSubManager())(body))
 
   /** Linear layers with ReLU for every hidden size, then a linear output layer and the optional output activation. */
-  def mlpBlock(hiddenSizes: Seq[Int], outputSize: Int, outputActivation: Option[Block] = None): SequentialBlock = {
+  def mlpBlock(hiddenSizes: Seq[Int], outputSize: Int, outputActivation: Option[Block] = None): SequentialBlock =
     def linear(units: Int): Block = Linear.builder().setUnits(units.toLong).build()
     val layers = hiddenSizes.flatMap(units => Seq(linear(units), Activation.reluBlock())) ++
       Seq(linear(outputSize)) ++ outputActivation
     layers.foldLeft(new SequentialBlock())(_.add(_))
-  }
 
   def createMLP(
       name: String,
@@ -154,17 +151,15 @@ object TorchNetwork {
       outputActivation: Option[Block] = None,
       lr: Float = DefaultLearningRate,
       seed: Int = DefaultSeed
-  ): TorchNetwork[EdgeGATBlock] = {
+  ): TorchNetwork[EdgeGATBlock] =
     val block =
       new EdgeGATBlock(selfDim, maxNeighbors, neighDim, edgeHidden, readoutHidden, outputSize, outputActivation)
     new TorchNetwork(name, selfDim + maxNeighbors * neighDim, block, lr, seed = seed)
-  }
 
   /** Smooth L1 (Huber) loss: 0.5 · x² if |x| < δ, |x| − 0.5 otherwise, averaged. */
-  def smoothL1Loss(predicted: NDArray, target: NDArray): NDArray = {
+  def smoothL1Loss(predicted: NDArray, target: NDArray): NDArray =
     val error = predicted.sub(target).abs()
     val quadratic = error.minimum(HuberDelta)
     val linear = error.sub(quadratic)
     quadratic.pow(2).mul(0.5f).add(linear).mean()
-  }
-}
+end TorchNetwork

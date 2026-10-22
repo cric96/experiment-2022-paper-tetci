@@ -24,7 +24,7 @@ final class EdgeGATBlock(
     val readoutHidden: Int,
     val outputSize: Int,
     val outputActivation: Option[Block] = None
-) extends AbstractBlock {
+) extends AbstractBlock:
   // The children are registered (and initialized) in this order.
   private val edgeMLP: SequentialBlock = addChildBlock(
     "edgeMLP",
@@ -37,22 +37,20 @@ final class EdgeGATBlock(
 
   private val attentionScorer: Linear = addChildBlock("attnScorer", Linear.builder().setUnits(1).build())
 
-  private val readoutMLP: SequentialBlock = {
+  private val readoutMLP: SequentialBlock =
     val readout = new SequentialBlock()
       .add(Linear.builder().setUnits(readoutHidden.toLong).build())
       .add(Activation.reluBlock())
       .add(Linear.builder().setUnits(outputSize.toLong).build())
     outputActivation.foreach(readout.add)
     addChildBlock("readoutMLP", readout)
-  }
 
   private val pairSize: Int = selfDim + neighDim
 
-  override protected def initializeChildBlocks(manager: NDManager, dataType: DataType, inputShapes: Shape*): Unit = {
+  override protected def initializeChildBlocks(manager: NDManager, dataType: DataType, inputShapes: Shape*): Unit =
     edgeMLP.initialize(manager, dataType, new Shape(1, pairSize.toLong))
     attentionScorer.initialize(manager, dataType, new Shape(1, edgeHidden.toLong))
     readoutMLP.initialize(manager, dataType, new Shape(1, (selfDim + 2 * edgeHidden).toLong))
-  }
 
   override def getOutputShapes(inputShapes: Array[Shape]): Array[Shape] =
     Array(new Shape(inputShapes(0).get(0), outputSize.toLong))
@@ -62,7 +60,7 @@ final class EdgeGATBlock(
       inputs: NDList,
       training: Boolean,
       params: PairList[String, Object]
-  ): NDList = {
+  ): NDList =
     def run(block: Block, input: NDArray): NDArray =
       block.forward(parameterStore, new NDList(input), training, params).singletonOrThrow()
     val graphs = inputs.singletonOrThrow()
@@ -73,28 +71,24 @@ final class EdgeGATBlock(
     val attention = run(attentionScorer, flatMessages).reshape(batchSize, maxNeighbors.toLong, 1).softmax(1)
     val pooled = ego.concat(messages.mul(attention).sum(Array(1)), 1).concat(messages.max(Array(1)), 1)
     readoutMLP.forward(parameterStore, new NDList(pooled), training, params)
-  }
 
   /** One (ego, neighbour) row per graph and neighbour slot. */
-  private def pairsOf(graphs: NDArray, ego: NDArray, batchSize: Long): NDArray = {
+  private def pairsOf(graphs: NDArray, ego: NDArray, batchSize: Long): NDArray =
     val neighbours = graphs
       .get(new NDIndex(":, {}:", java.lang.Long.valueOf(selfDim.toLong)))
       .reshape(batchSize, maxNeighbors.toLong, neighDim.toLong)
     val repeatedEgo = ego.reshape(batchSize, 1, selfDim.toLong).repeat(1, maxNeighbors.toLong)
     repeatedEgo.concat(neighbours, 2).reshape(batchSize * maxNeighbors, pairSize.toLong)
-  }
 
   /** A lock-free policy evaluation on the current parameters (single output). */
-  def snapshotFastInference(): Array[Float] => Float = {
+  def snapshotFastInference(): Array[Float] => Float =
     val snapshot = fastSnapshot()
     snapshot.output
-  }
 
   /** A lock-free function returning the readout embedding and the attention over the neighbour slots. */
-  def snapshotEmbeddingAndAttention(): Array[Float] => (Array[Float], Array[Float]) = {
+  def snapshotEmbeddingAndAttention(): Array[Float] => (Array[Float], Array[Float]) =
     val snapshot = fastSnapshot()
     snapshot.embeddingAndAttention
-  }
 
   private def fastSnapshot(): FastEdgeGAT = TorchNetwork.serialized {
     FastEdgeGAT(
@@ -102,7 +96,7 @@ final class EdgeGATBlock(
       selfDim, maxNeighbors, neighDim, tanhOutput = outputActivation.isDefined
     )
   }
-}
+end EdgeGATBlock
 
 /** The forward pass of an [[EdgeGATBlock]] on a snapshot of its parameters (see [[FastInference]]). */
 final case class FastEdgeGAT(
@@ -113,27 +107,24 @@ final case class FastEdgeGAT(
     maxNeighbors: Int,
     neighDim: Int,
     tanhOutput: Boolean
-) {
+):
 
   /** The hidden layer of the readout and the attention weights over the neighbour slots. */
-  def embeddingAndAttention(graph: Array[Float]): (Array[Float], Array[Float]) = {
+  def embeddingAndAttention(graph: Array[Float]): (Array[Float], Array[Float]) =
     val ego = graph.slice(0, selfDim)
     val messages = (0 until maxNeighbors).map(slot => messageOf(ego, graph, slot))
     val attention = FastInference.softmax(messages.map(scorer(_, relu = false)(0)).toArray)
     val pooled = ego ++ attentionPooling(messages, attention) ++ maxPooling(messages)
     (readoutLayers.head(pooled, relu = true), attention)
-  }
 
-  def output(graph: Array[Float]): Float = {
+  def output(graph: Array[Float]): Float =
     val (embedding, _) = embeddingAndAttention(graph)
     val value = readoutLayers.last(embedding, relu = false)(0)
     if tanhOutput then math.tanh(value.toDouble).toFloat else value
-  }
 
-  private def messageOf(ego: Array[Float], graph: Array[Float], slot: Int): Array[Float] = {
+  private def messageOf(ego: Array[Float], graph: Array[Float], slot: Int): Array[Float] =
     val start = selfDim + slot * neighDim
     edgeLayers.foldLeft(ego ++ graph.slice(start, start + neighDim))((input, layer) => layer(input, relu = true))
-  }
 
   private def attentionPooling(messages: Seq[Array[Float]], attention: Array[Float]): Array[Float] =
     Array.tabulate(messages.head.length) { unit =>
@@ -144,4 +135,4 @@ final case class FastEdgeGAT(
     Array.tabulate(messages.head.length) { unit =>
       messages.foldLeft(Float.NegativeInfinity)((max, message) => if message(unit) > max then message(unit) else max)
     }
-}
+end FastEdgeGAT

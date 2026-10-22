@@ -13,7 +13,7 @@ final case class NodeView(
     groundTruth: Double,
     period: Double,
     ticks: Int
-) {
+):
   def boundedOutput: Double = bounded(output)
 
   def boundedGroundTruth: Double = bounded(groundTruth)
@@ -31,9 +31,9 @@ final case class NodeView(
     Csv.number(period, PeriodDecimals),
     Csv.number(error, ValueDecimals)
   )
-}
+end NodeView
 
-object NodeView {
+object NodeView:
 
   /** Value exported for non-finite outputs (unreachable nodes): larger than any distance in the arena. */
   val UnboundedOutput: Double = 600.0
@@ -46,13 +46,11 @@ object NodeView {
   val Header: Seq[String] = Seq("nodeId", "x", "y", "isSource", "gradient", "groundTruth", "nextWakeUp", "error")
 
   private def bounded(value: Double): Double = if value.isFinite then value else UnboundedOutput
-}
 
 /** A link of the network between two nodes, with their positions. */
-final case class Link(from: Int, to: Int, fromPosition: (Double, Double), toPosition: (Double, Double)) {
+final case class Link(from: Int, to: Int, fromPosition: (Double, Double), toPosition: (Double, Double)):
   def columns: Seq[String] =
     Seq(from.toString, to.toString) ++
       Seq(fromPosition._1, fromPosition._2, toPosition._1, toPosition._2).map(
         Csv.number(_, NodeView.CoordinateDecimals)
       )
-}

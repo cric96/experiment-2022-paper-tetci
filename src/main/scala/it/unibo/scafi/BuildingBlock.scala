@@ -7,7 +7,7 @@ package it.unibo.scafi
   * @param errorScale
   *   the magnitude of the block's outputs, used to normalize the error against the ground truth
   */
-enum BuildingBlock(val name: String, val code: Int, val errorScale: Double) {
+enum BuildingBlock(val name: String, val code: Int, val errorScale: Double):
 
   /** Distance from the nearest source. */
   case Gradient extends BuildingBlock("gradient", code = 0, errorScale = 500.0)
@@ -30,9 +30,8 @@ enum BuildingBlock(val name: String, val code: Int, val errorScale: Double) {
   /** The absolute error relative to the scale of the block's outputs, saturated at one. */
   def normalizedError(output: Double, groundTruth: Double): Double =
     math.min(1.0, absoluteError(output, groundTruth) / errorScale)
-}
 
-object BuildingBlock {
+object BuildingBlock:
 
   /** Payload units per source id, so that every source broadcasts a distinct value. */
   val PayloadPerId: Double = 10.0
@@ -40,9 +39,7 @@ object BuildingBlock {
   def broadcastPayloadOf(sourceId: Int): Double = (sourceId + 1).toDouble * PayloadPerId
 
   /** The block selected by the value of the `program` molecule, a code or a name; the gradient otherwise. */
-  def fromMolecule(value: Any): BuildingBlock = value match {
+  def fromMolecule(value: Any): BuildingBlock = value match
     case code: Number => values.find(_.code == code.intValue()).getOrElse(Gradient)
     case name: String => values.find(_.name == name).getOrElse(Gradient)
     case _ => Gradient
-  }
-}

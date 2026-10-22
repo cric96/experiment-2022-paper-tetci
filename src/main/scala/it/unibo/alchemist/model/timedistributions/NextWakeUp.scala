@@ -18,18 +18,17 @@ class NextWakeUp[T] private (
     molecule: String,
     randomGenerator: RandomGenerator,
     firstDelay: Option[Double]
-) extends AbstractDistribution[T](start) {
+) extends AbstractDistribution[T](start):
   private val manager = SimpleNodeManager[T](node)
   private var pendingFirstDelay: Option[Double] = firstDelay
 
   def this(node: Node[T], molecule: String, randomGenerator: RandomGenerator) =
     this(node, new DoubleTime(randomGenerator.nextDouble()), molecule, randomGenerator, None)
 
-  override def sample(): Time = {
+  override def sample(): Time =
     val delay = pendingFirstDelay.getOrElse(period)
     pendingFirstDelay = None
     new DoubleTime(delay)
-  }
 
   override def getMeanDelay: Double = period
 
@@ -43,9 +42,9 @@ class NextWakeUp[T] private (
     )
 
   private def period: Double = manager.get[Double](molecule)
-}
+end NextWakeUp
 
-object NextWakeUp {
+object NextWakeUp:
 
   /** The clones of the re-deployed nodes start this long after being deployed. */
   val RestartDelay: Double = 1.0
@@ -61,4 +60,3 @@ object NextWakeUp {
 
   /** A deterministic phase in [0, 1) for node `id`, well spread across ids. */
   def phaseOf(id: Int): Double = ((id * GoldenRatioMultiplier) & UnsignedIntMask).toDouble / HashRange
-}

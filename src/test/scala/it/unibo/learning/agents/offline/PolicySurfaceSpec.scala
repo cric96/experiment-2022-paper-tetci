@@ -4,7 +4,7 @@ import it.unibo.learning.encoding.SpatialTemporal
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class PolicySurfaceSpec extends AnyFlatSpec with Matchers {
+class PolicySurfaceSpec extends AnyFlatSpec with Matchers:
   private val gridSize = PolicySurface.Resolution + 1
 
   "The policy surface" should "cover the grid of own and neighbour changes for every children ratio" in {
@@ -23,4 +23,3 @@ class PolicySurfaceSpec extends AnyFlatSpec with Matchers {
   it should "have as many features as the spatial-temporal encoder" in {
     PolicySurface.points.head.features(0).length shouldBe SpatialTemporal.FeatureDim
   }
-}

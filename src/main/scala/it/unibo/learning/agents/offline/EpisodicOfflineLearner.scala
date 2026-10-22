@@ -15,7 +15,7 @@ abstract class EpisodicOfflineLearner[T](
     weight: Double,
     protected val schedule: TrainingSchedule,
     batchSize: Int
-) extends Learner {
+) extends Learner:
   private var randomness: Random = LearnerSeeds.random(runSeed, weight)
   private val rootManager: NDManager = NDManager.newBaseManager()
   private var episode: Int = 0
@@ -32,16 +32,14 @@ abstract class EpisodicOfflineLearner[T](
   /** Stores the trajectories and trains, as long as the schedule prescribes training: afterwards the transitions would
     * never be used.
     */
-  override def endEpisode(trajectories: Seq[Trajectory]): Unit = {
+  override def endEpisode(trajectories: Seq[Trajectory]): Unit =
     schedule.trainingStepsAfter(episode).foreach { steps =>
       trajectories.foreach(record)
-      if !transitions.isEmpty then {
+      if !transitions.isEmpty then
         train(steps)
         onTrained()
-      }
     }
     episode += 1
-  }
 
   /** Converts a trajectory into transitions and stores them in [[transitions]]. */
   protected def record(trajectory: Trajectory): Unit
@@ -55,11 +53,10 @@ abstract class EpisodicOfflineLearner[T](
   /** Runs `body` with a manager whose tensors are released afterwards. */
   protected def withScratchManager[A](body: NDManager => A): A = TorchNetwork.withSubManager(rootManager)(body)
 
-  private def train(steps: Int): Unit = {
+  private def train(steps: Int): Unit =
     val effectiveBatchSize = math.min(batchSize, transitions.size)
     (0 until steps).foreach { _ =>
       val batch = transitions.sample(effectiveBatchSize, random)
       withScratchManager(manager => trainOn(batch, manager))
     }
-  }
-}
+end EpisodicOfflineLearner

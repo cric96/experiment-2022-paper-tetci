@@ -3,7 +3,7 @@ package it.unibo.learning.agents.offline
 /** The synthetic states on which the response surface of a policy is evaluated: a grid of own and neighbour change
   * magnitudes, for a few children ratios, with the remaining features derived from them as they co-occur in practice.
   */
-object PolicySurface {
+object PolicySurface:
 
   /** Number of intervals of the grid of change magnitudes in [0, 1]. */
   val Resolution: Int = 25
@@ -23,7 +23,7 @@ object PolicySurface {
   val BusyNeighbourPeriod: Float = 0.3f
   val IdleNeighbourPeriod: Float = 0.8f
 
-  final case class SurfacePoint(selfChange: Float, neighbourChange: Float, childrenRatio: Float) {
+  final case class SurfacePoint(selfChange: Float, neighbourChange: Float, childrenRatio: Float):
     def latestTrend: Float = if selfChange > ActivityThreshold then 1.0f else 0.0f
 
     def changedRatio: Float =
@@ -40,14 +40,12 @@ object PolicySurface {
         latestTrend, 0.0f, selfChange, neighbourChange, changedRatio, residual, childrenRatio, shortestNeighbourPeriod,
         betaFeature
       )
-  }
 
-  val points: Seq[SurfacePoint] = {
+  val points: Seq[SurfacePoint] =
     val grid = (0 to Resolution).map(_ / Resolution.toFloat)
-    for {
+    for
       selfChange <- grid
       neighbourChange <- grid
       childrenRatio <- ChildrenRatios
-    } yield SurfacePoint(selfChange, neighbourChange, childrenRatio)
-  }
-}
+    yield SurfacePoint(selfChange, neighbourChange, childrenRatio)
+end PolicySurface

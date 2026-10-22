@@ -22,7 +22,7 @@ final class CentralAgent[T, P <: Position[P]](
     learningInfo: LearningInfo,
     learner: Learner,
     environmentBox: Box
-) extends AbstractGlobalReaction[T, P](environment, distribution) {
+) extends AbstractGlobalReaction[T, P](environment, distribution):
   private val randomness = new Random(learningInfo.randomSeed)
   private val redeployment = new Redeployment(environment, environmentBox, learningInfo.randomSeed)
   private val snapshots = new FinalEpisodeSnapshots(environment, learner, learningInfo, groundTruth(_))
@@ -39,20 +39,18 @@ final class CentralAgent[T, P <: Position[P]](
   override protected def onInitializationComplete(time: Time, environment: Environment[T, ?]): Unit =
     redeployment.capturePrototypes()
 
-  override protected def react(): Unit = {
+  override protected def react(): Unit =
     val now = environment.getSimulation.getTime
-    if steps > 0 then { // the first step happens at the very beginning, before any round
+    if steps > 0 then // the first step happens at the very beginning, before any round
       trainOnline()
       if steps % learningInfo.episodeSize == 0 then endEpisode()
-    }
     steps += 1
     snapshots.observe(now.toDouble)
-  }
 
   private def trainOnline(): Unit =
     if memory.totalSize >= learningInfo.batchSize then learner.update(memory.sample(learningInfo.batchSize))
 
-  private def endEpisode(): Unit = {
+  private def endEpisode(): Unit =
     learner.endEpisode(agents.map(_.valueOf[Queue[Step]](Sensors.experiences).getOrElse(Queue.empty)))
     val positions = redeployment.positionsFor(episode)
     environment.getSimulation.schedule(command {
@@ -60,7 +58,6 @@ final class CentralAgent[T, P <: Position[P]](
       episode += 1
     })
     learner.decayingParameters.foreach { case (_, parameter) => parameter.update() }
-  }
 
   /** The policy of the learner; in the generalization scenario, conditioned on the weight under evaluation. */
   def policy: AgentState => Double =
@@ -82,7 +79,7 @@ final class CentralAgent[T, P <: Position[P]](
   def groundTruth(nodeId: Int, block: BuildingBlock = BuildingBlock.Gradient): Double =
     currentGroundTruths.of(nodeId, block)
 
-  private def currentGroundTruths: GroundTruths = {
+  private def currentGroundTruths: GroundTruths =
     val sources = currentSources
     groundTruthsCache
       .collect { case (cachedEpisode, truths) if cachedEpisode == episode && truths.sources == sources => truths }
@@ -91,18 +88,15 @@ final class CentralAgent[T, P <: Position[P]](
         groundTruthsCache = Some((episode, truths))
         truths
       }
-  }
 
   private def currentSources: Set[Int] =
     agents.filter(_.valueOf[Boolean](Sensors.source).getOrElse(false)).map(_.getId).toSet
 
-  private def topology: Topology = {
-    def linksOf(node: Node[T]): Seq[(Int, Double)] = {
+  private def topology: Topology =
+    def linksOf(node: Node[T]): Seq[(Int, Double)] =
       val position = environment.getCurrentPosition(node)
       environment.getNeighborhood(node).getCurrent.getNeighbors.asScala.toSeq.map { neighbour =>
         neighbour.getId -> position.distanceTo(environment.getCurrentPosition(neighbour))
       }
-    }
     Topology(agents.map(_.getId), agents.map(node => node.getId -> linksOf(node)).toMap)
-  }
-}
+end CentralAgent

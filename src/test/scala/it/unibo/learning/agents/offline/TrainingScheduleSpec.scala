@@ -3,7 +3,7 @@ package it.unibo.learning.agents.offline
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class TrainingScheduleSpec extends AnyFlatSpec with Matchers {
+class TrainingScheduleSpec extends AnyFlatSpec with Matchers:
   private val schedule = TrainingSchedule(explorationEpisodes = 10, stepsPerEpisode = 100, finalTrainingMultiplier = 3)
 
   "Epsilon" should "decay linearly from its initial value to zero during exploration" in {
@@ -23,4 +23,3 @@ class TrainingScheduleSpec extends AnyFlatSpec with Matchers {
     schedule.trainingStepsAfter(10) shouldBe Some(300)
     schedule.trainingStepsAfter(11) shouldBe None
   }
-}

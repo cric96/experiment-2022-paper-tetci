@@ -9,7 +9,7 @@ import java.util
 import scala.jdk.CollectionConverters.*
 
 /** Exports the current value of the learner's decaying hyper-parameters (0 when the learner has none). */
-final class DecayVariableExtractor extends Extractor[Double] {
+final class DecayVariableExtractor extends Extractor[Double]:
   override def getColumnNames: util.List[String] = Columns.asJava
 
   override def extractData[T](
@@ -17,14 +17,11 @@ final class DecayVariableExtractor extends Extractor[Double] {
       reaction: Reaction[T],
       time: Time,
       step: Long
-  ): util.Map[String, Double] = {
+  ): util.Map[String, Double] =
     val centralAgent = environment.getReactions.getCurrent.asScala.collectFirst { case agent: CentralAgent[?, ?] =>
       agent
     }
     Columns.map(name => name -> centralAgent.fold(0.0)(_.decayVariableOf(name))).toMap.asJava
-  }
-}
 
-object DecayVariableExtractor {
+object DecayVariableExtractor:
   val Columns: List[String] = List("epsilon")
-}

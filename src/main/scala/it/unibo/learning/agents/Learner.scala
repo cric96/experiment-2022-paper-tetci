@@ -8,7 +8,7 @@ import scala.util.Random
 /** A scheduling policy shared by all the nodes, possibly learning: it maps the state of a node to its next wake-up
   * period. Only `policy` is mandatory; the other hooks default to doing nothing.
   */
-trait Learner {
+trait Learner:
 
   /** The policy for the trade-off weight the learner was configured with. */
   def policy: AgentState => Double
@@ -27,4 +27,3 @@ trait Learner {
 
   /** Hyper-parameters, by name, that the simulation decays at the end of every episode. */
   def decayingParameters: Seq[(String, DecayReference[Double])] = Seq.empty
-}

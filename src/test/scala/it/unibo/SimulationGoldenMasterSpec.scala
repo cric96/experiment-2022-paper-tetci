@@ -9,7 +9,7 @@ import org.scalatest.matchers.should.Matchers
   *
   * If a change is *meant* to alter the dynamics, update the expected fingerprints and say so in the commit message.
   */
-class SimulationGoldenMasterSpec extends AnyFlatSpec with Matchers {
+class SimulationGoldenMasterSpec extends AnyFlatSpec with Matchers:
 
   /** End of the first episode, end of the second one (after one training), shortly after the second training. */
   private val checkpoints = Seq(199.5, 399.5, 450.0)
@@ -123,4 +123,4 @@ class SimulationGoldenMasterSpec extends AnyFlatSpec with Matchers {
       Simulations.run("simulationGeneralization", variables, afterSwitch) shouldBe expected
     }
   }
-}
+end SimulationGoldenMasterSpec

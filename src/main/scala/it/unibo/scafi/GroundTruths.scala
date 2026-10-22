@@ -8,19 +8,17 @@ final case class GroundTruths(
     gradient: Map[Int, Double],
     hops: Map[Int, Double],
     collectCounts: Map[Int, Double]
-) {
+):
 
   /** The value `block` should converge to in `node`: infinite (gradients) or 1 (collect) for unreachable nodes. */
-  def of(node: Int, block: BuildingBlock): Double = block match {
+  def of(node: Int, block: BuildingBlock): Double = block match
     case Gradient => gradient.getOrElse(node, Double.PositiveInfinity)
     case HopGradient => hops.getOrElse(node, Double.PositiveInfinity)
     case Broadcast => sources.headOption.fold(0.0)(BuildingBlock.broadcastPayloadOf)
     case Collect => collectCounts.getOrElse(node, 1.0)
-  }
-}
 
-object GroundTruths {
-  def of(topology: Topology, sources: Set[Int]): GroundTruths = {
+object GroundTruths:
+  def of(topology: Topology, sources: Set[Int]): GroundTruths =
     val gradient = GroundTruth.shortestPaths(topology, sources)
     GroundTruths(
       sources,
@@ -28,5 +26,3 @@ object GroundTruths {
       GroundTruth.hopDistances(topology, sources),
       GroundTruth.collectCounts(topology, gradient)
     )
-  }
-}

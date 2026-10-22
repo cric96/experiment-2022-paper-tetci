@@ -7,7 +7,7 @@ import it.unibo.util.TemporalInfo
 /** How urgently a node should run its next round, I(s) ∈ [0, 1]: maximal when its own output just changed, partial (and
   * amplified for backbone nodes) when its neighbourhood is changing, and decaying after a change.
   */
-object InstabilityIntensity {
+object InstabilityIntensity:
 
   /** Number of own outputs inspected to detect recent changes of the node. */
   val OwnHistoryLength: Int = 4
@@ -31,26 +31,22 @@ object InstabilityIntensity {
   val LeafRoleMultiplier: Double = 0.75
   val BackboneRoleBonus: Double = 0.5
 
-  def of(state: AgentState): Double = {
+  def of(state: AgentState): Double =
     val ownTrends = TemporalInfo.computeDeltaTrend(state.ownOutputs.takeRight(OwnHistoryLength))
     val roleMultiplier = LeafRoleMultiplier + BackboneRoleBonus * downstreamChildrenRatio(state)
     val intensity =
-      if ownTrends.takeRight(RecentTrends).exists(_ != 0.0) then {
-        1.0
-      } else {
+      if ownTrends.takeRight(RecentTrends).exists(_ != 0.0) then 1.0
+      else
         neighbourhoodSignal(state).fold(if ownTrends.exists(_ != 0.0) then Cooldown * roleMultiplier else 0.0) { signal =>
           math.min(1.0, math.max(NeighbourhoodFloor, signal) * roleMultiplier)
         }
-      }
     math.min(1.0, intensity)
-  }
 
   /** The strongest sign that the neighbourhood is still changing, if any is above its threshold. */
-  private def neighbourhoodSignal(state: AgentState): Option[Double] = {
+  private def neighbourhoodSignal(state: AgentState): Option[Double] =
     val change = neighbourhoodChange(state, localScale(state))
     val residual = bellmanFordResidual(state)
     val isChanging =
       change.maxMagnitude > ChangeThreshold || change.changedRatio > 0.0 || residual > ResidualThreshold
     Option.when(isChanging)(math.max(change.maxMagnitude, math.max(change.changedRatio, residual)))
-  }
-}
+end InstabilityIntensity

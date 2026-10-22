@@ -3,7 +3,7 @@ package it.unibo.learning.abstractions
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class DecayReferenceSpec extends AnyFlatSpec with Matchers {
+class DecayReferenceSpec extends AnyFlatSpec with Matchers:
   "A constant reference" should "never change" in {
     val reference = DecayReference.constant(0.3)
     reference.update()
@@ -25,4 +25,3 @@ class DecayReferenceSpec extends AnyFlatSpec with Matchers {
     reference.update()
     reference.value shouldBe 0.3
   }
-}

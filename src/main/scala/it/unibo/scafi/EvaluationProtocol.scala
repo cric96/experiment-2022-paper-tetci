@@ -4,7 +4,7 @@ package it.unibo.scafi
   * `TrainingEpisodes`; afterwards (in the generalization scenario) it runs the target building block and is evaluated
   * on each of the `EvaluationWeights` in turn, for `EpisodesPerWeight` episodes each.
   */
-object EvaluationProtocol {
+object EvaluationProtocol:
   val TrainingEpisodes: Int = 10
   val EpisodesPerWeight: Int = 2
   val EvaluationWeights: Seq[Double] = Seq(0.50, 0.80, 0.95, 0.99, 1.00)
@@ -19,4 +19,3 @@ object EvaluationProtocol {
     Option.unless(isTraining(episode)) {
       EvaluationWeights(math.min(EvaluationWeights.size - 1, (episode - TrainingEpisodes) / EpisodesPerWeight))
     }
-}

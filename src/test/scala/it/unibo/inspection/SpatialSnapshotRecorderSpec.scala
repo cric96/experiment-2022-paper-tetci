@@ -7,7 +7,7 @@ import java.io.File
 import java.nio.file.Files
 import scala.jdk.CollectionConverters.*
 
-class SpatialSnapshotRecorderSpec extends AnyFlatSpec with Matchers {
+class SpatialSnapshotRecorderSpec extends AnyFlatSpec with Matchers:
   private def linesOf(directory: File, name: String): Seq[String] =
     Files.readAllLines(new File(directory, name).toPath).asScala.toSeq
 
@@ -32,4 +32,4 @@ class SpatialSnapshotRecorderSpec extends AnyFlatSpec with Matchers {
     )
     linesOf(directory, "spatial_edges_weight-0.8.csv") shouldBe Seq("u,v,xU,yU,xV,yV", "1,2,0.00,0.00,10.50,0.00")
   }
-}
+end SpatialSnapshotRecorderSpec

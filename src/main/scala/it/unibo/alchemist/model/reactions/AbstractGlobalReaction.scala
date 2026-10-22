@@ -18,7 +18,7 @@ abstract class AbstractGlobalReaction[T, P <: Position[P]](
     val environment: Environment[T, P],
     distribution: TimeDistribution[T]
 ) extends AbstractReaction[T](AbstractGlobalReaction.startOf(distribution))
-    with TimeDistributedReaction[T] {
+    with TimeDistributedReaction[T]:
 
   /** What the reaction does when it fires. */
   protected def react(): Unit
@@ -35,19 +35,16 @@ abstract class AbstractGlobalReaction[T, P <: Position[P]](
 
   override protected def scheduleAfterInvalidation(currentTime: Time): Unit = scheduleAfter(currentTime)
 
-  private def scheduleAfter(currentTime: Time): Unit = {
+  private def scheduleAfter(currentTime: Time): Unit =
     val start = AbstractGlobalReaction.startOf(distribution)
     val from = if currentTime.compareTo(start) > 0 then currentTime else start
     setNextOccurrence(from.plus(distribution.sample()))
-  }
 
   /** The nodes currently in the environment. */
   def agents: List[Node[T]] = environment.getNodes.getCurrent.asScala.toList
-}
+end AbstractGlobalReaction
 
-object AbstractGlobalReaction {
-  private def startOf(distribution: TimeDistribution[?]): Time = distribution match {
+object AbstractGlobalReaction:
+  private def startOf(distribution: TimeDistribution[?]): Time = distribution match
     case defined: AbstractDistribution[?] => defined.getStartTime
     case _ => Time.ZERO
-  }
-}

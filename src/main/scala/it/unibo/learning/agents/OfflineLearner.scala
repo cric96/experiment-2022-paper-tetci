@@ -33,7 +33,7 @@ final class OfflineLearner(
       weight,
       TrainingSchedule(explorationEpisodes, stepsPerEpisode, finalTrainingMultiplier),
       batchSize
-    ) {
+    ):
   private val maxAction: Double = actionSpace.max
   private val networkSeed: Int = LearnerSeeds.networks(randomKey, weight)
   private val qNetwork: TorchNetwork[SequentialBlock] = network("bcq-q", seedOffset = 1)
@@ -56,23 +56,21 @@ final class OfflineLearner(
 
   override def policy: AgentState => Double = policyForWeight(weight)
 
-  override def policyForWeight(customWeight: Double): AgentState => Double = { state =>
+  override def policyForWeight(customWeight: Double): AgentState => Double = state =>
     val isRandom = schedule.isExploring(currentEpisode) && random.nextDouble() < schedule.epsilonAt(currentEpisode)
     val action =
       if isRandom then random.nextInt(actionSpace.size)
       else bcqAction(SpatialTemporal.encode(state, customWeight, maxAction))
     actionSpace(action)
-  }
 
   /** The action with the highest Q value among those whose imitation probability is at least `bcqThreshold` times the
     * probability of the most likely one.
     */
-  private def bcqAction(features: Array[Float]): Int = {
+  private def bcqAction(features: Array[Float]): Int =
     val probabilities = FastInference.softmax(fastImitationLogits(features))
     val threshold = bcqThreshold * probabilities.foldLeft(0.0f)(math.max)
     val qValues = fastQValues(features)
     qValues.indices.filter(action => probabilities(action) >= threshold).maxBy(qValues)(Ordering.Float.IeeeOrdering)
-  }
 
   override protected def record(trajectory: Trajectory): Unit =
     Relabelling
@@ -82,7 +80,7 @@ final class OfflineLearner(
 
   private def encodeForOwnWeight(state: AgentState): Array[Float] = SpatialTemporal.encode(state, weight, maxAction)
 
-  private def toTransition(relabelled: RelabelledStep): DiscreteTransition = {
+  private def toTransition(relabelled: RelabelledStep): DiscreteTransition =
     val step = relabelled.step
     val reward =
       TradeOff.offlineReward(relabelled.intensity, step.action, relabelled.beta, TradeOff.FastestPeriod, maxAction)
@@ -90,9 +88,8 @@ final class OfflineLearner(
       state = relabelled.state, action = step.actionIndex, reward = reward.toFloat, nextState = relabelled.nextState,
       terminal = relabelled.terminalFlag, discountFactor = relabelled.discount
     )
-  }
 
-  override protected def trainOn(batch: Vector[DiscreteTransition], manager: NDManager): Unit = {
+  override protected def trainOn(batch: Vector[DiscreteTransition], manager: NDManager): Unit =
     val tensors = DiscreteBatch(batch, manager)
     val targets = bcqTargets(tensors)
     qNetwork.trainStep {
@@ -100,10 +97,9 @@ final class OfflineLearner(
     }
     imitationNetwork.trainStep(imitationLoss(tensors))
     targetQNetwork.softUpdateFrom(qNetwork, TargetNetworks.UpdateRate)
-  }
 
   /** r + γ^Δt · Q_target(s', a*), with a* the best next action among those the imitation network allows. */
-  private def bcqTargets(tensors: DiscreteBatch): NDArray = {
+  private def bcqTargets(tensors: DiscreteBatch): NDArray =
     val nextQValues = qNetwork.evaluate(tensors.nextStates)
     val nextProbabilities = imitationNetwork.evaluate(tensors.nextStates).softmax(1)
     val isAllowed = nextProbabilities.div(nextProbabilities.max(Array(1), true)).gte(bcqThreshold)
@@ -112,22 +108,19 @@ final class OfflineLearner(
     val bestNextActions = maskedNextQValues.argMax(1).reshape(tensors.size.toLong, 1)
     val nextValues = targetQNetwork.evaluate(tensors.nextStates).gather(bestNextActions, 1)
     (tensors.rewards + nextValues * tensors.discounts * (-tensors.terminals + 1.0f)).stopGradient()
-  }
 
   /** Cross-entropy with the logged actions, plus an L2 penalty that keeps the logits calibrated. */
-  private def imitationLoss(tensors: DiscreteBatch): NDArray = {
+  private def imitationLoss(tensors: DiscreteBatch): NDArray =
     val logits = imitationNetwork.forward(tensors.states, training = true)
     val crossEntropy = crossEntropyLoss.evaluate(new NDList(tensors.actions.squeeze(1)), new NDList(logits))
     crossEntropy + logits.pow(2).mean() * LogitsPenalty
-  }
 
-  override protected def onTrained(): Unit = {
+  override protected def onTrained(): Unit =
     fastQValues = qNetwork.snapshotFastMLP()
     fastImitationLogits = imitationNetwork.snapshotFastMLP()
-  }
-}
+end OfflineLearner
 
-object OfflineLearner {
+object OfflineLearner:
 
   /** Q value given to the actions the imitation network forbids, so that they are never the best ones. */
   val ForbiddenActionValue: Float = -1e8f
@@ -155,7 +148,7 @@ object OfflineLearner {
       discounts: NDArray
   )
 
-  private object DiscreteBatch {
+  private object DiscreteBatch:
     def apply(batch: Vector[DiscreteTransition], manager: NDManager): DiscreteBatch =
       DiscreteBatch(
         size = batch.size,
@@ -166,5 +159,4 @@ object OfflineLearner {
         terminals = column(batch.map(_.terminal), manager),
         discounts = column(batch.map(_.discountFactor), manager)
       )
-  }
-}
+end OfflineLearner

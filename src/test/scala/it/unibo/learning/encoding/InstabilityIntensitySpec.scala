@@ -4,7 +4,7 @@ import it.unibo.testing.AgentStates.*
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class InstabilityIntensitySpec extends AnyFlatSpec with Matchers {
+class InstabilityIntensitySpec extends AnyFlatSpec with Matchers:
   "The instability intensity" should "be maximal when the node's own output just changed" in {
     InstabilityIntensity.of(sourceMovingTowardsMe) shouldBe 1.0
   }
@@ -17,4 +17,3 @@ class InstabilityIntensitySpec extends AnyFlatSpec with Matchers {
     InstabilityIntensity.of(stableBackbone) shouldBe 0.0
     InstabilityIntensity.of(isolated) shouldBe 0.0
   }
-}

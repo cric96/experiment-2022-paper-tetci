@@ -23,30 +23,27 @@ final class FinalEpisodeSnapshots[T, P <: Position[P]](
     learningInfo: LearningInfo,
     groundTruth: Int => Double,
     directory: File = DefaultDirectory
-) {
+):
   private val episodeStart: Double = (RecordedEpisode * learningInfo.episodeSize).toDouble
   private lazy val spatialRecorder = new SpatialSnapshotRecorder(directory, weightOr(NoWeight))
   private lazy val attentionRecorder = new AttentionSnapshotRecorder(directory)
 
   /** Called by the central agent at every step. */
   def observe(time: Double): Unit =
-    if learningInfo.randomSeed == InspectedRun then {
-      learner match {
+    if learningInfo.randomSeed == InspectedRun then
+      learner match
         case _: OfflineLearnerContinuous => observeNodes(time - episodeStart)
         case graphLearner: OfflineLearnerGNN => observeAttention(graphLearner, time - episodeStart)
         case _ => ()
-      }
-    }
 
   private def observeNodes(timeInEpisode: Double): Unit =
-    if SpatialWindow.contains(timeInEpisode) && SpatialWeights.exists(isWeight(weightOr(NoWeight), _)) then {
+    if SpatialWindow.contains(timeInEpisode) && SpatialWeights.exists(isWeight(weightOr(NoWeight), _)) then
       spatialRecorder.record(timeInEpisode, nodes.map(viewOf), links)
       if timeInEpisode >= SpatialWindow.flushFrom then spatialRecorder.flush()
-    }
 
-  private def observeAttention(graphLearner: OfflineLearnerGNN, timeInEpisode: Double): Unit = {
+  private def observeAttention(graphLearner: OfflineLearnerGNN, timeInEpisode: Double): Unit =
     val weight = weightOr(AttentionWeight)
-    if isWeight(weight, AttentionWeight) && AttentionWindow.contains(timeInEpisode) then {
+    if isWeight(weight, AttentionWeight) && AttentionWindow.contains(timeInEpisode) then
       val positions = nodes.map(node => node.getId -> coordinatesOf(node)).toMap
       nodes.foreach { node =>
         stateOf(node).foreach { state =>
@@ -57,8 +54,6 @@ final class FinalEpisodeSnapshots[T, P <: Position[P]](
         }
       }
       if timeInEpisode >= AttentionWindow.flushFrom then attentionRecorder.flush()
-    }
-  }
 
   private def nodes: List[Node[T]] = environment.getNodes.getCurrent.asScala.toList
 
@@ -66,12 +61,11 @@ final class FinalEpisodeSnapshots[T, P <: Position[P]](
   private def weightOr(default: Double): Double =
     nodes.headOption.flatMap(_.valueOf[Double](Sensors.weight)).getOrElse(default)
 
-  private def coordinatesOf(node: Node[T]): (Double, Double) = {
+  private def coordinatesOf(node: Node[T]): (Double, Double) =
     val position = environment.getCurrentPosition(node)
     (position.get(0), position.get(1))
-  }
 
-  private def viewOf(node: Node[T]): NodeView = {
+  private def viewOf(node: Node[T]): NodeView =
     val (x, y) = coordinatesOf(node)
     NodeView(
       node.getId,
@@ -83,7 +77,6 @@ final class FinalEpisodeSnapshots[T, P <: Position[P]](
       period = node.valueOf[Double](Sensors.nextWakeUp).getOrElse(UnknownPeriod),
       ticks = node.valueOf[Number](Sensors.ticks).fold(0)(_.intValue())
     )
-  }
 
   private def links: Seq[Link] = nodes.flatMap { node =>
     environment.getNeighborhood(node).getCurrent.getNeighbors.asScala.map { neighbour =>
@@ -92,13 +85,12 @@ final class FinalEpisodeSnapshots[T, P <: Position[P]](
   }
 
   /** The state the node's policy observed in its last round, if it has run at least once. */
-  private def stateOf(node: Node[T]): Option[AgentState] = {
+  private def stateOf(node: Node[T]): Option[AgentState] =
     val outputs = node.valueOf[Queue[Snapshot]](Sensors.localComputationWindow).getOrElse(Queue.empty)
     Option.when(outputs.nonEmpty)(AgentState(node.getId, outputs))
-  }
-}
+end FinalEpisodeSnapshots
 
-object FinalEpisodeSnapshots {
+object FinalEpisodeSnapshots:
 
   /** Where the snapshots of the experiments are exported. */
   val DefaultDirectory: File = new File("build/exports/spatial")
@@ -110,9 +102,8 @@ object FinalEpisodeSnapshots {
   val RecordedEpisode: Int = 19
 
   /** A time window within the recorded episode; the files are (re)written from `flushFrom` on. */
-  final case class Window(from: Double, to: Double, flushFrom: Double) {
+  final case class Window(from: Double, to: Double, flushFrom: Double):
     def contains(timeInEpisode: Double): Boolean = timeInEpisode >= from && timeInEpisode <= to
-  }
 
   /** Node snapshots: the whole episode, after the time the re-deployed nodes need to restart. */
   val SpatialWindow: Window = Window(from = 2.0, to = 200.5, flushFrom = 199.0)
@@ -130,4 +121,4 @@ object FinalEpisodeSnapshots {
   val UnknownPeriod: Double = 5.0
 
   private def isWeight(weight: Double, expected: Double): Boolean = math.abs(weight - expected) < WeightTolerance
-}
+end FinalEpisodeSnapshots

@@ -3,7 +3,7 @@ package it.unibo.inspection
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class AttentionSummarySpec extends AnyFlatSpec with Matchers {
+class AttentionSummarySpec extends AnyFlatSpec with Matchers:
   private val origin = (0.0, 0.0)
 
   "The attention summary" should "find the most attended neighbour and the attention-weighted direction" in {
@@ -24,4 +24,3 @@ class AttentionSummarySpec extends AnyFlatSpec with Matchers {
   it should "focus on the node itself when it has no neighbours" in {
     AttentionSummary.of((3.0, 4.0), Seq.empty, Seq.empty) shouldBe AttentionSummary(0.0f, 0.0, (0.0, 0.0), (3.0, 4.0))
   }
-}

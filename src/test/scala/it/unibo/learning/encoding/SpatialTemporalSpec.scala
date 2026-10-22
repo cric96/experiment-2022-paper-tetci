@@ -4,7 +4,7 @@ import it.unibo.testing.AgentStates.*
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class SpatialTemporalSpec extends AnyFlatSpec with Matchers {
+class SpatialTemporalSpec extends AnyFlatSpec with Matchers:
   "The spatial-temporal encoding" should "keep its features" in {
     val beta = -0.06542056f
     fixtures.map(SpatialTemporal.encode(_, 0.95, 5.0).toSeq) shouldBe Seq(
@@ -18,4 +18,3 @@ class SpatialTemporalSpec extends AnyFlatSpec with Matchers {
   it should "have the declared size" in {
     fixtures.map(SpatialTemporal.encode(_, 0.95, 5.0).length).distinct shouldBe Seq(SpatialTemporal.FeatureDim)
   }
-}

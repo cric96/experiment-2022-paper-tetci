@@ -16,38 +16,34 @@ final class SingleBlinker[T, P <: Position[P]](
     random: RandomGenerator,
     distribution: TimeDistribution[T],
     val minimumDistance: Double
-) extends AbstractGlobalReaction[T, P](environment, distribution) {
+) extends AbstractGlobalReaction[T, P](environment, distribution):
   private val initialSeed: Long = random.nextLong()
   private val choices = new Well19937c(initialSeed)
   private var activations: Int = 0
 
-  override protected def react(): Unit = {
+  override protected def react(): Unit =
     choices.setSeed(initialSeed ^ (activations.toLong * ActivationSeedMultiplier))
     activations += 1
     val sources = agents.filter(_.valueOf[Boolean](Sensors.source).getOrElse(false))
     sources.foreach(setSource(_, isSource = false))
     sources.headOption.fold(randomNode)(farFrom).foreach(setSource(_, isSource = true))
-  }
 
-  private def randomNode: Option[Node[T]] = {
+  private def randomNode: Option[Node[T]] =
     val nodes = agents
     Option.when(nodes.nonEmpty)(nodes(choices.nextInt(nodes.size)))
-  }
 
-  private def farFrom(source: Node[T]): Option[Node[T]] = {
+  private def farFrom(source: Node[T]): Option[Node[T]] =
     val origin = environment.getCurrentPosition(source)
     def distance(node: Node[T]): Double = environment.getCurrentPosition(node).distanceTo(origin)
     val candidates = agents.filter(distance(_) > minimumDistance)
     if candidates.nonEmpty then Some(candidates(choices.nextInt(candidates.size)))
     else agents.maxByOption(distance)(Ordering.Double.TotalOrdering)
-  }
 
   private def setSource(node: Node[T], isSource: Boolean): Unit =
     new SimpleNodeManager[T](node).put(Sensors.source, isSource)
-}
+end SingleBlinker
 
-object SingleBlinker {
+object SingleBlinker:
 
   /** Spreads the activation counter before mixing it with the initial seed. */
   val ActivationSeedMultiplier: Long = 987654321L
-}

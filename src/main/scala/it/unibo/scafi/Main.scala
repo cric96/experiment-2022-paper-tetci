@@ -22,7 +22,7 @@ class Main
     with BlockC
     with Gradients
     with FieldUtils
-    with StateManagement {
+    with StateManagement:
 
   private lazy val windowSize: Int = node.getOption[Int](Sensors.window).getOrElse(DefaultWindowSize)
   private lazy val actionSpace: List[Double] =
@@ -34,16 +34,15 @@ class Main
     .collectFirst { case agent: CentralAgent[?, ?] => agent }
     .getOrElse(throw new IllegalStateException("The simulation must include a CentralAgent global reaction"))
 
-  override def main(): Any = {
+  override def main(): Any =
     val output = blockOutput()
     node.put(Sensors.localComputation, output)
     decide(output)
-  }
 
   private def activeBlock: BuildingBlock = centralAgent.activeBlock(targetBlock)
 
   /** Each block runs in its own branch, so that switching block at an episode boundary starts from a clean state. */
-  private def blockOutput(): Double = {
+  private def blockOutput(): Double =
     val isSource = sense[Boolean](Sensors.source)
     val block = activeBlock
     branch(block == BuildingBlock.HopGradient)(hopDistance(isSource)) {
@@ -51,9 +50,8 @@ class Main
         branch(block == BuildingBlock.Collect)(collect(isSource))(classicGradient(isSource))
       }
     }
-  }
 
-  private def broadcast(isSource: Boolean): Double = {
+  private def broadcast(isSource: Boolean): Double =
     val potential = classicGradient(isSource)
     val payload = if isSource then BuildingBlock.broadcastPayloadOf(mid()) else 0.0
     rep(payload) { value =>
@@ -61,7 +59,6 @@ class Main
         excludingSelf.minHoodSelector[Double, Double](nbr(potential) + nbrRange())(nbr(value)).getOrElse(payload)
       }
     }
-  }
 
   private def collect(isSource: Boolean): Double =
     C[Double, Double](classicGradient(isSource), _ + _, local = 1.0, Null = 0.0)
@@ -97,7 +94,7 @@ class Main
   private def rewardOf(state: AgentState): Double =
     TradeOff.onlineReward(InstabilityIntensity.of(state), elapsedTime, weight, TradeOff.FastestPeriod, actionSpace.max)
 
-  private def recordProgress(output: Double, reward: Double): Unit = {
+  private def recordProgress(output: Double, reward: Double): Unit =
     val block = activeBlock
     val groundTruth = centralAgent.groundTruth(mid(), block)
     node.put(Sensors.accumulatedReward, accumulated(reward))
@@ -106,7 +103,6 @@ class Main
     node.put(Sensors.groundTruth, groundTruth)
     node.put(Sensors.error, block.absoluteError(output, groundTruth))
     node.put(Sensors.reward, reward)
-  }
 
   /** The node's trajectory in the current episode, for the offline learners. */
   private def recordExperience(previous: Option[Decision], reward: Double): Unit =
@@ -131,9 +127,9 @@ class Main
 
   /** Time elapsed since the previous round. */
   private def elapsedTime: Double = alchemistDeltaTime(0.0)
-}
+end Main
 
-object Main {
+object Main:
 
   /** Number of rounds observed by the policy, when the `window` molecule is missing. */
   val DefaultWindowSize: Int = 3
@@ -149,4 +145,3 @@ object Main {
 
   /** The state a decision was taken in, and the chosen wake-up period. */
   final case class Decision(state: AgentState, period: Double)
-}

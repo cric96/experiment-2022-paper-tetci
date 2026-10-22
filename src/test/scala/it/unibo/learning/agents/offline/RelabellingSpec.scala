@@ -7,7 +7,7 @@ import it.unibo.testing.AgentStates.*
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class RelabellingSpec extends AnyFlatSpec with Matchers {
+class RelabellingSpec extends AnyFlatSpec with Matchers:
   private val gamma = 0.9
   private val ownWeight = 0.95
   private val betaIndex = 1
@@ -34,12 +34,11 @@ class RelabellingSpec extends AnyFlatSpec with Matchers {
     relabelled.take(weightsPerStep).map(_.beta) shouldBe Relabelling.targetWeights(ownWeight)
   }
 
-  it should "condition both states on the target weight" in {
+  it should "condition both states on the target weight" in
     relabelled.foreach { transition =>
       transition.state(betaIndex) shouldBe TradeOff.betaFeature(transition.beta)
       transition.nextState(betaIndex) shouldBe TradeOff.betaFeature(transition.beta)
     }
-  }
 
   it should "link each step to the next one, and the last one to itself as a terminal transition" in {
     val firstOfEachStep = relabelled.grouped(weightsPerStep).map(_.head).toSeq
@@ -56,4 +55,4 @@ class RelabellingSpec extends AnyFlatSpec with Matchers {
     relabelled.grouped(weightsPerStep).map(_.head.intensity).toSeq shouldBe
       trajectory.map(step => InstabilityIntensity.of(step.state))
   }
-}
+end RelabellingSpec

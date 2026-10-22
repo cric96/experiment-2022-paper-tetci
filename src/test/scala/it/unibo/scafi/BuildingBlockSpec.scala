@@ -4,7 +4,7 @@ import it.unibo.scafi.BuildingBlock.*
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class BuildingBlockSpec extends AnyFlatSpec with Matchers {
+class BuildingBlockSpec extends AnyFlatSpec with Matchers:
   "The program molecule" should "select a building block by code or by name" in {
     Seq(0, 1, 2, 3)
       .map(code => BuildingBlock.fromMolecule(code)) shouldBe Seq(Gradient, HopGradient, Broadcast, Collect)
@@ -40,4 +40,4 @@ class BuildingBlockSpec extends AnyFlatSpec with Matchers {
   it should "be normalized to at most one" in {
     HopGradient.normalizedError(output = 100.0, groundTruth = 0.0) shouldBe 1.0
   }
-}
+end BuildingBlockSpec

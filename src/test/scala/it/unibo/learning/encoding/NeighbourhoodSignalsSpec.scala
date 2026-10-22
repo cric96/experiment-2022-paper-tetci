@@ -4,7 +4,7 @@ import it.unibo.testing.AgentStates.*
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class NeighbourhoodSignalsSpec extends AnyFlatSpec with Matchers {
+class NeighbourhoodSignalsSpec extends AnyFlatSpec with Matchers:
   "The Bellman-Ford residual" should "measure how much the node's edges drifted" in {
     NeighbourhoodSignals.bellmanFordResidual(sourceMovingTowardsMe) shouldBe 0.9999999958776927
     fixtures.drop(1).map(NeighbourhoodSignals.bellmanFordResidual) shouldBe Seq(0.0, 0.0, 0.0)
@@ -25,4 +25,3 @@ class NeighbourhoodSignalsSpec extends AnyFlatSpec with Matchers {
     NeighbourhoodSignals.neighbourhoodChange(isolated, scale = 2.0) shouldBe
       NeighbourhoodSignals.NeighbourhoodChange.None
   }
-}

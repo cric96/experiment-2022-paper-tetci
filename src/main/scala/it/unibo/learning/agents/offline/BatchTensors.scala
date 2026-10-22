@@ -4,7 +4,7 @@ import ai.djl.ndarray.types.Shape
 import ai.djl.ndarray.{NDArray, NDManager}
 
 /** Builders of the tensors of a training batch. */
-object BatchTensors {
+object BatchTensors:
 
   /** One row per sample. */
   def rows(values: Seq[Array[Float]], manager: NDManager): NDArray = manager.create(values.toArray)
@@ -16,4 +16,3 @@ object BatchTensors {
   /** A (samples × 1) column of indices. */
   def indexColumn(values: Seq[Int], manager: NDManager): NDArray =
     manager.create(values.map(_.toLong).toArray, new Shape(values.size.toLong, 1))
-}

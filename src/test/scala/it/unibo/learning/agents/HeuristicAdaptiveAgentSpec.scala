@@ -5,7 +5,7 @@ import it.unibo.testing.AgentStates.*
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class HeuristicAdaptiveAgentSpec extends AnyFlatSpec with Matchers {
+class HeuristicAdaptiveAgentSpec extends AnyFlatSpec with Matchers:
   private val agent = new HeuristicAdaptiveAgent(Seq(1.0, 2.0, 3.0, 4.0, 5.0), weight = 0.95)
   private val changedTwoRoundsAgo = AgentStates.of(
     me = 0,
@@ -31,4 +31,4 @@ class HeuristicAdaptiveAgentSpec extends AnyFlatSpec with Matchers {
     agent.policyForWeight(0.8)(stableBackbone) shouldBe 4.225806451612904
     agent.policyForWeight(0.8)(sourceMovingTowardsMe) shouldBe 1.5
   }
-}
+end HeuristicAdaptiveAgentSpec

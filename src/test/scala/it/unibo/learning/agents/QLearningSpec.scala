@@ -7,15 +7,14 @@ import org.scalatest.matchers.should.Matchers
 
 import scala.util.Random
 
-class QLearningSpec extends AnyFlatSpec with Matchers {
+class QLearningSpec extends AnyFlatSpec with Matchers:
   private val actions = List(1.0, 2.0, 3.0, 4.0, 5.0)
 
-  private def seededLearner(): QLearning = {
+  private def seededLearner(): QLearning =
     val learner =
       new QLearning(actions, DecayReference.constant(0.2), DecayReference.constant(0.5), 0.9, 3)
     learner.injectRandom(new Random(7))
     learner
-  }
 
   private def threeRoundsOfDecisions(learner: QLearning): Seq[Double] =
     Seq.fill(3)(fixtures.map(learner.policy)).flatten
@@ -38,4 +37,4 @@ class QLearningSpec extends AnyFlatSpec with Matchers {
     (1 to 5).foreach(_ => learner.update(batch))
     threeRoundsOfDecisions(learner) shouldBe Seq(1.0, 5.0, 4.0, 5.0, 1.0, 4.0, 4.0, 2.0, 5.0, 4.0, 5.0, 4.0)
   }
-}
+end QLearningSpec

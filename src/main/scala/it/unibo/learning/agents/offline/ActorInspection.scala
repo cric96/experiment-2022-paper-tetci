@@ -21,18 +21,17 @@ final class ActorInspection(
     actionScaler: MinMaxActionScaler,
     stateDim: Int,
     outputDirectory: File
-) {
+):
   private val rootManager: NDManager = NDManager.newBaseManager()
 
   def save(states: Vector[Array[Float]], weight: Double): Unit =
-    if states.nonEmpty then {
+    if states.nonEmpty then
       TorchNetwork.withSubManager(rootManager) { manager =>
         exportEmbeddings(states, weight, manager)
         exportSurface(weight, manager)
       }
-    }
 
-  private def exportEmbeddings(states: Vector[Array[Float]], weight: Double, manager: NDManager): Unit = {
+  private def exportEmbeddings(states: Vector[Array[Float]], weight: Double, manager: NDManager): Unit =
     val input = manager.create(states.toArray)
     val hidden = actor.extractHiddenEmbedding(input)
     val scaledPeriods = actor.evaluate(input)
@@ -50,17 +49,15 @@ final class ActorInspection(
         (sensitivity(sample) ++ hiddenUnits).map(Csv.number(_, ValueDecimals))
     }
     Csv.write(outputDirectory, s"embeddings_weight-$weight.csv", embeddingsHeader(hiddenSize), rows)
-  }
 
   /** |∂Δt/∂x_k| estimated with central finite differences, for each state (outer) and feature k (inner). */
-  private def sensitivities(states: Vector[Array[Float]], manager: NDManager): IndexedSeq[IndexedSeq[Double]] = {
+  private def sensitivities(states: Vector[Array[Float]], manager: NDManager): IndexedSeq[IndexedSeq[Double]] =
     val byFeature = (0 until stateDim).map { feature =>
       val increased = periodsOf(perturbed(states, feature, SensitivityStep), manager)
       val decreased = periodsOf(perturbed(states, feature, -SensitivityStep), manager)
       increased.zip(decreased).map { case (up, down) => math.abs(up - down) / (2.0 * SensitivityStep) }
     }
     states.indices.map(sample => byFeature.map(_(sample)))
-  }
 
   private def perturbed(states: Vector[Array[Float]], feature: Int, delta: Float): Array[Array[Float]] =
     states.map { state =>
@@ -69,15 +66,14 @@ final class ActorInspection(
       copy
     }.toArray
 
-  private def periodsOf(states: Array[Array[Float]], manager: NDManager): IndexedSeq[Double] = {
+  private def periodsOf(states: Array[Array[Float]], manager: NDManager): IndexedSeq[Double] =
     val scaledPeriods = actor.evaluate(manager.create(states))
     states.indices.map(periodAt(scaledPeriods, _))
-  }
 
   private def periodAt(scaledPeriods: NDArray, sample: Int): Double =
     actionScaler.unscale(scaledPeriods.getFloat(sample.toLong, 0L).toDouble)
 
-  private def exportSurface(weight: Double, manager: NDManager): Unit = {
+  private def exportSurface(weight: Double, manager: NDManager): Unit =
     val rows = PolicySurface.points.map { point =>
       val input = manager.create(point.features(TradeOff.betaFeature(weight)), new Shape(1, stateDim.toLong))
       val scaledPeriod = actor.evaluate(input)
@@ -92,10 +88,9 @@ final class ActorInspection(
       )
     }
     Csv.write(outputDirectory, s"surface_weight-$weight.csv", SurfaceHeader, rows)
-  }
-}
+end ActorInspection
 
-object ActorInspection {
+object ActorInspection:
 
   /** Where the inspections of the experiments are exported. */
   val DefaultDirectory: File = new File("build/exports/embeddings")
@@ -123,4 +118,4 @@ object ActorInspection {
   private def embeddingsHeader(hiddenSize: Int): Seq[String] =
     FeatureColumns ++ Seq("predDt", "qValue", "regime") ++ FeatureColumns.map(name => s"sens_$name") ++
       (0 until hiddenSize).map(unit => s"h_$unit")
-}
+end ActorInspection

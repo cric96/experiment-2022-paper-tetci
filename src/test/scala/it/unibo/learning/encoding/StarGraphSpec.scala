@@ -4,7 +4,7 @@ import it.unibo.testing.AgentStates.*
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class StarGraphSpec extends AnyFlatSpec with Matchers {
+class StarGraphSpec extends AnyFlatSpec with Matchers:
   private def padding(slots: Int): Seq[Float] = Seq.fill(slots)(StarGraph.IdleSlot).flatten
 
   "The star-graph encoding" should "keep the ego features and one slot per neighbour, nearest first" in {
@@ -27,4 +27,3 @@ class StarGraphSpec extends AnyFlatSpec with Matchers {
     stableBackbone.latestSnapshot.map(StarGraph.nearestNeighbours(stableBackbone, _).map(_._1)) shouldBe
       Some(List(0, 2))
   }
-}

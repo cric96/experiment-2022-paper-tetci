@@ -9,14 +9,13 @@ import org.scalatest.matchers.should.Matchers
 
 import scala.util.{Random, Using}
 
-class TorchNetworkSpec extends AnyFlatSpec with Matchers {
+class TorchNetworkSpec extends AnyFlatSpec with Matchers:
   private val tolerance = 1e-5f
   private val inputs = 5
 
-  private def randomInputs(size: Int, count: Int = 4, seed: Int = 3): Seq[Array[Float]] = {
+  private def randomInputs(size: Int, count: Int = 4, seed: Int = 3): Seq[Array[Float]] =
     val random = new Random(seed)
     Seq.fill(count)(Array.fill(size)(random.nextFloat() * 2 - 1))
-  }
 
   private def evaluated(network: TorchNetwork[Block], input: Array[Float]): Array[Float] =
     Using.resource(NDManager.newBaseManager())(manager => network.evaluate(manager.create(Array(input))).toFloatArray)
@@ -30,7 +29,7 @@ class TorchNetworkSpec extends AnyFlatSpec with Matchers {
       outputActivation = Some(Activation.tanhBlock()), seed = 9
     )
 
-  "The fast MLP inference" should "agree with the DJL evaluation, with and without the output tanh" in {
+  "The fast MLP inference" should "agree with the DJL evaluation, with and without the output tanh" in
     Seq(false, true).foreach { withTanh =>
       Using.resource(mlp(withTanh)) { network =>
         val fast = network.snapshotFastMLP(useTanh = withTanh)
@@ -41,7 +40,6 @@ class TorchNetworkSpec extends AnyFlatSpec with Matchers {
         }
       }
     }
-  }
 
   it should "keep its exact output (reproducibility of the experiments)" taggedAs PyTorchNumerics in {
     val fast = Using.resource(mlp(withTanh = true))(_.snapshotFastMLP(useTanh = true))
@@ -53,14 +51,13 @@ class TorchNetworkSpec extends AnyFlatSpec with Matchers {
     )
   }
 
-  "The fast EdgeGAT inference" should "agree with the DJL evaluation" in {
+  "The fast EdgeGAT inference" should "agree with the DJL evaluation" in
     Using.resource(edgeGat()) { network =>
       val fast = network.block.snapshotFastInference()
       randomInputs(StarGraph.TotalDim).foreach { input =>
         fast(input) shouldBe evaluated(network, input).head +- tolerance
       }
     }
-  }
 
   it should "keep its exact output (reproducibility of the experiments)" taggedAs PyTorchNumerics in {
     val fast = Using.resource(edgeGat())(_.block.snapshotFastInference())
@@ -111,11 +108,10 @@ class TorchNetworkSpec extends AnyFlatSpec with Matchers {
     scaler.unscale(scaler.scale(3.2).toDouble) shouldBe 3.2 +- 1e-6
   }
 
-  "The smooth L1 loss" should "be quadratic for small errors and linear for large ones" in {
+  "The smooth L1 loss" should "be quadratic for small errors and linear for large ones" in
     Using.resource(NDManager.newBaseManager()) { manager =>
       val predicted = manager.create(Array(0.5f, 3.0f))
       val target = manager.create(Array(0.0f, 0.0f))
       TorchNetwork.smoothL1Loss(predicted, target).getFloat() shouldBe ((0.125f + 2.5f) / 2) +- tolerance
     }
-  }
-}
+end TorchNetworkSpec

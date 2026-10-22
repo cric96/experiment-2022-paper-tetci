@@ -9,7 +9,7 @@ import java.io.File
 /** The Scala snippets embedded in the YAML files are compiled only when a simulation starts: load every file (and every
   * algorithm of the generalization scenario) so that a broken constructor or a renamed class fails the build.
   */
-class SimulationFilesSpec extends AnyFlatSpec with Matchers {
+class SimulationFilesSpec extends AnyFlatSpec with Matchers:
   private val simulationFiles =
     new File("src/main/yaml").listFiles().filter(_.getName.endsWith(".yml")).sortBy(_.getName)
   private val generalizationAlgorithms = 0 to 9
@@ -27,4 +27,3 @@ class SimulationFilesSpec extends AnyFlatSpec with Matchers {
     val file = new File("src/main/yaml/simulationGeneralization.yml")
     generalizationAlgorithms.foreach(algorithm => load(file, Map("algoId" -> algorithm)) should be > 0)
   }
-}

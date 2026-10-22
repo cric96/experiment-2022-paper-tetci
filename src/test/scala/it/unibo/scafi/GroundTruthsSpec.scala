@@ -4,7 +4,7 @@ import it.unibo.scafi.BuildingBlock.*
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class GroundTruthsSpec extends AnyFlatSpec with Matchers {
+class GroundTruthsSpec extends AnyFlatSpec with Matchers:
   private val pair = Topology(nodes = Seq(0, 1, 5), neighbours = Map(0 -> Seq(1 -> 3.0), 1 -> Seq(0 -> 3.0)))
 
   "The ground truths" should "give the value of every building block in every node" in {
@@ -22,4 +22,3 @@ class GroundTruthsSpec extends AnyFlatSpec with Matchers {
   it should "broadcast nothing without sources" in {
     GroundTruths.of(pair, sources = Set.empty).of(0, Broadcast) shouldBe 0.0
   }
-}

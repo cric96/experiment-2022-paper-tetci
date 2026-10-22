@@ -20,14 +20,13 @@ final case class RelabelledStep(
     intensity: Double,
     isTerminal: Boolean,
     discount: Float
-) {
+):
   def isUnstable: Boolean = intensity > 0.0
 
   def terminalFlag: Float = if isTerminal then 1.0f else 0.0f
-}
 
 /** Hindsight relabelling of the trajectories collected with one trade-off weight for many others. */
-object Relabelling {
+object Relabelling:
 
   /** The trade-off weights every step is relabelled for, besides the learner's own one. */
   val CounterfactualWeights: Seq[Double] = Seq(0.5, 0.8, 0.95, 0.99, 1.0)
@@ -49,7 +48,7 @@ object Relabelling {
       gamma: Double,
       encode: AgentState => Array[Float],
       betaFeatureIndex: Int
-  ): Seq[RelabelledStep] = {
+  ): Seq[RelabelledStep] =
     val states = trajectory.map(step => encode(step.state)).toIndexedSeq
     trajectory.zipWithIndex.flatMap { case (step, index) =>
       val isTerminal = index == trajectory.size - 1
@@ -61,11 +60,9 @@ object Relabelling {
         RelabelledStep(step, conditioned(states(index)), conditioned(nextState), beta, intensity, isTerminal, discount)
       }
     }
-  }
 
-  private def withBetaFeature(features: Array[Float], beta: Double, betaFeatureIndex: Int): Array[Float] = {
+  private def withBetaFeature(features: Array[Float], beta: Double, betaFeatureIndex: Int): Array[Float] =
     val conditioned = features.clone()
     conditioned(betaFeatureIndex) = TradeOff.betaFeature(beta)
     conditioned
-  }
-}
+end Relabelling

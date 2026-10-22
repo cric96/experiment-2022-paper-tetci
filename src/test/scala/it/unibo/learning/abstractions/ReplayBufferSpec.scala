@@ -6,15 +6,14 @@ import org.scalatest.matchers.should.Matchers
 import scala.collection.immutable.Queue
 import scala.util.Random
 
-class ReplayBufferSpec extends AnyFlatSpec with Matchers {
+class ReplayBufferSpec extends AnyFlatSpec with Matchers:
   private val state = AgentState(0, Queue.empty)
 
   /** A buffer filled with experiences whose action index is 0 until `count`, in insertion order. */
-  private def bufferWith(count: Int, capacity: Int, seed: Int = 42): ReplayBuffer = {
+  private def bufferWith(count: Int, capacity: Int, seed: Int = 42): ReplayBuffer =
     val buffer = new ReplayBuffer(capacity, new Random(seed))
     (0 until count).foreach(i => buffer.put(state, i, i.toDouble, 0.0, state))
     buffer
-  }
 
   private def actionsOf(experiences: Seq[ReplayBuffer.Experience]): Seq[Int] = experiences.map(_.actionT)
 
@@ -49,4 +48,4 @@ class ReplayBufferSpec extends AnyFlatSpec with Matchers {
     actionsOf(bufferWith(count = 10, capacity = 10).sample(6)) shouldBe Seq(0, 3, 8, 4, 5, 9)
     actionsOf(bufferWith(count = 4, capacity = 10).sample(4)) shouldBe Seq(3, 1, 0, 2)
   }
-}
+end ReplayBufferSpec

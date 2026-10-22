@@ -3,7 +3,7 @@ package it.unibo.learning.agents.offline
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class LearnerSeedsSpec extends AnyFlatSpec with Matchers {
+class LearnerSeedsSpec extends AnyFlatSpec with Matchers:
   "The seeds" should "be the same for the same run and weight" in {
     LearnerSeeds.random(2.0, 0.95).nextLong() shouldBe LearnerSeeds.random(2.0, 0.95).nextLong()
     LearnerSeeds.networks(2.0, 0.95) shouldBe LearnerSeeds.networks(2.0, 0.95)
@@ -18,4 +18,3 @@ class LearnerSeedsSpec extends AnyFlatSpec with Matchers {
   it should "keep the values used by the published experiments" in {
     LearnerSeeds.networks(2.0, 0.95) shouldBe (2 * 1009) ^ 0.95.hashCode()
   }
-}

@@ -60,6 +60,22 @@ and update it in the same commit.
 
 ## Scala style (Scala 3)
 
+### Scala 3 syntax and formatting
+- Formatting is owned by scalafmt (`.scalafmt.conf`, applied by `./gradlew spotlessApply`, checked by
+  `spotlessCheck` in CI): don't hand-format.
+- Significant indentation: templates and bodies open with `:` or `=` instead of braces (`class X:`, `object Y:`,
+  `def f(): Unit =`), control structures use `if … then … else`, `while … do`, `for … do`/`yield`, `match` with
+  indented cases. Definitions longer than ~25 lines are closed by an end marker (`end CentralAgent`); scalafmt adds
+  and removes them. Multi-line lambdas passed as arguments keep their braces (`xs.foreach { x => … }`).
+- `*` in imports (`import scala.jdk.CollectionConverters.*`), `?` in wildcard types (`CentralAgent[?, ?]`),
+  `using` to pass an implicit argument explicitly (`PriorityQueue.empty(using ordering)`).
+- `extension` methods instead of implicit classes; `given`/`using` instead of implicit values and parameters;
+  top-level definitions (types, extensions) instead of `package object`s.
+- `enum` for fixed sets of alternatives, with parameters and methods when the cases share behaviour
+  (`BuildingBlock`, `Regime`); `values` lists the cases.
+- Prefer creator applications without `new` for Scala classes (`SimpleNodeManager[T](node)`); keep `new` for Java
+  classes and anonymous classes.
+
 ### Values and state
 - `val` and immutable collections by default. `var` is acceptable only for the inherently stateful Alchemist glue
   (reactions, learners that accumulate data); keep it `private` and as narrow as possible.
@@ -101,9 +117,6 @@ and update it in the same commit.
 ### Types and API
 - Explicit return types on every public member.
 - `final` for classes not meant to be extended; `private` for everything that is not API.
-- Scala 3 idioms: `extension` methods instead of implicit classes, `given`/`using` instead of implicit values and
-  parameters, top-level definitions instead of `package object`s, `*` in imports and `?` in wildcard types
-  (scalafmt rewrites the syntax; keep the braces style used by the code base).
 - Named and default arguments for constructors used from YAML; keep positional order stable.
 - Traits provide sensible default implementations instead of forcing every implementor to write no-op overrides.
 
@@ -114,8 +127,7 @@ and update it in the same commit.
   that documents it, `i`/`k` for indices in a hot loop) and `_` placeholders in one-line lambdas.
 - `camelCase` for terms, `UpperCamelCase` for types and constants.
 - Imports at the top of the file; no fully qualified names inline (`new java.io.File`, `scala.collection.mutable.X`).
-  Use `scala.jdk.CollectionConverters._` for Java interop.
-- Formatting is owned by scalafmt (`maxColumn = 120`): don't hand-format, run `spotlessApply`.
+  Use `scala.jdk.CollectionConverters.*` for Java interop.
 
 ### Tests
 - `SimulationGoldenMasterSpec` runs every YAML for a few episodes (no exporters) and compares fingerprints of the

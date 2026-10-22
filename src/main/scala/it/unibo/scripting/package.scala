@@ -1,9 +1,10 @@
 package it.unibo
 
-import scala.language.implicitConversions
-
+/** Helpers for the Scala snippets embedded in the YAML files. */
 package object scripting {
-  implicit class Unsafe(elem: Any) {
-    def as[E] = elem.asInstanceOf[E]
+
+  /** `variable.as[Double]`: the YAML variables are untyped, the snippets cast them to the expected type. */
+  implicit final class Unsafe(private val value: Any) extends AnyVal {
+    def as[E]: E = value.asInstanceOf[E]
   }
 }

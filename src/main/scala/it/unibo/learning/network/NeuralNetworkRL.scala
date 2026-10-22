@@ -236,6 +236,9 @@ object NeuralNetworkRL {
     val NeighDim: Int = 6
     val TotalDim: Int = SelfDim + MaxNeighbors * NeighDim
 
+    /** Position of the β feature among the ego features. */
+    val BetaFeature: Int = SelfDim - 1
+
     /** Distance that normalizes the neighbours' distances to [0, 1]. */
     val MaxDistance: Double = 100.0
 

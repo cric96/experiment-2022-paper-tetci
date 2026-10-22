@@ -1,313 +1,216 @@
 package it.unibo.learning.agents
 
-import ai.djl.ndarray.NDManager
 import ai.djl.ndarray.index.NDIndex
-import ai.djl.ndarray.types.Shape
+import ai.djl.ndarray.{NDArray, NDManager}
 import ai.djl.nn.Activation
 import it.unibo.learning.TradeOff
-import it.unibo.learning.abstractions.{AgentState, Step, Trajectory}
-import it.unibo.learning.network.NeuralNetworkRL.{SpatialTemporal, StarGraph}
+import it.unibo.learning.abstractions.{AgentState, Trajectory}
+import it.unibo.learning.agents.OfflineLearnerGNN._
+import it.unibo.learning.agents.offline.BatchTensors.{column, rows}
+import it.unibo.learning.agents.offline._
+import it.unibo.learning.network.NeuralNetworkRL.StarGraph
 import it.unibo.learning.network.TorchNetwork
 import it.unibo.learning.network.TorchNetwork._
 
-import scala.collection.mutable.ArrayBuffer
-import scala.util.Random
-
-/** Edge-Conditioned Graph Attention Network (EdgeGAT) + Vectorial 2-Head Multi-Objective Critic ([Q_conv, Q_energy] in
-  * R^2) for Continuous Offline Reinforcement Learning on Star-Graphs.
+/** Offline actor-critic on the node's star graph: an edge-conditioned graph-attention actor (EdgeGAT) and twin
+  * multi-objective critics that predict [Q_convergence, Q_energy], scalarized with the objective weights of each
+  * transition's trade-off β.
   */
-class OfflineLearnerGNN(
+final class OfflineLearnerGNN(
     min: Double,
     max: Double,
     randomKey: Double,
     weight: Double,
-    val edgeHidden: Int = 24,
-    val readoutHidden: Int = 48,
-    val gamma: Float = 0.9f,
-    val lr: Float = 1e-3f,
-    val batchSize: Int = 64,
-    val steps: Int = 110,
-    val explorationSteps: Int = 10,
-    val learningStepAfter: Int = 2
-) extends Learner {
+    edgeHidden: Int = 24,
+    readoutHidden: Int = 48,
+    gamma: Float = 0.9f,
+    lr: Float = 1e-3f,
+    batchSize: Int = 64,
+    stepsPerEpisode: Int = 110,
+    explorationEpisodes: Int = 10,
+    finalTrainingMultiplier: Int = 2
+) extends EpisodicOfflineLearner[GraphTransition](
+      randomKey,
+      weight,
+      TrainingSchedule(explorationEpisodes, stepsPerEpisode, finalTrainingMultiplier),
+      batchSize
+    ) {
+  private val actionScaler: MinMaxActionScaler = MinMaxActionScaler(min, max)
+  private val networkSeed: Int = LearnerSeeds.networks(randomKey, weight)
+  private val actor: TorchNetwork = actorNetwork("gat-actor", seedOffset = 101)
+  private val targetActor: TorchNetwork = actorNetwork("gat-target-actor", seedOffset = 102)
+  targetActor.softUpdateFrom(actor, TargetNetworks.HardCopy)
+  private val critic1: TorchNetwork = criticNetwork("gat-critic-1", seedOffset = 103)
+  private val targetCritic1: TorchNetwork = criticNetwork("gat-target-critic-1", seedOffset = 104)
+  targetCritic1.softUpdateFrom(critic1, TargetNetworks.HardCopy)
+  private val critic2: TorchNetwork = criticNetwork("gat-critic-2", seedOffset = 105)
+  private val targetCritic2: TorchNetwork = criticNetwork("gat-target-critic-2", seedOffset = 106)
+  targetCritic2.softUpdateFrom(critic2, TargetNetworks.HardCopy)
+  @volatile private var fastActor: Array[Float] => Float = attentionBlockOf(actor).snapshotFastInference()
+  @volatile private var fastEmbeddingAndAttention: Array[Float] => (Array[Float], Array[Float]) =
+    attentionBlockOf(actor).snapshotEmbeddingAndAttention()
 
-  private val selfDim: Int = StarGraph.SelfDim
-  private val maxNeighbors: Int = StarGraph.MaxNeighbors
-  private val neighDim: Int = StarGraph.NeighDim
-  private val stateDim: Int = StarGraph.TotalDim
+  private def actorNetwork(name: String, seedOffset: Int): TorchNetwork =
+    TorchNetwork.createEdgeGAT(
+      name,
+      StarGraph.SelfDim,
+      StarGraph.MaxNeighbors,
+      StarGraph.NeighDim,
+      edgeHidden,
+      readoutHidden,
+      outputSize = 1,
+      outputActivation = Some(Activation.tanhBlock()),
+      lr = lr * ActorLearningRateRatio,
+      seed = networkSeed + seedOffset
+    )
 
-  private var random: Random = new Random((randomKey.toLong * 31L) ^ java.lang.Double.doubleToLongBits(weight))
-  private val rootManager: NDManager = NDManager.newBaseManager()
-  private val actionScaler: TorchNetwork.MinMaxActionScaler = TorchNetwork.MinMaxActionScaler(min, max)
-  private val baseSeed: Int = (randomKey.toInt * 1009) ^ weight.hashCode()
+  /** A critic sees the scaled action as an extra ego feature and predicts one value per objective. */
+  private def criticNetwork(name: String, seedOffset: Int): TorchNetwork =
+    TorchNetwork.createEdgeGAT(
+      name,
+      StarGraph.SelfDim + 1,
+      StarGraph.MaxNeighbors,
+      StarGraph.NeighDim,
+      edgeHidden,
+      readoutHidden,
+      outputSize = Objectives,
+      lr = lr,
+      seed = networkSeed + seedOffset
+    )
 
-  // EdgeGAT Actor: StarGraph(selfDim=5, K=8, neighDim=6) -> action in [-1, 1]
-  private val actor: TorchNetwork = TorchNetwork.createEdgeGAT(
-    name = "gat-actor",
-    selfDim = selfDim,
-    maxNeighbors = maxNeighbors,
-    neighDim = neighDim,
-    edgeHidden = edgeHidden,
-    readoutHidden = readoutHidden,
-    outputSize = 1,
-    outputActivation = Some(Activation.tanhBlock()),
-    lr = lr * 0.5f,
-    seed = baseSeed + 101
-  )
-  private val targetActor: TorchNetwork = TorchNetwork.createEdgeGAT(
-    name = "gat-target-actor",
-    selfDim = selfDim,
-    maxNeighbors = maxNeighbors,
-    neighDim = neighDim,
-    edgeHidden = edgeHidden,
-    readoutHidden = readoutHidden,
-    outputSize = 1,
-    outputActivation = Some(Activation.tanhBlock()),
-    lr = lr * 0.5f,
-    seed = baseSeed + 102
-  )
-  targetActor.softUpdateFrom(actor, 1.0f)
-
-  // Vectorial 2-Head Multi-Objective EdgeGAT Critics: predict [Q_conv, Q_energy] in R^2
-  private val critic1: TorchNetwork = TorchNetwork.createEdgeGAT(
-    name = "gat-critic-1",
-    selfDim = selfDim + 1,
-    maxNeighbors = maxNeighbors,
-    neighDim = neighDim,
-    edgeHidden = edgeHidden,
-    readoutHidden = readoutHidden,
-    outputSize = 2,
-    lr = lr,
-    seed = baseSeed + 103
-  )
-  private val targetCritic1: TorchNetwork = TorchNetwork.createEdgeGAT(
-    name = "gat-target-critic-1",
-    selfDim = selfDim + 1,
-    maxNeighbors = maxNeighbors,
-    neighDim = neighDim,
-    edgeHidden = edgeHidden,
-    readoutHidden = readoutHidden,
-    outputSize = 2,
-    lr = lr,
-    seed = baseSeed + 104
-  )
-  targetCritic1.softUpdateFrom(critic1, 1.0f)
-
-  private val critic2: TorchNetwork = TorchNetwork.createEdgeGAT(
-    name = "gat-critic-2",
-    selfDim = selfDim + 1,
-    maxNeighbors = maxNeighbors,
-    neighDim = neighDim,
-    edgeHidden = edgeHidden,
-    readoutHidden = readoutHidden,
-    outputSize = 2,
-    lr = lr,
-    seed = baseSeed + 105
-  )
-  private val targetCritic2: TorchNetwork = TorchNetwork.createEdgeGAT(
-    name = "gat-target-critic-2",
-    selfDim = selfDim + 1,
-    maxNeighbors = maxNeighbors,
-    neighDim = neighDim,
-    edgeHidden = edgeHidden,
-    readoutHidden = readoutHidden,
-    outputSize = 2,
-    lr = lr,
-    seed = baseSeed + 106
-  )
-  targetCritic2.softUpdateFrom(critic2, 1.0f)
-
-  private val epsilon: Double = 0.99
-  private val targetUpdateTau: Float = 0.02f
-  private val counterfactualWeights: Array[Double] = Array(0.5, 0.8, 0.95, 0.99, 1.0)
-
-  private var ticks: Int = 0
-  private val unstableTransitions: ArrayBuffer[OfflineLearnerGNN.GNNTransition] = ArrayBuffer.empty
-  private val stableTransitions: ArrayBuffer[OfflineLearnerGNN.GNNTransition] = ArrayBuffer.empty
-  @volatile private var fastActorEval: Array[Float] => Float =
-    actor.block.asInstanceOf[TorchNetwork.EdgeGATBlock].snapshotFastInference()
-  @volatile private var fastEmbAndAttn: Array[Float] => (Array[Float], Array[Float]) =
-    actor.block.asInstanceOf[TorchNetwork.EdgeGATBlock].snapshotEmbeddingAndAttention()
-
-  def inspectEmbeddingAndAttention(
-      state: AgentState,
-      targetWeight: Double = weight
-  ): (Array[Float], Array[Float], List[Int]) = {
-    val feat = encode(state, targetWeight)
-    val (emb, alphas) = fastEmbAndAttn(feat)
-    val currSnap = state.neighborhoodOutput.lastOption.getOrElse(Map.empty)
-    val sortedNeighborIds = currSnap
-      .filter(_._1 != state.me)
-      .toList
-      .sortBy(_._2.distance)
-      .take(maxNeighbors)
-      .map(_._1)
-    (emb, alphas, sortedNeighborIds)
-  }
-
-  private def encode(state: AgentState, targetWeight: Double = weight): Array[Float] =
-    StarGraph.encode(state, targetWeight, max)
-
-  def linearScaler(start: Double, end: Double, totalSteps: Int, current: Int): Double =
-    if (current >= totalSteps) end
-    else start + (end - start) * current.toDouble / totalSteps.toDouble
-
-  override def policyForWeight(customWeight: Double): AgentState => Double = { state =>
-    val choice = random.nextDouble()
-    if (choice < linearScaler(epsilon, 0.0, explorationSteps, ticks)) {
-      min + random.nextDouble() * (max - min)
-    } else {
-      val scaledAction = fastActorEval(encode(state, customWeight)).toDouble
-      actionScaler.unscale(scaledAction)
-    }
+  /** The actor's readout embedding of `state`, its attention over the neighbours, and the neighbours' ids. */
+  def inspectEmbeddingAndAttention(state: AgentState, targetWeight: Double = weight): AttentionInspection = {
+    val (embedding, attention) = fastEmbeddingAndAttention(StarGraph.encode(state, targetWeight, max))
+    val neighbours = state.latestSnapshot
+      .fold(List.empty[Int])(state.neighboursIn(_).toList.sortBy { case (_, info) => info.distance }.map(_._1))
+      .take(StarGraph.MaxNeighbors)
+    AttentionInspection(embedding, attention, neighbours)
   }
 
   override def policy: AgentState => Double = policyForWeight(weight)
 
-  override def injectRandom(random: Random): Unit = this.random = random
-
-  override def endEpisode(trajectories: Seq[Trajectory]): Unit = {
-    appendEpisodeTrajectories(trajectories)
-    if (ticks <= explorationSteps && (unstableTransitions.nonEmpty || stableTransitions.nonEmpty)) {
-      val nSteps = if (ticks < explorationSteps) steps else steps * learningStepAfter
-      fit(nSteps)
-      val gatBlock = actor.block.asInstanceOf[TorchNetwork.EdgeGATBlock]
-      fastActorEval = gatBlock.snapshotFastInference()
-      fastEmbAndAttn = gatBlock.snapshotEmbeddingAndAttention()
-    }
-    ticks += 1
-  }
-
-  private def objectiveWeightsAndRewards(
-      rawIntensity: Double,
-      dt: Double,
-      beta: Double
-  ): (Float, Float, Float, Float) = {
-    val u = TradeOff.normalizedPeriod(dt, min, max)
-    val weights = TradeOff.objectiveWeights(rawIntensity, beta)
-    val rConv = (-(u * u)).toFloat
-    val rEnergy = (-((1.0 - u) * (1.0 - u))).toFloat
-    (weights.convergence.toFloat, weights.energy.toFloat, rConv, rEnergy)
-  }
-
-  private def withWeight(baseFeatures: Array[Float], beta: Double): Array[Float] = {
-    val copy = baseFeatures.clone()
-    copy(4) = TradeOff.betaFeature(beta)
-    copy
-  }
-
-  private def appendEpisodeTrajectories(episodes: Seq[Trajectory]): Unit =
-    episodes.foreach { trajectory =>
-      val baseStates = trajectory.map(step => encode(step.state, weight)).toIndexedSeq
-      val intensities = trajectory.map(step => SpatialTemporal.instabilityIntensity(step.state)).toIndexedSeq
-      val weightsToTrain = Array(weight, weight) ++ counterfactualWeights
-      trajectory.indices.foreach { i =>
-        val rawAction = trajectory(i).action
-        val isTerminal = i == trajectory.size - 1
-        val nextBase = if (isTerminal) baseStates(i) else baseStates(i + 1)
-        val scaledAct = actionScaler.scale(rawAction)
-        val smdpDiscount = math.pow(gamma.toDouble, math.max(0.5, rawAction)).toFloat
-        val intensity = intensities(i)
-        val targetBuffer = if (intensity > 0.0) unstableTransitions else stableTransitions
-        weightsToTrain.foreach { beta =>
-          val (w1, w2, rConv, rEnergy) = objectiveWeightsAndRewards(intensity, rawAction, beta)
-          targetBuffer += OfflineLearnerGNN.GNNTransition(
-            state = withWeight(baseStates(i), beta),
-            scaledAction = scaledAct,
-            rConv = rConv,
-            rEnergy = rEnergy,
-            wConv = w1,
-            wEnergy = w2,
-            nextState = withWeight(nextBase, beta),
-            terminal = if (isTerminal) 1.0f else 0.0f,
-            discountFactor = smdpDiscount
-          )
-        }
-      }
-    }
-
-  private def sampleStratifiedBatch(effectiveBatch: Int): Vector[OfflineLearnerGNN.GNNTransition] = {
-    if (unstableTransitions.isEmpty) {
-      Vector.fill(effectiveBatch)(stableTransitions(random.nextInt(stableTransitions.size)))
-    } else if (stableTransitions.isEmpty) {
-      Vector.fill(effectiveBatch)(unstableTransitions(random.nextInt(unstableTransitions.size)))
+  override def policyForWeight(customWeight: Double): AgentState => Double = { state =>
+    if (random.nextDouble() < schedule.epsilonAt(currentEpisode)) {
+      min + random.nextDouble() * (max - min)
     } else {
-      val half = effectiveBatch / 2
-      val unstPart = Vector.fill(half)(unstableTransitions(random.nextInt(unstableTransitions.size)))
-      val stabPart = Vector.fill(effectiveBatch - half)(stableTransitions(random.nextInt(stableTransitions.size)))
-      unstPart ++ stabPart
+      actionScaler.unscale(fastActor(StarGraph.encode(state, customWeight, max)).toDouble)
     }
   }
 
-  /** Inserts the action tensor (B, 1) right after selfFeat (B, selfDim) before neighbor features (B, K * neighDim). */
-  private def insertActionIntoGraphState(
-      states: ai.djl.ndarray.NDArray,
-      actions: ai.djl.ndarray.NDArray
-  ): ai.djl.ndarray.NDArray = {
-    val selfPart = states.get(new NDIndex(":, :{}", java.lang.Long.valueOf(selfDim)))
-    val neighPart = states.get(new NDIndex(":, {}:", java.lang.Long.valueOf(selfDim)))
-    selfPart.concat(actions, 1).concat(neighPart, 1)
+  override protected def record(trajectory: Trajectory): Unit =
+    Relabelling
+      .relabel(trajectory, weight, gamma.toDouble, encodeForOwnWeight, StarGraph.BetaFeature)
+      .foreach(relabelled => transitions.add(toTransition(relabelled), relabelled.isUnstable))
+
+  private def encodeForOwnWeight(state: AgentState): Array[Float] = StarGraph.encode(state, weight, max)
+
+  private def toTransition(relabelled: RelabelledStep): GraphTransition = {
+    val period = relabelled.step.action
+    val u = TradeOff.normalizedPeriod(period, min, max)
+    val weights = TradeOff.objectiveWeights(relabelled.intensity, relabelled.beta)
+    GraphTransition(
+      state = relabelled.state,
+      scaledAction = actionScaler.scale(period),
+      convergenceReward = (-(u * u)).toFloat,
+      energyReward = (-((1.0 - u) * (1.0 - u))).toFloat,
+      convergenceWeight = weights.convergence.toFloat,
+      energyWeight = weights.energy.toFloat,
+      nextState = relabelled.nextState,
+      terminal = relabelled.terminalFlag,
+      discountFactor = relabelled.discount
+    )
   }
 
-  private def fit(nSteps: Int): Unit = {
-    val dataSize = unstableTransitions.size + stableTransitions.size
-    if (dataSize == 0) return
-    val effectiveBatch = math.min(batchSize, dataSize)
-
-    (0 until nSteps).foreach { _ =>
-      val batch = sampleStratifiedBatch(effectiveBatch)
-      withSubManager(rootManager) { sub =>
-        val states = sub.create(batch.map(_.state).toArray)
-        val nextStates = sub.create(batch.map(_.nextState).toArray)
-        val actions = sub.create(batch.map(_.scaledAction).toArray, new Shape(effectiveBatch, 1))
-        val rewardsVec = sub.create(batch.map(t => Array(t.rConv, t.rEnergy)).toArray)
-        val weightsVec = sub.create(batch.map(t => Array(t.wConv, t.wEnergy)).toArray)
-        val terminals = sub.create(batch.map(_.terminal).toArray, new Shape(effectiveBatch, 1))
-        val discounts = sub.create(batch.map(_.discountFactor).toArray, new Shape(effectiveBatch, 1))
-
-        val nextActions = targetActor.evaluate(nextStates)
-        val nextGraphSa = insertActionIntoGraphState(nextStates, nextActions)
-        val nextQ1 = targetCritic1.evaluate(nextGraphSa)
-        val nextQ2 = targetCritic2.evaluate(nextGraphSa)
-        val nextQVec = nextQ1.minimum(nextQ2)
-        val targetQVec = (rewardsVec + nextQVec * discounts * (-terminals + 1.0f)).stopGradient()
-
-        val graphSa = insertActionIntoGraphState(states, actions)
-        critic1.trainStep {
-          TorchNetwork.smoothL1Loss(critic1.forward(graphSa, training = true), targetQVec)
-        }
-        critic2.trainStep {
-          TorchNetwork.smoothL1Loss(critic2.forward(graphSa, training = true), targetQVec)
-        }
-        critic1.withFrozenParameters {
-          actor.trainStep {
-            val piActions = actor.forward(states, training = true)
-            val piGraphSa = insertActionIntoGraphState(states, piActions)
-            val qVec = critic1.forward(piGraphSa, training = true)
-            // Scalarized multi-objective Q value: w_conv(s, beta) * Q_conv + w_energy(s, beta) * Q_energy
-            val scalarizedQ = (qVec * weightsVec).sum(Array(1))
-            -scalarizedQ.mean()
-          }
-        }
-
-        targetCritic1.softUpdateFrom(critic1, targetUpdateTau)
-        targetCritic2.softUpdateFrom(critic2, targetUpdateTau)
-        targetActor.softUpdateFrom(actor, targetUpdateTau)
-      }
+  override protected def trainOn(batch: Vector[GraphTransition], manager: NDManager): Unit = {
+    val tensors = GraphBatch(batch, manager)
+    val targets = clippedDoubleQTargets(tensors)
+    val stateActions = withAction(tensors.states, tensors.actions)
+    Seq(critic1, critic2).foreach { critic =>
+      critic.trainStep(TorchNetwork.smoothL1Loss(critic.forward(stateActions, training = true), targets))
     }
+    critic1.withFrozenParameters(actor.trainStep(actorLoss(tensors)))
+    targetCritic1.softUpdateFrom(critic1, TargetNetworks.UpdateRate)
+    targetCritic2.softUpdateFrom(critic2, TargetNetworks.UpdateRate)
+    targetActor.softUpdateFrom(actor, TargetNetworks.UpdateRate)
+  }
+
+  /** r + γ^Δt · min(Q1_target, Q2_target)(s', π_target(s')), one column per objective. */
+  private def clippedDoubleQTargets(tensors: GraphBatch): NDArray = {
+    val nextStateActions = withAction(tensors.nextStates, targetActor.evaluate(tensors.nextStates))
+    val nextValues = targetCritic1.evaluate(nextStateActions).minimum(targetCritic2.evaluate(nextStateActions))
+    (tensors.rewards + nextValues * tensors.discounts * (-tensors.terminals + 1.0f)).stopGradient()
+  }
+
+  /** The actor maximizes w_convergence · Q_convergence + w_energy · Q_energy of its own actions (first critic). */
+  private def actorLoss(tensors: GraphBatch): NDArray = {
+    val actions = actor.forward(tensors.states, training = true)
+    val values = critic1.forward(withAction(tensors.states, actions), training = true)
+    -(values * tensors.objectiveWeights).sum(Array(1)).mean()
+  }
+
+  /** Inserts the (B × 1) actions right after the ego features of the (B × TotalDim) star-graph states. */
+  private def withAction(states: NDArray, actions: NDArray): NDArray = {
+    val ego = states.get(new NDIndex(":, :{}", java.lang.Long.valueOf(StarGraph.SelfDim.toLong)))
+    val neighbours = states.get(new NDIndex(":, {}:", java.lang.Long.valueOf(StarGraph.SelfDim.toLong)))
+    ego.concat(actions, 1).concat(neighbours, 1)
+  }
+
+  override protected def onTrained(): Unit = {
+    fastActor = attentionBlockOf(actor).snapshotFastInference()
+    fastEmbeddingAndAttention = attentionBlockOf(actor).snapshotEmbeddingAndAttention()
   }
 }
 
 object OfflineLearnerGNN {
-  final case class GNNTransition(
+
+  /** Convergence and energy. */
+  val Objectives: Int = 2
+
+  /** The actor learns more slowly than the critics. */
+  val ActorLearningRateRatio: Float = 0.5f
+
+  /** What the actor attends to in a state: its readout embedding and one attention weight per neighbour slot. */
+  final case class AttentionInspection(embedding: Array[Float], attention: Array[Float], neighbours: List[Int])
+
+  final case class GraphTransition(
       state: Array[Float],
       scaledAction: Float,
-      rConv: Float,
-      rEnergy: Float,
-      wConv: Float,
-      wEnergy: Float,
+      convergenceReward: Float,
+      energyReward: Float,
+      convergenceWeight: Float,
+      energyWeight: Float,
       nextState: Array[Float],
       terminal: Float,
       discountFactor: Float
   )
+
+  /** A batch of graph transitions as tensors: rewards and objective weights have one column per objective. */
+  final private case class GraphBatch(
+      states: NDArray,
+      nextStates: NDArray,
+      actions: NDArray,
+      rewards: NDArray,
+      objectiveWeights: NDArray,
+      terminals: NDArray,
+      discounts: NDArray
+  )
+
+  private object GraphBatch {
+    def apply(batch: Vector[GraphTransition], manager: NDManager): GraphBatch =
+      GraphBatch(
+        states = rows(batch.map(_.state), manager),
+        nextStates = rows(batch.map(_.nextState), manager),
+        actions = column(batch.map(_.scaledAction), manager),
+        rewards = rows(batch.map(transition => Array(transition.convergenceReward, transition.energyReward)), manager),
+        objectiveWeights =
+          rows(batch.map(transition => Array(transition.convergenceWeight, transition.energyWeight)), manager),
+        terminals = column(batch.map(_.terminal), manager),
+        discounts = column(batch.map(_.discountFactor), manager)
+      )
+  }
+
+  private def attentionBlockOf(network: TorchNetwork): EdgeGATBlock = network.block match {
+    case block: EdgeGATBlock => block
+    case other => throw new IllegalArgumentException(s"Expected an EdgeGAT network, got ${other.getClass.getName}")
+  }
 }

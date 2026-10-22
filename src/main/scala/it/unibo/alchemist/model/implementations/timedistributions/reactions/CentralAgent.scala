@@ -114,7 +114,8 @@ class CentralAgent[T, P <: Position[P]](
               else Queue.empty
             if (windowComp.nonEmpty) {
               val st = new AgentState(n.getId, windowComp, windowSens)
-              val (emb, alphas, nbrIds) = gnnLearner.inspectEmbeddingAndAttention(st, w)
+              val inspection = gnnLearner.inspectEmbeddingAndAttention(st, w)
+              val (emb, alphas, nbrIds) = (inspection.embedding, inspection.attention, inspection.neighbours)
               // Compute attention-weighted direction vector (attDx, attDy) and max-attended neighbor coordinates
               var attDx = 0.0
               var attDy = 0.0

@@ -33,6 +33,11 @@ tasks.test {
     systemProperty("ai.djl.pytorch.num_interop_threads", "1")
     environment("OMP_NUM_THREADS", "1")
     environment("MKL_NUM_THREADS", "1")
+    // A transitive dependency registers an obsolete SAX parser that cannot read logback-test.xml: use the JDK one.
+    systemProperty(
+        "javax.xml.parsers.SAXParserFactory",
+        "com.sun.org.apache.xerces.internal.jaxp.SAXParserFactoryImpl",
+    )
     testLogging {
         events("failed")
         exceptionFormat = TestExceptionFormat.FULL

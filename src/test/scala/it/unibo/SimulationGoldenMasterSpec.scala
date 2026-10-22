@@ -77,4 +77,46 @@ class SimulationGoldenMasterSpec extends AnyFlatSpec with Matchers {
       Simulations.run(yaml, variables, checkpoints) shouldBe expected
     }
   }
+
+  /** After the training episodes, the generalization scenario switches to its target program and cycles β. */
+  private val afterSwitch = Seq(1999.5, 2199.5, 2250.0)
+  private val endOfTraining =
+    Fingerprint(1999.5, 100, 7227, 286.91588785046696, -297.48953700425284, 1762.998944695169, 23571.475879998467)
+
+  private val unseenPrograms = Seq(
+    (
+      1,
+      "hop gradient",
+      Seq(
+        endOfTraining,
+        Fingerprint(2199.5, 100, 4603, 477.35849056603695, -774.2137373329792, 2561.320306603734, 575.0),
+        Fingerprint(2250.0, 100, 1100, 477.35849056603695, -197.38628276052071, 1651.6603773584638, 401.0)
+      )
+    ),
+    (
+      2,
+      "broadcast",
+      Seq(
+        endOfTraining,
+        Fingerprint(2199.5, 100, 4316, 473.92429245282943, -501.3645924143033, 5544.5054150942515, 1108000.0),
+        Fingerprint(2250.0, 100, 1100, 477.35849056603695, -197.28480447876305, 1436.8490566037503, 1267000.0)
+      )
+    ),
+    (
+      3,
+      "collect",
+      Seq(
+        endOfTraining,
+        Fingerprint(2199.5, 100, 4932, 468.66886792452755, -1139.997782173266, 1137.9047818396105, 677.0),
+        Fingerprint(2250.0, 100, 1160, 435.73160377358437, -233.7127660014889, 300.5668101415055, 374.0)
+      )
+    )
+  )
+
+  unseenPrograms.foreach { case (program, name, expected) =>
+    "simulationGeneralization" should s"keep its dynamics on an unseen program ($name)" in {
+      val variables = Map("random" -> 2.0, "algoId" -> 3, "progId" -> program)
+      Simulations.run("simulationGeneralization", variables, afterSwitch) shouldBe expected
+    }
+  }
 }

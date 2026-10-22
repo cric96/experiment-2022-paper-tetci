@@ -3,6 +3,9 @@ alchemist = "25.4.0"
 kotlin = "1.8.0"
 scalaVersion = "2.13.10"
 djl = "0.27.0"
+scalatest = "3.2.19"
+scalatest-junit-runner = "0.2.0"
+junit-platform = "1.10.2"
 [libraries]
 alchemist = { module = "it.unibo.alchemist:alchemist", version.ref = "alchemist" }
 alchemist-incarnation-protelis = { module = "it.unibo.alchemist:alchemist-incarnation-protelis", version.ref = "alchemist" }
@@ -11,6 +14,9 @@ scalacompiler = { module = "org.scala-lang:scala-compiler", version.ref = "scala
 alchemist-incarnation-scafi = { module = "it.unibo.alchemist:alchemist-incarnation-scafi", version.ref = "alchemist"}
 djl-api = { module = "ai.djl:api", version.ref = "djl" }
 djl-pytorch-engine = { module = "ai.djl.pytorch:pytorch-engine", version.ref = "djl" }
+scalatest = { module = "org.scalatest:scalatest_2.13", version.ref = "scalatest" }
+scalatest-junit-runner = { module = "co.helmethair:scalatest-junit-runner", version.ref = "scalatest-junit-runner" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
 [bundles]
 alchemist = ["alchemist", "alchemist-incarnation-scafi", "alchemist-swingui"]
 djl = ["djl-api", "djl-pytorch-engine"]

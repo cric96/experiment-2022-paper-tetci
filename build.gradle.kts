@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+
 plugins {
     application
     alias(libs.plugins.multiJvmTesting) // Pre-configures the Java toolchains
@@ -15,6 +17,19 @@ dependencies {
     implementation(libs.bundles.alchemist)
     implementation(libs.bundles.djl)
     implementation(libs.scalacompiler)
+    testImplementation(libs.scalatest)
+    testRuntimeOnly(libs.scalatest.junit.runner)
+    testRuntimeOnly(libs.junit.platform.launcher)
+}
+
+tasks.test {
+    useJUnitPlatform {
+        includeEngines("scalatest")
+    }
+    testLogging {
+        events("failed")
+        exceptionFormat = TestExceptionFormat.FULL
+    }
 }
 
 multiJvm {

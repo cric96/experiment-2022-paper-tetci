@@ -496,11 +496,6 @@ object TorchNetwork {
     quadratic.pow(2).mul(0.5f).add(linear).mean()
   }
 
-  def l2Normalize(vec: Array[Double]): Array[Float] = {
-    val norm = math.sqrt(vec.foldLeft(0.0)((acc, x) => acc + x * x))
-    if (norm < 1e-12) vec.map(_.toFloat) else vec.map(x => (x / norm).toFloat)
-  }
-
   final case class MinMaxActionScaler(min: Double, max: Double) {
     require(max > min, s"max ($max) must be greater than min ($min)")
     private val halfRange = (max - min) / 2.0

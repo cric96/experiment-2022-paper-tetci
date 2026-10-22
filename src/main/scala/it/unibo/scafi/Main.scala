@@ -6,7 +6,6 @@ import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist._
 import it.unibo.learning.abstractions.AgentState.NeighborInfo
 import it.unibo.learning.abstractions.{AgentState, Contextual, ReplayBuffer}
 import it.unibo.util.TemporalInfo
-import it.unibo.alchemist.EnvironmentOps
 import scala.collection.immutable.Queue
 import scala.concurrent.duration.FiniteDuration
 import scala.jdk.CollectionConverters.IteratorHasAsScala

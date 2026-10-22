@@ -1,6 +1,5 @@
 package it.unibo.alchemist.model.implementations.timedistributions.reactions
 
-import it.unibo.alchemist.EnvironmentOps
 import it.unibo.alchemist.model.implementations.nodes.SimpleNodeManager
 import it.unibo.alchemist.model.interfaces.{Environment, Node, Position, TimeDistribution}
 import it.unibo.scafi.Sensors

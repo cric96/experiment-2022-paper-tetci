@@ -111,8 +111,6 @@ object NeuralNetworkRL {
       math.min(1.0, rawIntensity)
     }
 
-    def isUnstable(state: AgentState): Boolean = instabilityIntensity(state) > 0.0
-
     def bellmanFordResidual(state: AgentState): Double = {
       val scale = localScale(state)
       val snaps = state.neighborhoodOutput.takeRight(2)
@@ -274,33 +272,4 @@ object NeuralNetworkRL {
     }
   }
 
-  object Spatial {
-    def encodeSpatialUnbounded(state: AgentState, considerAction: Boolean): Seq[Seq[Double]] = {
-      val currentSnapshot =
-        state.neighborhoodOutput.lastOption.map(_.toList.sortBy(_._2.distance)).getOrElse(Nil)
-      val data = currentSnapshot.map(_._2.data).replaceInfinite()
-      if (considerAction) {
-        val actions = currentSnapshot.map(_._2.oldAction)
-        data.zip(actions).map { case (d, action) => Seq(d, action) }
-      } else {
-        data.map(d => Seq(d))
-      }
-    }
-
-    def encodeSpatial(state: AgentState, neigh: Int, considerAction: Boolean): Array[Double] = {
-      val states: LazyList[Double] = {
-        val currentSnapshot =
-          state.neighborhoodOutput.lastOption.map(_.toList.sortBy(_._2.distance).take(neigh)).getOrElse(Nil)
-        val data = currentSnapshot.map(_._2.data).replaceInfinite().to(LazyList)
-        if (considerAction) {
-          val actions = currentSnapshot.map(_._2.oldAction)
-          data.zip(actions).flatMap { case (d, action) => List(d, action) }
-        } else {
-          data
-        }
-      }
-      val fill: LazyList[Double] = LazyList.continually(0.0)
-      (states #::: fill).take(neigh * (if (considerAction) 2 else 1)).toArray
-    }
-  }
 }

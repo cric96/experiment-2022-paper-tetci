@@ -3,6 +3,7 @@ package it.unibo.learning.network
 import ai.djl.ndarray.NDManager
 import ai.djl.nn.{Activation, Block}
 import it.unibo.learning.encoding.StarGraph
+import it.unibo.testing.PyTorchNumerics
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -48,7 +49,7 @@ class TorchNetworkSpec extends AnyFlatSpec with Matchers {
     }
   }
 
-  it should "keep its exact output (reproducibility of the experiments)" in {
+  it should "keep its exact output (reproducibility of the experiments)" taggedAs PyTorchNumerics in {
     val fast = Using.resource(mlp(withTanh = true))(_.snapshotFastMLP(useTanh = true))
     randomInputs(inputs).map(fast(_).toSeq) shouldBe Seq(
       Seq(0.069943115f, -0.4245219f, -0.5224342f),
@@ -67,7 +68,7 @@ class TorchNetworkSpec extends AnyFlatSpec with Matchers {
     }
   }
 
-  it should "keep its exact output (reproducibility of the experiments)" in {
+  it should "keep its exact output (reproducibility of the experiments)" taggedAs PyTorchNumerics in {
     val fast = Using.resource(edgeGat())(_.block.snapshotFastInference())
     randomInputs(StarGraph.TotalDim).map(fast) shouldBe Seq(-0.6781583f, -0.15681955f, -0.8604447f, -0.33066946f)
   }
@@ -82,7 +83,7 @@ class TorchNetworkSpec extends AnyFlatSpec with Matchers {
     }
   }
 
-  it should "keep its exact output (reproducibility of the experiments)" in {
+  it should "keep its exact output (reproducibility of the experiments)" taggedAs PyTorchNumerics in {
     val inspect = Using.resource(edgeGat())(_.block.snapshotEmbeddingAndAttention())
     randomInputs(StarGraph.TotalDim).map(inspect).map { case (embedding, attention) =>
       (embedding.toSeq, attention.toSeq)

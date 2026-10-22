@@ -1,6 +1,6 @@
 package it.unibo
 
-import it.unibo.testing.Simulations
+import it.unibo.testing.{PyTorchNumerics, Simulations}
 import it.unibo.testing.Simulations.Fingerprint
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -72,10 +72,14 @@ class SimulationGoldenMasterSpec extends AnyFlatSpec with Matchers {
     )
   )
 
+  /** The scenarios whose dynamics depend on networks trained with PyTorch. */
+  private val neuralScenarios =
+    Set("simulationDeepOffline", "simulationDeepOfflineContinous", "simulationDeepOfflineGNN")
+
   scenarios.foreach { case (yaml, variables, expected) =>
-    yaml should "keep its observable dynamics" in {
-      Simulations.run(yaml, variables, checkpoints) shouldBe expected
-    }
+    val behaviour = yaml should "keep its observable dynamics"
+    def check(): Unit = Simulations.run(yaml, variables, checkpoints) shouldBe expected
+    if (neuralScenarios.contains(yaml)) behaviour taggedAs PyTorchNumerics in check() else behaviour in check()
   }
 
   /** After the training episodes, the generalization scenario switches to its target program and cycles β. */

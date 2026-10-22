@@ -3,7 +3,7 @@ package it.unibo.learning.agents.offline
 import ai.djl.nn.Activation
 import it.unibo.learning.encoding.SpatialTemporal
 import it.unibo.learning.network.{MinMaxActionScaler, TorchNetwork}
-import it.unibo.testing.AgentStates
+import it.unibo.testing.{AgentStates, PyTorchNumerics}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -32,7 +32,7 @@ class ActorInspectionSpec extends AnyFlatSpec with Matchers {
   private def sha256(file: File): String =
     MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(file.toPath)).map("%02x".format(_)).mkString
 
-  "The actor inspection" should "keep exporting the same embeddings and policy surface" in {
+  "The actor inspection" should "keep exporting the same embeddings and policy surface" taggedAs PyTorchNumerics in {
     exportedFiles().map(sha256) shouldBe Seq(
       "5a2a7940d197700c9e7b7e2008ba41e975212b3122bbe97387ef12f5df0c2244",
       "653709d17143efa4f0d8482b622c6fbac373b6709640eaf704330c4a634dc4b4"

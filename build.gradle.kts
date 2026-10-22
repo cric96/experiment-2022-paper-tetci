@@ -26,6 +26,10 @@ dependencies {
 tasks.test {
     useJUnitPlatform {
         includeEngines("scalatest")
+        if (System.getenv("CI") == "true") {
+            // Exact values of the PyTorch CPU kernels are pinned on the development machine only.
+            excludeTags("it.unibo.testing.PyTorchNumerics")
+        }
     }
     // Multi-threaded (and dynamically-threaded) BLAS kernels change the order of floating-point reductions,
     // which makes training, and hence the golden masters, non-reproducible: pin PyTorch to a single thread.

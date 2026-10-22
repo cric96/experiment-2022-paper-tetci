@@ -2,7 +2,7 @@ incarnation: scafi
 
 _constants:
   initialClock: &initial_clock 1.0
-  retentionTime: &retentionTime 5
+  retentionTime: &retentionTime 15
   exportInterval: &exportInterval 2
   actionSpace: &actionSpace List(1.0, 2.0, 3.0, 4.0, 5.0)
   windowHistory: &windowHistory 20
@@ -12,7 +12,7 @@ variables:
     min: 1
     max: 4
     step: 1
-    default: 1
+    default: 2
 
   weight:  &weight
     type: ArbitraryVariable
@@ -53,12 +53,10 @@ variables:
 
   learner: &learner
     formula: |
-      import it.unibo.learning.network.torch.d3rlpy;
       import it.unibo.learning.abstractions.DecayReference;
       import it.unibo.learning.agents.OfflineLearner;
       import it.unibo.learning.network.NeuralNetworkRL;
       import it.unibo.scripting._;
-      d3rlpy.seed(random.as[Double].toInt * (weight.as[Double] + 1).toInt);
       new OfflineLearner(actionSpaceEvaluated.as[Seq[Double]], random.as[Double], weight.as[Double])
     language: scala
 seeds:
@@ -156,6 +154,9 @@ export:
         aggregators: [ mean ]
         value-filter: onlyfinite
       - molecule: accumulatedUnstableTime
+        aggregators: [ mean ]
+        value-filter: onlyfinite
+      - molecule: accumulatedError
         aggregators: [ mean ]
         value-filter: onlyfinite
 

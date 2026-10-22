@@ -1,0 +1,193 @@
+incarnation: scafi
+
+_constants:
+  initialClock: &initial_clock 1.0
+  retentionTime: &retentionTime 15
+  exportInterval: &exportInterval 2
+  actionSpace: &actionSpace List(1.0, 2.0, 3.0, 4.0, 5.0)
+  windowHistory: &windowHistory 20
+
+variables:
+  random: &random
+    min: 1
+    max: 3
+    step: 1
+    default: 2
+
+  weight: &weight
+    formula: 0.95
+    language: scala
+
+  progId: &progId
+    type: ArbitraryVariable
+    parameters: [0, [0, 1, 2, 3]]
+
+  algoId: &algoId
+    type: ArbitraryVariable
+    parameters: [9, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]
+
+  batchSize: { formula: 64, language: scala }
+  episodeLength: &episodeLength { formula: 200, language: scala }
+  bufferSize: { formula: 10000, language: scala }
+  episodes: &episodes { formula: 20, language: scala }
+  totalEpisodes: &totalEpisodes { formula: episodes * episodeLength }
+  width: &width { formula: 500.0, language: scala }
+  spacing: &spacing { formula: 50.0, language: scala }
+  randomness: &randomness { formula: 25.0, language: scala }
+
+  range: &range
+    formula: 75
+    language: scala
+  actionSpaceEvaluated: &actionSpaceEvaluated
+    formula: *actionSpace
+    language: scala
+
+  learningInfo: &learningInfo
+    formula: |
+      import it.unibo.scripting._;
+      it.unibo.learning.LearningInfo(
+        random.as[Double].toInt,
+        bufferSize.as[Int],
+        batchSize.as[Int],
+        episodeLength.as[Int]
+      )
+    language: scala
+
+  environmentBox: &environmentBox
+    formula: |
+      import it.unibo.scripting._;
+      it.unibo.learning.Box(width.as[Double], spacing.as[Double], randomness.as[Double])
+    language: scala
+
+  learner: &learner
+    formula: |
+      import it.unibo.learning.abstractions.DecayReference;
+      import it.unibo.learning.agents._;
+      import it.unibo.scripting._;
+      algoId.as[Number].intValue() match {
+        case 0 => new OfflineLearnerContinuous(0.5, 5.0, random.as[Double], weight.as[Double])
+        case 1 => new OfflineLearner(actionSpaceEvaluated.as[Seq[Double]], random.as[Double], weight.as[Double])
+        case 2 => new QLearning(
+          actionSpaceEvaluated.as[List[Double]],
+          DecayReference.exponentialDecay(0.9, 0.27).bounded(0.00),
+          DecayReference.exponentialDecay(0.5, 0.01).bounded(0.1),
+          0.9,
+          random.as[Double].toInt,
+          weight.as[Double]
+        )
+        case 3 => new HeuristicAdaptiveAgent(actionSpaceEvaluated.as[Seq[Double]], weight.as[Double])
+        case 4 => new SameActionAgent(1.0)
+        case 5 => new SameActionAgent(2.0)
+        case 6 => new SameActionAgent(3.0)
+        case 7 => new SameActionAgent(4.0)
+        case 8 => new SameActionAgent(5.0)
+        case _ => new OfflineLearnerGNN(0.5, 5.0, random.as[Double], weight.as[Double])
+      }
+    language: scala
+
+seeds:
+  scenario: *random
+  simulation: *random
+
+environment:
+  type: Continuous2DEnvironment
+  parameters: [ ]
+  global-programs:
+    - time-distribution:
+        type: DiracComb
+        parameters: [0.01, 1]
+      type: CentralAgent
+      parameters: [ *learningInfo, *actionSpaceEvaluated, *learner, *environmentBox]
+    - time-distribution:
+        type: DiracComb
+        parameters: [ 0.02, 0.01 ]
+      type: SingleBlinker
+      parameters: [ 200 ]
+
+network-model:
+  type: ConnectWithinDistance
+  parameters: [*range]
+
+_reactions:
+  - program: &program
+      - time-distribution:
+          type: NextWakeUp
+          parameters: "nextWakeUp"
+        type: Event
+        actions:
+          - type: RunScafiProgram
+            parameters: [it.unibo.scafi.Main, *retentionTime]
+      - program: send
+
+deployments:
+  type: Grid
+  parameters: [0, 0, *width, *width, *spacing, *spacing, *randomness, *randomness]
+  programs:
+    - *program
+  contents:
+    - molecule: "nextWakeUp"
+      concentration: *initial_clock
+    - molecule: "actions"
+      concentration: *actionSpace
+    - molecule: "window"
+      concentration: *windowHistory
+    - molecule: "source"
+      concentration: false
+    - molecule: "weight"
+      concentration: *weight
+    - molecule: "full"
+      concentration: false
+    - molecule: "program"
+      concentration: *progId
+
+export:
+  - type: CSVExporter
+    parameters:
+      fileNameRoot: "experimentGeneralization"
+      exportPath: "build/exports/generalization/full"
+      fileExtension: "csv"
+      interval: *exportInterval
+    data:
+      - time
+      - molecule: ticks
+        aggregators: [ sum ]
+        value-filter: onlyfinite
+      - molecule: nextWakeUp
+        aggregators: [ mean ]
+        value-filter: onlyfinite
+      - molecule: reward
+        aggregators: [ mean ]
+        value-filter: onlyfinite
+      - molecule: accumulatedReward
+        aggregators: [ mean ]
+        value-filter: onlyfinite
+      - molecule: localComputation
+        aggregators: [ sum ]
+        value-filter: onlyfinite
+      - molecule: groundTruth
+        aggregators: [ sum ]
+        value-filter: onlyfinite
+  - type: CSVExporter
+    parameters:
+      fileNameRoot: "experimentGeneralization"
+      exportPath: "build/exports/generalization/episode"
+      fileExtension: "csv"
+      interval: *episodeLength
+    data:
+      - time
+      - molecule: ticks
+        aggregators: [ sum ]
+        value-filter: onlyfinite
+      - molecule: accumulatedReward
+        aggregators: [ mean ]
+        value-filter: onlyfinite
+      - molecule: accumulatedUnstableTime
+        aggregators: [ mean ]
+        value-filter: onlyfinite
+      - molecule: accumulatedError
+        aggregators: [ mean ]
+        value-filter: onlyfinite
+
+terminate:
+  type: AfterTime
+  parameters: [ *totalEpisodes ]

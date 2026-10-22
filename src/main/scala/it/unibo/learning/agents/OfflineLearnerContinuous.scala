@@ -1,76 +1,325 @@
 package it.unibo.learning.agents
 
+import ai.djl.ndarray.{NDList, NDManager}
+import ai.djl.ndarray.types.Shape
+import ai.djl.nn.Activation
+import ai.djl.training.loss.Loss
 import it.unibo.alchemist.model.implementations.timedistributions.reactions.CentralAgent
 import it.unibo.learning.abstractions.AgentState
 import it.unibo.learning.abstractions.ReplayBuffer.Experience
-import it.unibo.learning.network.NeuralNetworkRL.Historical
-import it.unibo.learning.network.torch.{d3rlpy, numpy}
-import me.shadaj.scalapy.py
-import me.shadaj.scalapy.py.Any.from
-import me.shadaj.scalapy.py.PyQuote
+import it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal
+import it.unibo.learning.network.TorchNetwork
+import it.unibo.learning.network.TorchNetwork._
 
-import scala.collection.immutable.Queue
+import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
 
-class OfflineLearnerContinuous(min: Double, max: Double, randomKey: Double, weight: Double) extends Learner {
+class OfflineLearnerContinuous(
+    min: Double,
+    max: Double,
+    randomKey: Double,
+    weight: Double,
+    val stateDim: Int = SpatialTemporal.FeatureDim,
+    val hiddenSize: Int = 64,
+    val gamma: Float = 0.9f,
+    val lr: Float = 1e-3f,
+    val batchSize: Int = 64,
+    val steps: Int = 160,
+    val explorationSteps: Int = 10,
+    val learningStepAfter: Int = 3
+) extends Learner {
 
-  private val encoder: AgentState => py.Any =
-    // Spatial.encodeSpatial(_, 5, false)
-    Historical.encodeHistory(_, 20)
-  val steps = 10000
-  val explorationSteps = 10
-  val learningStepAfter = 20
-  var random = new Random(42)
-  val epsilon = 0.99
-  def linearScaler(start: Double, end: Double, steps: Int, current: Int): Double =
-    if (current >= steps) end
-    else start + (end - start) * current / steps
-  val actionScaler = d3rlpy.preprocessing.MinMaxActionScaler(minimum = min, maximum = max)
-  private val algorithm = d3rlpy.algos.BEARConfig(gamma = 0.9, action_scaler = actionScaler).create("cuda:0")
-  algorithm.create_impl(py"[20]", py"${1}")
-  var ticks = 0
-  def policy: (AgentState => Double) = { state =>
-    val encoded = numpy.array(encoder(state)).reshape(1, -1)
-    // min max
-    val norm = numpy.linalg.norm(encoded)
-    val normalizedEncoded = encoded / norm
+  private var random: Random = new Random((randomKey.toLong * 31L) ^ java.lang.Double.doubleToLongBits(weight))
+  private val rootManager: NDManager = NDManager.newBaseManager()
+  private val actionScaler: TorchNetwork.MinMaxActionScaler = TorchNetwork.MinMaxActionScaler(min, max)
+  private val l2Loss: Loss = Loss.l2Loss()
+
+  private val baseSeed: Int = (randomKey.toInt * 1009) ^ weight.hashCode()
+  private val actor: TorchNetwork =
+    TorchNetwork.createMLP("actor", stateDim, Seq(hiddenSize, hiddenSize), 1, Some(Activation.tanhBlock()), lr = lr * 0.5f, seed = baseSeed + 1)
+  private val targetActor: TorchNetwork =
+    TorchNetwork.createMLP("target-actor", stateDim, Seq(hiddenSize, hiddenSize), 1, Some(Activation.tanhBlock()), lr = lr * 0.5f, seed = baseSeed + 2)
+  targetActor.softUpdateFrom(actor, 1.0f)
+
+  private val behaviorNet: TorchNetwork =
+    TorchNetwork.createMLP("behavior-net", stateDim, Seq(hiddenSize, hiddenSize), 1, Some(Activation.tanhBlock()), lr = lr, seed = baseSeed + 3)
+
+  private val critic1: TorchNetwork =
+    TorchNetwork.createMLP("critic-1", stateDim + 1, Seq(hiddenSize, hiddenSize), 1, lr = lr, seed = baseSeed + 4)
+  private val targetCritic1: TorchNetwork =
+    TorchNetwork.createMLP("target-critic-1", stateDim + 1, Seq(hiddenSize, hiddenSize), 1, lr = lr, seed = baseSeed + 5)
+  targetCritic1.softUpdateFrom(critic1, 1.0f)
+
+  private val critic2: TorchNetwork =
+    TorchNetwork.createMLP("critic-2", stateDim + 1, Seq(hiddenSize, hiddenSize), 1, lr = lr, seed = baseSeed + 6)
+  private val targetCritic2: TorchNetwork =
+    TorchNetwork.createMLP("target-critic-2", stateDim + 1, Seq(hiddenSize, hiddenSize), 1, lr = lr, seed = baseSeed + 7)
+  targetCritic2.softUpdateFrom(critic2, 1.0f)
+
+  private val epsilon: Double = 0.99
+  private val targetUpdateTau: Float = 0.02f
+  private val bcConstraintWeight: Float = 0.5f
+  private val counterfactualWeights: Array[Double] = Array(0.5, 0.8, 0.95, 0.99, 1.0)
+
+  private var ticks: Int = 0
+  private val unstableTransitions: ArrayBuffer[OfflineLearnerContinuous.ContinuousTransition] = ArrayBuffer.empty
+  private val stableTransitions: ArrayBuffer[OfflineLearnerContinuous.ContinuousTransition] = ArrayBuffer.empty
+  @volatile private var fastActorEval: Array[Float] => Array[Float] = actor.snapshotFastMLP(useTanh = true)
+
+  private def encode(state: AgentState, targetWeight: Double = weight): Array[Float] =
+    SpatialTemporal.encode(state, targetWeight, max)
+
+  def linearScaler(start: Double, end: Double, totalSteps: Int, current: Int): Double =
+    if (current >= totalSteps) end
+    else start + (end - start) * current.toDouble / totalSteps.toDouble
+
+  override def policyForWeight(customWeight: Double): AgentState => Double = { state =>
     val choice = random.nextDouble()
-    val action = if (choice < linearScaler(epsilon, 0.0, explorationSteps, ticks)) {
-      (random.nextDouble() * 4) + 1
+    if (choice < linearScaler(epsilon, 0.0, explorationSteps, ticks)) {
+      min + random.nextDouble() * (max - min)
     } else {
-      val action = algorithm.predict(encoded)
-      action.bracketAccess(0).as[Double]
+      val scaledAction = fastActorEval(encode(state, customWeight))(0).toDouble
+      actionScaler.unscale(scaledAction)
     }
-    action
   }
 
-  def store(where: String): Unit = {} // store optimal policy
-  def load(where: String): (AgentState => Double) = null // load policy stored
-  def update(batch: Seq[Experience]): Unit = {} // update the internal state following the experience computed
-  def injectRandom(random: Random): Unit = this.random = random
-  def injectCentralAgent(agent: CentralAgent[_, _]): Unit = {}
+  override def policy: AgentState => Double = policyForWeight(weight)
 
-  var lastBatch: Seq[Seq[(AgentState, Int, Double, Double)]] = Seq.empty
-  override def endEpisode(replyBuffer: Seq[Seq[(AgentState, Int, Double, Double)]]): Unit = {
-    lastBatch = lastBatch ++ replyBuffer
-    if (ticks < explorationSteps + 1) {
-      val observations = lastBatch.flatMap(_.map(_._1).map(encoder))
-      val actions = lastBatch.flatMap(_.map(_._2))
-      val actionsDoubles = lastBatch.flatMap(_.map(_._3))
-      val rewards = lastBatch.flatMap(_.map(_._4))
-      val terminalsZero = lastBatch.flatMap(list => Queue.fill(list.size)(0.0))
-      val terminals = lastBatch.flatMap(list => Queue.fill(list.size - 1)(0.0) :+ 1.0)
-      val npObservations = numpy.array(observations.toPythonCopy)
-      val npActionDoubles = numpy.array(actionsDoubles.map(_.as[py.Any]).toPythonCopy)
-      val npRewards = numpy.array(rewards.map(_.as[py.Any]).toPythonCopy)
-      val npTerminalsZero = numpy.array(terminalsZero.map(_.as[py.Any]).toPythonCopy)
-      val npTerminals = numpy.array(terminals.map(_.as[py.Any]).toPythonCopy)
-      val dataset = d3rlpy.dataset.MDPDataset(npObservations, npActionDoubles, npRewards, npTerminalsZero, npTerminals)
-      val evaluator = d3rlpy.metrics.TDErrorEvaluator(episodes = dataset.episodes)
+  override def store(where: String): Unit = {}
+
+  override def load(where: String): AgentState => Double = policy
+
+  override def update(batch: Seq[Experience]): Unit = {}
+
+  override def injectRandom(random: Random): Unit = this.random = random
+
+  override def injectCentralAgent(agent: CentralAgent[_, _]): Unit = {}
+
+  override def endEpisode(replayBuffer: Seq[Seq[(AgentState, Int, Double, Double)]]): Unit = {
+    appendEpisodeTrajectories(replayBuffer)
+    if (ticks <= explorationSteps && (unstableTransitions.nonEmpty || stableTransitions.nonEmpty)) {
       val nSteps = if (ticks < explorationSteps) steps else steps * learningStepAfter
-      algorithm.fit(dataset, n_steps = nSteps, evaluators = py"{'td_error': $evaluator}")
-      dataset.del()
+      fit(nSteps)
+      fastActorEval = actor.snapshotFastMLP(useTanh = true)
+      if (ticks == explorationSteps && math.abs(randomKey - 2.0) < 1e-6) {
+        exportEmbeddingsAndSensitivity()
+      }
     }
     ticks += 1
   }
+
+  private def exportEmbeddingsAndSensitivity(): Unit = {
+    val outDir = new java.io.File("build/exports/embeddings")
+    outDir.mkdirs()
+    val allSamples = (unstableTransitions.take(400) ++ stableTransitions.take(400)).toVector
+    if (allSamples.isEmpty) return
+
+    withSubManager(rootManager) { sub =>
+      val statesArr = allSamples.map(_.state).toArray
+      val statesTensor = sub.create(statesArr)
+      val hiddenTensor = actor.extractHiddenEmbedding(statesTensor)
+      val predScaled = actor.evaluate(statesTensor)
+      val qTensor = critic1.evaluate(statesTensor.concat(predScaled, 1))
+
+      val nSamples = allSamples.size
+      val hiddenDim = hiddenTensor.getShape.get(1).toInt
+
+      // Compute finite-difference feature sensitivity |d(Delta t) / d(x_k)| and permutation impact for each feature k
+      val eps = 0.1f
+      val baseDt = (0 until nSamples).map(i => actionScaler.unscale(predScaled.getFloat(i.toLong, 0L))).toArray
+      val sensitivities = Array.ofDim[Double](nSamples, stateDim)
+
+      (0 until stateDim).foreach { k =>
+        val perturbedPlus = statesArr.map { row =>
+          val c = row.clone()
+          c(k) = c(k) + eps
+          c
+        }
+        val perturbedMinus = statesArr.map { row =>
+          val c = row.clone()
+          c(k) = c(k) - eps
+          c
+        }
+        val outPlus = actor.evaluate(sub.create(perturbedPlus))
+        val outMinus = actor.evaluate(sub.create(perturbedMinus))
+        (0 until nSamples).foreach { i =>
+          val dtPlus = actionScaler.unscale(outPlus.getFloat(i.toLong, 0L))
+          val dtMinus = actionScaler.unscale(outMinus.getFloat(i.toLong, 0L))
+          sensitivities(i)(k) = math.abs(dtPlus - dtMinus) / (2.0 * eps)
+        }
+      }
+
+      val embFile = new java.io.PrintWriter(new java.io.File(outDir, s"embeddings_weight-$weight.csv"))
+      try {
+        val featNames = Seq(
+          "deltaLatest",
+          "deltaPrev",
+          "selfDeltaMag",
+          "maxNeighDeltaMag",
+          "neighChangedRatio",
+          "bfResidual",
+          "childrenRatio",
+          "minNeighAction",
+          "weight"
+        )
+        val sensNames = featNames.map(n => s"sens_$n")
+        val hidNames = (0 until hiddenDim).map(h => s"h_$h")
+        embFile.println((featNames ++ Seq("predDt", "qValue", "regime") ++ sensNames ++ hidNames).mkString(","))
+
+        (0 until nSamples).foreach { i =>
+          val s = statesArr(i)
+          val dt = baseDt(i)
+          val qv = qTensor.getFloat(i.toLong, 0L)
+          val selfActive = math.abs(s(0)) > 0.01f || math.abs(s(1)) > 0.01f || s(2) > 0.05f
+          val neighActive = s(3) > 0.02f || s(4) > 0.01f || s(5) > 0.05f
+          val isBackbone = s(6) > 0.15f
+          val regime =
+            if (selfActive && isBackbone) "Backbone_Wave"
+            else if (selfActive) "Leaf_Wave"
+            else if (neighActive) "Neighbor_EarlyWarning"
+            else "Steady_State"
+          val hVec = (0 until hiddenDim).map(h => f"${hiddenTensor.getFloat(i.toLong, h.toLong)}%.5f")
+          val sensVec = sensitivities(i).map(v => f"$v%.5f")
+          val sVec = s.map(v => f"$v%.5f")
+          embFile.println((sVec ++ Seq(f"$dt%.5f", f"$qv%.5f", regime) ++ sensVec ++ hVec).mkString(","))
+        }
+      } finally {
+        embFile.close()
+      }
+
+      // Also export a 2D Policy Response Surface grid for beta = weight
+      val surfFile = new java.io.PrintWriter(new java.io.File(outDir, s"surface_weight-$weight.csv"))
+      try {
+        surfFile.println("selfDeltaMag,maxNeighDeltaMag,childrenRatio,minNeighAction,predDt,qValue")
+        val gridVals = (0 to 25).map(_ / 25.0f)
+        for {
+          selfMag <- gridVals
+          neighMag <- gridVals
+          childR <- Seq(0.0f, 0.5f)
+        } {
+          val deltaFlag = if (selfMag > 0.05f) 1.0f else 0.0f
+          val neighRatio = if (neighMag > 0.05f) math.min(1.0f, neighMag * 0.8f) else 0.0f
+          val minAct = if (neighMag > 0.1f) 0.3f else 0.8f
+          val row = Array(deltaFlag, 0.0f, selfMag, neighMag, neighRatio, neighMag * 0.5f, childR, minAct, weight.toFloat)
+          val tIn = sub.create(row, new Shape(1, stateDim))
+          val scOut = actor.evaluate(tIn)
+          val qOut = critic1.evaluate(tIn.concat(scOut, 1))
+          val dt = actionScaler.unscale(scOut.getFloat(0L))
+          val qv = qOut.getFloat(0L)
+          surfFile.println(f"$selfMag%.4f,$neighMag%.4f,$childR%.2f,$minAct%.2f,$dt%.5f,$qv%.5f")
+        }
+      } finally {
+        surfFile.close()
+      }
+    }
+  }
+
+  private def counterfactualReward(rawIntensity: Double, dt: Double, beta: Double): Float = {
+    val effectiveIntensity = 0.06 + 8.0 * rawIntensity
+    val u = math.max(0.0, math.min(1.0, (dt - min) / (max - min)))
+    val energyWeight = math.max(0.005, 1.0 - beta)
+    val wConv = beta * effectiveIntensity
+    val normSum = wConv + energyWeight
+    val r = -(wConv / normSum) * (u * u) - (energyWeight / normSum) * ((1.0 - u) * (1.0 - u))
+    r.toFloat
+  }
+
+  private def withWeight(baseFeatures: Array[Float], beta: Double): Array[Float] = {
+    val copy = baseFeatures.clone()
+    val energyW = math.max(0.005, 1.0 - beta)
+    copy(copy.length - 1) = (2.0 * (energyW / (energyW + 0.06 * beta)) - 1.0).toFloat
+    copy
+  }
+
+  private def appendEpisodeTrajectories(episodes: Seq[Seq[(AgentState, Int, Double, Double)]]): Unit =
+    episodes.foreach { trajectory =>
+      val baseStates = trajectory.map(step => encode(step._1, weight)).toIndexedSeq
+      val intensities = trajectory.map(step => SpatialTemporal.instabilityIntensity(step._1)).toIndexedSeq
+      val weightsToTrain = Array(weight, weight) ++ counterfactualWeights
+      trajectory.indices.foreach { i =>
+        val (_, _, rawAction, _) = trajectory(i)
+        val isTerminal = i == trajectory.size - 1
+        val nextBase = if (isTerminal) baseStates(i) else baseStates(i + 1)
+        val scaledAct = actionScaler.scale(rawAction)
+        val smdpDiscount = math.pow(gamma.toDouble, math.max(0.5, rawAction)).toFloat
+        val intensity = intensities(i)
+        val targetBuffer = if (intensity > 0.0) unstableTransitions else stableTransitions
+        weightsToTrain.foreach { beta =>
+          targetBuffer += OfflineLearnerContinuous.ContinuousTransition(
+            state = withWeight(baseStates(i), beta),
+            scaledAction = scaledAct,
+            reward = counterfactualReward(intensity, rawAction, beta),
+            nextState = withWeight(nextBase, beta),
+            terminal = if (isTerminal) 1.0f else 0.0f,
+            discountFactor = smdpDiscount
+          )
+        }
+      }
+    }
+
+  private def sampleStratifiedBatch(effectiveBatch: Int): Vector[OfflineLearnerContinuous.ContinuousTransition] = {
+    if (unstableTransitions.isEmpty) {
+      Vector.fill(effectiveBatch)(stableTransitions(random.nextInt(stableTransitions.size)))
+    } else if (stableTransitions.isEmpty) {
+      Vector.fill(effectiveBatch)(unstableTransitions(random.nextInt(unstableTransitions.size)))
+    } else {
+      val half = effectiveBatch / 2
+      val unstPart = Vector.fill(half)(unstableTransitions(random.nextInt(unstableTransitions.size)))
+      val stabPart = Vector.fill(effectiveBatch - half)(stableTransitions(random.nextInt(stableTransitions.size)))
+      unstPart ++ stabPart
+    }
+  }
+
+  private def fit(nSteps: Int): Unit = {
+    val dataSize = unstableTransitions.size + stableTransitions.size
+    if (dataSize == 0) return
+    val effectiveBatch = math.min(batchSize, dataSize)
+
+    (0 until nSteps).foreach { _ =>
+      val batch = sampleStratifiedBatch(effectiveBatch)
+      withSubManager(rootManager) { sub =>
+        val states = sub.create(batch.map(_.state).toArray)
+        val nextStates = sub.create(batch.map(_.nextState).toArray)
+        val actions = sub.create(batch.map(_.scaledAction).toArray, new Shape(effectiveBatch, 1))
+        val rewards = sub.create(batch.map(_.reward).toArray, new Shape(effectiveBatch, 1))
+        val terminals = sub.create(batch.map(_.terminal).toArray, new Shape(effectiveBatch, 1))
+        val discounts = sub.create(batch.map(_.discountFactor).toArray, new Shape(effectiveBatch, 1))
+
+        val nextActions = targetActor.evaluate(nextStates)
+        val nextStateActions = nextStates.concat(nextActions, 1)
+        val nextQ = targetCritic1.evaluate(nextStateActions).minimum(targetCritic2.evaluate(nextStateActions))
+        val targetQ = (rewards + nextQ * discounts * (-terminals + 1.0f)).stopGradient()
+
+        val stateActions = states.concat(actions, 1)
+        critic1.trainStep {
+          TorchNetwork.smoothL1Loss(critic1.forward(stateActions, training = true), targetQ)
+        }
+        critic2.trainStep {
+          TorchNetwork.smoothL1Loss(critic2.forward(stateActions, training = true), targetQ)
+        }
+        critic1.withFrozenParameters {
+          actor.trainStep {
+            val piActions = actor.forward(states, training = true)
+            val qValues = critic1.forward(states.concat(piActions, 1), training = true)
+            -qValues.mean()
+          }
+        }
+
+        targetCritic1.softUpdateFrom(critic1, targetUpdateTau)
+        targetCritic2.softUpdateFrom(critic2, targetUpdateTau)
+        targetActor.softUpdateFrom(actor, targetUpdateTau)
+      }
+    }
+  }
+}
+
+object OfflineLearnerContinuous {
+  final case class ContinuousTransition(
+      state: Array[Float],
+      scaledAction: Float,
+      reward: Float,
+      nextState: Array[Float],
+      terminal: Float,
+      discountFactor: Float
+  )
 }

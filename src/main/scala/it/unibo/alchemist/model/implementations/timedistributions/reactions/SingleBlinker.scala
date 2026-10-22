@@ -15,19 +15,30 @@ class SingleBlinker[T, P <: Position[P]](
     val minimumDistance: Double
 ) extends AbstractGlobalReaction[T, P](environment, distribution) {
 
+  private val initialSeed: Long = random.nextLong()
+  private val blinkerRng = new org.apache.commons.math3.random.Well19937c(initialSeed)
+  private var blinkStep = 0
+
   override protected def executeBeforeUpdateDistribution(): Unit = {
+    blinkerRng.setSeed(initialSeed ^ (blinkStep.toLong * 987654321L))
+    blinkStep += 1
     val source = managers.filter(_.get[Boolean]("source"))
     source.foreach(_.put("source", false))
     if (source.nonEmpty) {
       val oldSource = source.head
       val oldPosition = environment.getPosition(oldSource.node)
-      val newSource = agents.find(node => environment.getPosition(node).distanceTo(oldPosition) > minimumDistance)
+      val candidates = agents.filter(node => environment.getPosition(node).distanceTo(oldPosition) > minimumDistance)
+      val newSource = if (candidates.nonEmpty) {
+        Some(candidates(blinkerRng.nextInt(candidates.size)))
+      } else {
+        agents.maxByOption(node => environment.getPosition(node).distanceTo(oldPosition))
+      }
       newSource.foreach { node =>
         val reference = new SimpleNodeManager(node)
         reference.put("source", true)
       }
-    } else {
-      val index = random.nextInt(managers.size)
+    } else if (managers.nonEmpty) {
+      val index = blinkerRng.nextInt(managers.size)
       managers(index).put("source", true)
     }
   }

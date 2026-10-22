@@ -2,7 +2,7 @@ incarnation: scafi
 
 _constants:
   initialClock: &initial_clock 1.0
-  retentionTime: &retentionTime 5
+  retentionTime: &retentionTime 15
   exportInterval: &exportInterval 2
   actionSpace: &actionSpace List(1.0, 2.0, 3.0, 4.0, 5.0)
   windowHistory: &windowHistory 10
@@ -160,6 +160,9 @@ export:
         aggregators: [ mean ]
         value-filter: onlyfinite
       - molecule: accumulatedUnstableTime
+        aggregators: [ mean ]
+        value-filter: onlyfinite
+      - molecule: accumulatedError
         aggregators: [ mean ]
         value-filter: onlyfinite
       - type: DecayVariableExtractor

@@ -8,6 +8,7 @@ import scala.util.Random
 
 trait Learner {
   def policy: (AgentState => Double) // current policy
+  def policyForWeight(customWeight: Double): (AgentState => Double) = policy
   def store(where: String): Unit // store optimal policy
   def load(where: String): (AgentState => Double) // load policy stored
   def update(batch: Seq[Experience]): Unit // update the internal state following the experience computed

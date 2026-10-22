@@ -1,78 +1,247 @@
 package it.unibo.learning.agents
 
+import ai.djl.ndarray.{NDList, NDManager}
+import ai.djl.ndarray.types.Shape
+import ai.djl.training.loss.Loss
 import it.unibo.alchemist.model.implementations.timedistributions.reactions.CentralAgent
+import it.unibo.learning.abstractions.AgentState
 import it.unibo.learning.abstractions.ReplayBuffer.Experience
-import it.unibo.learning.abstractions.{AgentState, Contextual}
-import it.unibo.learning.network.NeuralNetworkRL.{Historical, Spatial}
-import it.unibo.learning.network.torch.{d3rlpy, numpy}
-import me.shadaj.scalapy.py
-import me.shadaj.scalapy.py.Any.from
-import me.shadaj.scalapy.py.PyQuote
+import it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal
+import it.unibo.learning.network.TorchNetwork
+import it.unibo.learning.network.TorchNetwork._
 
-import scala.collection.immutable.Queue
+import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
 
-class OfflineLearner(actionSpace: Seq[Double], randomKey: Double, weight: Double) extends Learner {
+class OfflineLearner(
+    actionSpace: Seq[Double],
+    randomKey: Double,
+    weight: Double,
+    val stateDim: Int = SpatialTemporal.FeatureDim,
+    val hiddenSize: Int = 64,
+    val gamma: Float = 0.9f,
+    val bcqThreshold: Float = 0.08f,
+    val lr: Float = 1e-3f,
+    val batchSize: Int = 64,
+    val steps: Int = 160,
+    val explorationSteps: Int = 10,
+    val learningStepAfter: Int = 3
+) extends Learner {
 
-  private val encoder: AgentState => py.Any =
-    // Spatial.encodeSpatial(_, 5, false)
-    Historical.encodeHistory(_, 20)
+  private val numActions: Int = actionSpace.size
+  private val maxAction: Double = actionSpace.max
+  private var random: Random = new Random((randomKey.toLong * 31L) ^ java.lang.Double.doubleToLongBits(weight))
+  private val rootManager: NDManager = NDManager.newBaseManager()
 
-  val steps = 10000
-  val explorationSteps = 10
-  val learningStepAfter = 20
-  val random = new Random(42)
-  val epsilon = 0.99
-  // private val observation_scaler = d3rlpy.preprocessing.StandardObservationScaler()
-  private val algorithm =
-    d3rlpy.algos.DiscreteBCQConfig(gamma = 0.9).create("cuda:0")
-  private val explorer = d3rlpy.algos.LinearDecayEpsilonGreedy(0.99, 0.0, explorationSteps)
-  algorithm.create_impl(py"[20]", py"${actionSpace.size}")
-  var ticks = 0
-  def policy: (AgentState => Double) = { state =>
-    val encoded = numpy.array(encoder(state)).reshape(1, -1)
-    val action = if (ticks < explorationSteps) {
-      explorer.sample(algorithm, encoded, ticks)
-    } else {
-      algorithm.predict(encoded)
+  private val baseSeed: Int = (randomKey.toInt * 1009) ^ weight.hashCode()
+  private val qNet: TorchNetwork =
+    TorchNetwork.createMLP("bcq-q", stateDim, Seq(hiddenSize, hiddenSize), numActions, lr = lr, seed = baseSeed + 1)
+  private val targetQNet: TorchNetwork =
+    TorchNetwork.createMLP("bcq-target-q", stateDim, Seq(hiddenSize, hiddenSize), numActions, lr = lr, seed = baseSeed + 2)
+  targetQNet.softUpdateFrom(qNet, 1.0f)
+
+  private val imitatorNet: TorchNetwork =
+    TorchNetwork.createMLP("bcq-imitator", stateDim, Seq(hiddenSize, hiddenSize), numActions, lr = lr, seed = baseSeed + 3)
+  private val crossEntropyLoss: Loss = Loss.softmaxCrossEntropyLoss()
+
+  private val initialEpsilon: Double = 0.99
+  private val finalEpsilon: Double = 0.0
+  private val targetUpdateTau: Float = 0.02f
+  private val counterfactualWeights: Array[Double] = Array(0.5, 0.8, 0.95, 0.99, 1.0)
+
+  private var ticks: Int = 0
+  private val unstableTransitions: ArrayBuffer[OfflineLearner.DiscreteTransition] = ArrayBuffer.empty
+  private val stableTransitions: ArrayBuffer[OfflineLearner.DiscreteTransition] = ArrayBuffer.empty
+  @volatile private var fastQEval: Array[Float] => Array[Float] = qNet.snapshotFastMLP(useTanh = false)
+  @volatile private var fastImEval: Array[Float] => Array[Float] = imitatorNet.snapshotFastMLP(useTanh = false)
+
+  private def encode(state: AgentState, targetWeight: Double = weight): Array[Float] =
+    SpatialTemporal.encode(state, targetWeight, maxAction)
+
+  private def currentEpsilon: Double =
+    if (ticks >= explorationSteps) finalEpsilon
+    else initialEpsilon + (finalEpsilon - initialEpsilon) * (ticks.toDouble / explorationSteps.toDouble)
+
+  private def selectBCQAction(stateFeatures: Array[Float]): Int = {
+    val qValues = fastQEval(stateFeatures)
+    val logits = fastImEval(stateFeatures)
+    var maxLogit = Float.NegativeInfinity
+    var i = 0
+    while (i < numActions) {
+      if (logits(i) > maxLogit) maxLogit = logits(i)
+      i += 1
     }
-
-    actionSpace(action.bracketAccess(0).as[Int])
+    val probs = new Array[Float](numActions)
+    var sumExp = 0.0f
+    i = 0
+    while (i < numActions) {
+      val e = math.exp(logits(i) - maxLogit).toFloat
+      probs(i) = e
+      sumExp += e
+      i += 1
+    }
+    var maxProb = 0.0f
+    i = 0
+    while (i < numActions) {
+      probs(i) /= sumExp
+      if (probs(i) > maxProb) maxProb = probs(i)
+      i += 1
+    }
+    val thresh = bcqThreshold * maxProb
+    var bestAct = 0
+    var bestQ = Float.NegativeInfinity
+    i = 0
+    while (i < numActions) {
+      if (probs(i) >= thresh && qValues(i) > bestQ) {
+        bestQ = qValues(i)
+        bestAct = i
+      }
+      i += 1
+    }
+    bestAct
   }
 
-  def store(where: String): Unit = {} // store optimal policy
-  def load(where: String): (AgentState => Double) = null // load policy stored
-  def update(batch: Seq[Experience]): Unit = {} // update the internal state following the experience computed
-  def injectRandom(random: Random): Unit = {}
-  def injectCentralAgent(agent: CentralAgent[_, _]): Unit = {}
+  override def policyForWeight(customWeight: Double): AgentState => Double = { state =>
+    val actionIdx = if (ticks < explorationSteps && random.nextDouble() < currentEpsilon) {
+      random.nextInt(numActions)
+    } else {
+      selectBCQAction(encode(state, customWeight))
+    }
+    actionSpace(actionIdx)
+  }
 
-  var lastBatch: Seq[Seq[(AgentState, Int, Double, Double)]] = Seq.empty
-  override def endEpisode(replyBuffer: Seq[Seq[(AgentState, Int, Double, Double)]]): Unit = {
-    lastBatch = lastBatch ++ replyBuffer
-    if (ticks < (explorationSteps + 1)) { // n of exploration, one of exploit
-      val observations = lastBatch.flatMap(_.map(_._1).map(encoder))
-      val actions = lastBatch.flatMap(_.map(_._2))
-      println(actions.size)
-      val actionsDoubles = lastBatch.flatMap(_.map(_._3))
-      val rewards = lastBatch.flatMap(_.map(_._4))
-      val terminalsZero = lastBatch.flatMap(list => Queue.fill(list.size)(0.0))
-      val terminals = lastBatch.flatMap(list => Queue.fill(list.size - 1)(0.0) :+ 1.0)
-      val npObservations = numpy.array(observations.toPythonCopy)
-      val npActions = numpy.array(actions.map(_.as[py.Any]).toPythonCopy)
-      val npRewards = numpy.array(rewards.map(_.as[py.Any]).toPythonCopy)
-      val npTerminalsZero = numpy.array(terminalsZero.map(_.as[py.Any]).toPythonCopy)
-      val npTerminals = numpy.array(terminals.map(_.as[py.Any]).toPythonCopy)
-      val dataset = d3rlpy.dataset.MDPDataset(npObservations, npActions, npRewards, npTerminalsZero, npTerminals)
-      val evaluator = d3rlpy.metrics.TDErrorEvaluator(episodes = dataset.episodes)
+  override def policy: AgentState => Double = policyForWeight(weight)
+
+  override def store(where: String): Unit = {}
+
+  override def load(where: String): AgentState => Double = policy
+
+  override def update(batch: Seq[Experience]): Unit = {}
+
+  override def injectRandom(random: Random): Unit = this.random = random
+
+  override def injectCentralAgent(agent: CentralAgent[_, _]): Unit = {}
+
+  override def endEpisode(replayBuffer: Seq[Seq[(AgentState, Int, Double, Double)]]): Unit = {
+    appendEpisodeTrajectories(replayBuffer)
+    if (ticks <= explorationSteps && (unstableTransitions.nonEmpty || stableTransitions.nonEmpty)) {
       val nSteps = if (ticks < explorationSteps) steps else steps * learningStepAfter
-      algorithm.fit(
-        dataset,
-        n_steps = nSteps,
-        evaluators = py"{'td_error': $evaluator}",
-        experiment_name = s"dqn-$randomKey-$weight-$ticks"
-      )
-      dataset.del()
+      fit(nSteps)
+      fastQEval = qNet.snapshotFastMLP(useTanh = false)
+      fastImEval = imitatorNet.snapshotFastMLP(useTanh = false)
     }
     ticks += 1
   }
+
+  private def counterfactualReward(rawIntensity: Double, dt: Double, beta: Double): Float = {
+    val effectiveIntensity = 0.06 + 8.0 * rawIntensity
+    val minAct = 0.5
+    val u = math.max(0.0, math.min(1.0, (dt - minAct) / (maxAction - minAct)))
+    val energyWeight = math.max(0.005, 1.0 - beta)
+    val wConv = beta * effectiveIntensity
+    val normSum = wConv + energyWeight
+    val r = -(wConv / normSum) * (u * u) - (energyWeight / normSum) * ((1.0 - u) * (1.0 - u))
+    r.toFloat
+  }
+
+  private def withWeight(baseFeatures: Array[Float], beta: Double): Array[Float] = {
+    val copy = baseFeatures.clone()
+    val energyW = math.max(0.005, 1.0 - beta)
+    copy(copy.length - 1) = (2.0 * (energyW / (energyW + 0.06 * beta)) - 1.0).toFloat
+    copy
+  }
+
+  private def appendEpisodeTrajectories(episodes: Seq[Seq[(AgentState, Int, Double, Double)]]): Unit =
+    episodes.foreach { trajectory =>
+      val baseStates = trajectory.map(step => encode(step._1, weight)).toIndexedSeq
+      val intensities = trajectory.map(step => SpatialTemporal.instabilityIntensity(step._1)).toIndexedSeq
+      val weightsToTrain = Array(weight, weight) ++ counterfactualWeights
+      trajectory.indices.foreach { i =>
+        val (_, actionIdx, rawAction, _) = trajectory(i)
+        if (actionIdx >= 0 && actionIdx < numActions) {
+          val isTerminal = i == trajectory.size - 1
+          val nextBase = if (isTerminal) baseStates(i) else baseStates(i + 1)
+          // SMDP continuous-time discount factor: gamma^(Delta t)
+          val smdpDiscount = math.pow(gamma.toDouble, math.max(0.5, rawAction)).toFloat
+          val intensity = intensities(i)
+          val targetBuffer = if (intensity > 0.0) unstableTransitions else stableTransitions
+          weightsToTrain.foreach { beta =>
+            targetBuffer += OfflineLearner.DiscreteTransition(
+              state = withWeight(baseStates(i), beta),
+              action = actionIdx,
+              reward = counterfactualReward(intensity, rawAction, beta),
+              nextState = withWeight(nextBase, beta),
+              terminal = if (isTerminal) 1.0f else 0.0f,
+              discountFactor = smdpDiscount
+            )
+          }
+        }
+      }
+    }
+
+  private def sampleStratifiedBatch(effectiveBatch: Int): Vector[OfflineLearner.DiscreteTransition] = {
+    if (unstableTransitions.isEmpty) {
+      Vector.fill(effectiveBatch)(stableTransitions(random.nextInt(stableTransitions.size)))
+    } else if (stableTransitions.isEmpty) {
+      Vector.fill(effectiveBatch)(unstableTransitions(random.nextInt(unstableTransitions.size)))
+    } else {
+      val half = effectiveBatch / 2
+      val unstPart = Vector.fill(half)(unstableTransitions(random.nextInt(unstableTransitions.size)))
+      val stabPart = Vector.fill(effectiveBatch - half)(stableTransitions(random.nextInt(stableTransitions.size)))
+      unstPart ++ stabPart
+    }
+  }
+
+  private def fit(nSteps: Int): Unit = {
+    val dataSize = unstableTransitions.size + stableTransitions.size
+    if (dataSize == 0) return
+    val effectiveBatch = math.min(batchSize, dataSize)
+
+    (0 until nSteps).foreach { _ =>
+      val batch = sampleStratifiedBatch(effectiveBatch)
+      withSubManager(rootManager) { sub =>
+        val states = sub.create(batch.map(_.state).toArray)
+        val nextStates = sub.create(batch.map(_.nextState).toArray)
+        val actions = sub.create(batch.map(_.action.toLong).toArray, new Shape(effectiveBatch, 1))
+        val rewards = sub.create(batch.map(_.reward).toArray, new Shape(effectiveBatch, 1))
+        val terminals = sub.create(batch.map(_.terminal).toArray, new Shape(effectiveBatch, 1))
+        val discounts = sub.create(batch.map(_.discountFactor).toArray, new Shape(effectiveBatch, 1))
+
+        val nextQ = qNet.evaluate(nextStates)
+        val nextProbs = imitatorNet.evaluate(nextStates).softmax(1)
+        val maxNextProbs = nextProbs.max(Array(1), true)
+        val allowedMask = nextProbs.div(maxNextProbs).gte(bcqThreshold)
+        val maskedNextQ = nextQ.duplicate()
+        maskedNextQ.set(allowedMask.logicalNot(), -1e8f)
+        val bestNextActions = maskedNextQ.argMax(1).reshape(effectiveBatch, 1)
+        val nextTargetQ = targetQNet.evaluate(nextStates).gather(bestNextActions, 1)
+        val targetValues = (rewards + nextTargetQ * discounts * (-terminals + 1.0f)).stopGradient()
+
+        qNet.trainStep {
+          val currentQ = qNet.forward(states, training = true).gather(actions, 1)
+          TorchNetwork.smoothL1Loss(currentQ, targetValues)
+        }
+
+        imitatorNet.trainStep {
+          val logits = imitatorNet.forward(states, training = true)
+          val ceLoss = crossEntropyLoss.evaluate(new NDList(actions.squeeze(1)), new NDList(logits))
+          val l2Penalty = logits.pow(2).mean() * 1e-2f
+          ceLoss + l2Penalty
+        }
+
+        targetQNet.softUpdateFrom(qNet, targetUpdateTau)
+      }
+    }
+  }
+}
+
+object OfflineLearner {
+  final case class DiscreteTransition(
+      state: Array[Float],
+      action: Int,
+      reward: Float,
+      nextState: Array[Float],
+      terminal: Float,
+      discountFactor: Float
+  )
 }

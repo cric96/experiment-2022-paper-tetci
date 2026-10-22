@@ -18,11 +18,13 @@ class DecayVariableExtractor() extends Extractor[Double] {
   ): util.Map[String, Double] = {
     if (memoized.isEmpty) {
       memoized = environment.getGlobalReactions.asScala
-        .find(_.isInstanceOf[CentralAgent[_, _]])
-        .map(_.asInstanceOf[CentralAgent[_, _]])
+        .collectFirst { case ca: CentralAgent[_, _] => ca }
     }
 
-    getColumnNames.asScala.map(variable => variable -> memoized.get.decayVariableOf(variable)).toMap.asJava
+    getColumnNames.asScala
+      .map(variable => variable -> memoized.map(_.decayVariableOf(variable)).getOrElse(0.0))
+      .toMap
+      .asJava
   }
 
 }

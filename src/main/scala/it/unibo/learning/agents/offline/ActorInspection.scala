@@ -1,117 +1,96 @@
 package it.unibo.learning.agents.offline
 
-import ai.djl.ndarray.NDManager
 import ai.djl.ndarray.types.Shape
+import ai.djl.ndarray.{NDArray, NDManager}
+import it.unibo.learning.agents.offline.ActorInspection._
 import it.unibo.learning.network.TorchNetwork
-import it.unibo.learning.network.TorchNetwork._
+import it.unibo.learning.network.TorchNetwork.MinMaxActionScaler
+import it.unibo.util.Csv
 
 import java.io.File
 
-/** Post-training inspection of a continuous actor-critic policy, exported for the explainability figures. */
+/** Post-training inspection of a continuous actor-critic policy, exported for the explainability figures:
+  *   - `embeddings_weight-β.csv`: for each inspected state, its features, the predicted period and value, its
+  *     [[Regime]], the sensitivity of the period to each feature and the actor's last hidden layer;
+  *   - `surface_weight-β.csv`: the predicted period and value on the [[PolicySurface]].
+  */
 final class ActorInspection(
     actor: TorchNetwork,
     critic: TorchNetwork,
-    actionScaler: TorchNetwork.MinMaxActionScaler,
+    actionScaler: MinMaxActionScaler,
     stateDim: Int,
     outputDirectory: File
 ) {
   private val rootManager: NDManager = NDManager.newBaseManager()
 
-  def export(allSamples: Vector[Array[Float]], weight: Double): Unit = {
-    val outDir = outputDirectory
-    outDir.mkdirs()
-    if (allSamples.isEmpty) return
-
-    withSubManager(rootManager) { sub =>
-      val statesArr = allSamples.toArray
-      val statesTensor = sub.create(statesArr)
-      val hiddenTensor = actor.extractHiddenEmbedding(statesTensor)
-      val predScaled = actor.evaluate(statesTensor)
-      val qTensor = critic.evaluate(statesTensor.concat(predScaled, 1))
-
-      val nSamples = allSamples.size
-      val hiddenDim = hiddenTensor.getShape.get(1).toInt
-
-      // Compute finite-difference feature sensitivity |d(Delta t) / d(x_k)| and permutation impact for each feature k
-      val eps = 0.1f
-      val baseDt = (0 until nSamples).map(i => actionScaler.unscale(predScaled.getFloat(i.toLong, 0L))).toArray
-      val sensitivities = Array.ofDim[Double](nSamples, stateDim)
-
-      (0 until stateDim).foreach { k =>
-        val perturbedPlus = statesArr.map { row =>
-          val c = row.clone()
-          c(k) = c(k) + eps
-          c
-        }
-        val perturbedMinus = statesArr.map { row =>
-          val c = row.clone()
-          c(k) = c(k) - eps
-          c
-        }
-        val outPlus = actor.evaluate(sub.create(perturbedPlus))
-        val outMinus = actor.evaluate(sub.create(perturbedMinus))
-        (0 until nSamples).foreach { i =>
-          val dtPlus = actionScaler.unscale(outPlus.getFloat(i.toLong, 0L))
-          val dtMinus = actionScaler.unscale(outMinus.getFloat(i.toLong, 0L))
-          sensitivities(i)(k) = math.abs(dtPlus - dtMinus) / (2.0 * eps)
-        }
+  def export(states: Vector[Array[Float]], weight: Double): Unit =
+    if (states.nonEmpty) {
+      TorchNetwork.withSubManager(rootManager) { manager =>
+        exportEmbeddings(states, weight, manager)
+        exportSurface(weight, manager)
       }
-
-      val embFile = new java.io.PrintWriter(new java.io.File(outDir, s"embeddings_weight-$weight.csv"))
-      try {
-        val featNames = Seq(
-          "deltaLatest", "deltaPrev", "selfDeltaMag", "maxNeighDeltaMag", "neighChangedRatio", "bfResidual",
-          "childrenRatio", "minNeighAction", "weight"
-        )
-        val sensNames = featNames.map(n => s"sens_$n")
-        val hidNames = (0 until hiddenDim).map(h => s"h_$h")
-        embFile.println((featNames ++ Seq("predDt", "qValue", "regime") ++ sensNames ++ hidNames).mkString(","))
-
-        (0 until nSamples).foreach { i =>
-          val s = statesArr(i)
-          val dt = baseDt(i)
-          val qv = qTensor.getFloat(i.toLong, 0L)
-          val selfActive = math.abs(s(0)) > 0.01f || math.abs(s(1)) > 0.01f || s(2) > 0.05f
-          val neighActive = s(3) > 0.02f || s(4) > 0.01f || s(5) > 0.05f
-          val isBackbone = s(6) > 0.15f
-          val regime =
-            if (selfActive && isBackbone) "Backbone_Wave"
-            else if (selfActive) "Leaf_Wave"
-            else if (neighActive) "Neighbor_EarlyWarning"
-            else "Steady_State"
-          val hVec = (0 until hiddenDim).map(h => f"${hiddenTensor.getFloat(i.toLong, h.toLong)}%.5f")
-          val sensVec = sensitivities(i).map(v => f"$v%.5f")
-          val sVec = s.map(v => f"$v%.5f")
-          embFile.println((sVec ++ Seq(f"$dt%.5f", f"$qv%.5f", regime) ++ sensVec ++ hVec).mkString(","))
-        }
-      } finally
-        embFile.close()
-
-      // Also export a 2D Policy Response Surface grid for beta = weight
-      val surfFile = new java.io.PrintWriter(new java.io.File(outDir, s"surface_weight-$weight.csv"))
-      try {
-        surfFile.println("selfDeltaMag,maxNeighDeltaMag,childrenRatio,minNeighAction,predDt,qValue")
-        val gridVals = (0 to 25).map(_ / 25.0f)
-        for {
-          selfMag <- gridVals
-          neighMag <- gridVals
-          childR <- Seq(0.0f, 0.5f)
-        } {
-          val deltaFlag = if (selfMag > 0.05f) 1.0f else 0.0f
-          val neighRatio = if (neighMag > 0.05f) math.min(1.0f, neighMag * 0.8f) else 0.0f
-          val minAct = if (neighMag > 0.1f) 0.3f else 0.8f
-          val row =
-            Array(deltaFlag, 0.0f, selfMag, neighMag, neighRatio, neighMag * 0.5f, childR, minAct, weight.toFloat)
-          val tIn = sub.create(row, new Shape(1, stateDim))
-          val scOut = actor.evaluate(tIn)
-          val qOut = critic.evaluate(tIn.concat(scOut, 1))
-          val dt = actionScaler.unscale(scOut.getFloat(0L))
-          val qv = qOut.getFloat(0L)
-          surfFile.println(f"$selfMag%.4f,$neighMag%.4f,$childR%.2f,$minAct%.2f,$dt%.5f,$qv%.5f")
-        }
-      } finally
-        surfFile.close()
     }
+
+  private def exportEmbeddings(states: Vector[Array[Float]], weight: Double, manager: NDManager): Unit = {
+    val input = manager.create(states.toArray)
+    val hidden = actor.extractHiddenEmbedding(input)
+    val scaledPeriods = actor.evaluate(input)
+    val values = critic.evaluate(input.concat(scaledPeriods, 1))
+    val sensitivity = sensitivities(states, manager)
+    val hiddenSize = hidden.getShape.get(1).toInt
+    val rows = states.indices.map { sample =>
+      val hiddenUnits = (0 until hiddenSize).map(unit => hidden.getFloat(sample.toLong, unit.toLong).toDouble)
+      states(sample).map(Csv.number(_, ValueDecimals)).toSeq ++
+        Seq(
+          Csv.number(periodAt(scaledPeriods, sample), ValueDecimals),
+          Csv.number(values.getFloat(sample.toLong, 0L), ValueDecimals),
+          Regime.of(states(sample)).label
+        ) ++
+        (sensitivity(sample) ++ hiddenUnits).map(Csv.number(_, ValueDecimals))
+    }
+    Csv.write(outputDirectory, s"embeddings_weight-$weight.csv", embeddingsHeader(hiddenSize), rows)
+  }
+
+  /** |∂Δt/∂x_k| estimated with central finite differences, for each state (outer) and feature k (inner). */
+  private def sensitivities(states: Vector[Array[Float]], manager: NDManager): IndexedSeq[IndexedSeq[Double]] = {
+    val byFeature = (0 until stateDim).map { feature =>
+      val increased = periodsOf(perturbed(states, feature, SensitivityStep), manager)
+      val decreased = periodsOf(perturbed(states, feature, -SensitivityStep), manager)
+      increased.zip(decreased).map { case (up, down) => math.abs(up - down) / (2.0 * SensitivityStep) }
+    }
+    states.indices.map(sample => byFeature.map(_(sample)))
+  }
+
+  private def perturbed(states: Vector[Array[Float]], feature: Int, delta: Float): Array[Array[Float]] =
+    states.map { state =>
+      val copy = state.clone()
+      copy(feature) = copy(feature) + delta
+      copy
+    }.toArray
+
+  private def periodsOf(states: Array[Array[Float]], manager: NDManager): IndexedSeq[Double] = {
+    val scaledPeriods = actor.evaluate(manager.create(states))
+    states.indices.map(periodAt(scaledPeriods, _))
+  }
+
+  private def periodAt(scaledPeriods: NDArray, sample: Int): Double =
+    actionScaler.unscale(scaledPeriods.getFloat(sample.toLong, 0L).toDouble)
+
+  private def exportSurface(weight: Double, manager: NDManager): Unit = {
+    val rows = PolicySurface.points.map { point =>
+      val input = manager.create(point.features(betaFeature = weight.toFloat), new Shape(1, stateDim.toLong))
+      val scaledPeriod = actor.evaluate(input)
+      val value = critic.evaluate(input.concat(scaledPeriod, 1))
+      Seq(
+        Csv.number(point.selfChange, GridDecimals),
+        Csv.number(point.neighbourChange, GridDecimals),
+        Csv.number(point.childrenRatio, RatioDecimals),
+        Csv.number(point.shortestNeighbourPeriod, RatioDecimals),
+        Csv.number(periodAt(scaledPeriod, 0), ValueDecimals),
+        Csv.number(value.getFloat(0L), ValueDecimals)
+      )
+    }
+    Csv.write(outputDirectory, s"surface_weight-$weight.csv", SurfaceHeader, rows)
   }
 }
 
@@ -122,4 +101,25 @@ object ActorInspection {
 
   /** Number of transitions of each regime that are inspected. */
   val SamplesPerRegime: Int = 400
+
+  /** Perturbation of a feature used to estimate the sensitivity of the period to it. */
+  val SensitivityStep: Float = 0.1f
+
+  /** Decimal digits of the exported values, grid coordinates and ratios. */
+  val ValueDecimals: Int = 5
+  val GridDecimals: Int = 4
+  val RatioDecimals: Int = 2
+
+  /** Column names of the features, as read by the plotting scripts. */
+  val FeatureColumns: Seq[String] = Seq(
+    "deltaLatest", "deltaPrev", "selfDeltaMag", "maxNeighDeltaMag", "neighChangedRatio", "bfResidual", "childrenRatio",
+    "minNeighAction", "weight"
+  )
+
+  val SurfaceHeader: Seq[String] =
+    Seq("selfDeltaMag", "maxNeighDeltaMag", "childrenRatio", "minNeighAction", "predDt", "qValue")
+
+  private def embeddingsHeader(hiddenSize: Int): Seq[String] =
+    FeatureColumns ++ Seq("predDt", "qValue", "regime") ++ FeatureColumns.map(name => s"sens_$name") ++
+      (0 until hiddenSize).map(unit => s"h_$unit")
 }

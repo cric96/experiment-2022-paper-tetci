@@ -74,6 +74,10 @@ and update it in the same commit.
   When a method grows, extract well-named sub-methods (private, or local `def`s when they are tiny) until the
   top-level method reads as a sequence of steps. Deep nesting (`if` inside `foreach` inside `match`) is a signal to
   extract.
+- **Short files, one domain concept each.** A file that grows past ~200 lines, or that mixes concerns (e.g. training,
+  ground truth, CSV export and episode management in one reaction), is split into types named after the domain
+  concepts they implement (`GroundTruth`, `EpisodeManager`, `SpatialSnapshotExporter`, `StratifiedTransitions`, ...),
+  each in its own file, with the original class delegating to them.
 - Small pure functions, placed in the companion `object` or in a dedicated `object`; keep side effects
   (Alchemist node access, file I/O, logging) at the edges so that the logic is testable without a simulator.
 - Use combinators (`map`, `collect`, `foldLeft`, `sliding`, `zip`, `groupMapReduce`, `sum`, `maxBy`) instead of

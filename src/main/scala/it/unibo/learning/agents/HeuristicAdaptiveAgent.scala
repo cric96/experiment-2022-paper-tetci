@@ -7,7 +7,7 @@ import it.unibo.util.TemporalInfo
 import scala.util.Random
 
 /** Hand-crafted Adaptive Heuristic Baseline (AIMD / Local Trend Thresholding): Wakes up fast when the node's own output
-  * changes, ramps up on the next step, and sleeps at steadyAct when stable.
+  * changes, ramps up on the next step, and sleeps at the steady-state period when stable.
   */
 class HeuristicAdaptiveAgent(
     actionSpace: Seq[Double],
@@ -15,7 +15,6 @@ class HeuristicAdaptiveAgent(
 ) extends Learner {
   private val minAct: Double = actionSpace.min
   private val maxAct: Double = actionSpace.max
-  private val steadyAct: Double = minAct + (maxAct - minAct) * math.max(0.45, 1.0 - 0.5 * weight)
 
   override def policyForWeight(customWeight: Double): AgentState => Double = { state =>
     val energyW = math.max(0.01, 1.0 - customWeight)

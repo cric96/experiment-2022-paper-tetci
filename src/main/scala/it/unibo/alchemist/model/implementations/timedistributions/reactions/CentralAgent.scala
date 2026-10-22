@@ -1,7 +1,6 @@
 package it.unibo.alchemist.model.implementations.timedistributions.reactions
 
 import it.unibo.alchemist.loader.deployments.Grid
-import it.unibo.alchemist.model.implementations.molecules.SimpleMolecule
 import it.unibo.alchemist.model.implementations.nodes.SimpleNodeManager
 import it.unibo.alchemist.model.implementations.times.DoubleTime
 import it.unibo.alchemist.model.interfaces._
@@ -26,8 +25,6 @@ class CentralAgent[T, P <: Position[P]](
 ) extends AbstractGlobalReaction[T, P](environment, distribution) {
   private val scalaRandom = new Random(learningInfo.randomSeed)
   private var references: List[(String, DecayReference[Double])] = List.empty
-  private var averagedNextWakeUp = 0.0
-  private var averageRewardPerEpisode = 0.0
   private var stepTicks = 0
   private var episodeCounter = 0
   private var cachedSourceKey: (Int, Set[Int]) = (-1, Set.empty)
@@ -80,22 +77,9 @@ class CentralAgent[T, P <: Position[P]](
           cachedSourceKey = (-1, Set.empty)
         }
         references.foreach(_._2.update())
-        averagedNextWakeUp = 0
-        averageRewardPerEpisode = 0
       }
     }
     stepTicks += 1
-    val managersWithLearning = managers.filterNot(_.get[Boolean](Sensors.fullSpeed)).toList
-    if (managersWithLearning.nonEmpty) {
-      val consumption = managersWithLearning
-        .map(_.get[Double](Sensors.nextWakeUp))
-        .sum / managersWithLearning.size
-      val rewardAverage = managersWithLearning
-        .map(m => if (m.has("reward")) m.get[Double]("reward") else 0.0)
-        .sum / managersWithLearning.size
-      averageRewardPerEpisode += rewardAverage
-      averagedNextWakeUp += consumption
-    }
     recordSpatialSnapshotIfFinalEpisode(currentTime.toDouble)
     recordGNNSpatialEmbeddingsIfFinalEpisode(currentTime.toDouble)
   }
@@ -367,8 +351,7 @@ class CentralAgent[T, P <: Position[P]](
   private def replaceNodes(
       position: Position[_],
       prototype: Node[T],
-      currentTime: Time,
-      full: Boolean = false
+      currentTime: Time
   ): Unit = {
     val newNode = prototype.cloneNode(currentTime)
     newNode.getReactions.iterator().asScala.toList.foreach(r => newNode.removeReaction(r))
@@ -377,23 +360,10 @@ class CentralAgent[T, P <: Position[P]](
     prototype.getContents.asScala.foreach { case (molecule, content) =>
       newNode.setConcentration(molecule, content)
     }
-    newNode.setConcentration(new SimpleMolecule(Sensors.fullSpeed), full.asInstanceOf[T])
     prototype.getReactions
       .iterator()
       .asScala
       .foreach(reaction => newNode.addReaction(reaction.cloneOnNewNode(newNode, currentTime)))
   }
 
-  private def clonePutSpeed(position: List[Position[_]], time: Time): Unit = {
-    val cloned = initialSnapshot.zip(position)
-    cloned.foreach { case (node, position) => replaceNodes(position, node, time, full = true) }
-  }
-
-  private def filterFullSpeed = environment.getNodes
-    .iterator()
-    .asScala
-    .toList
-    .map(node => new SimpleNodeManager[T](node))
-    .filter(manager => manager.get[Boolean](Sensors.fullSpeed))
-    .map(manager => (manager.node, environment.getPosition(manager.node)))
 }

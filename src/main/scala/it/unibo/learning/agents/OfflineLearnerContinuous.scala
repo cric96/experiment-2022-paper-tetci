@@ -3,7 +3,6 @@ package it.unibo.learning.agents
 import ai.djl.ndarray.{NDList, NDManager}
 import ai.djl.ndarray.types.Shape
 import ai.djl.nn.Activation
-import ai.djl.training.loss.Loss
 import it.unibo.alchemist.model.implementations.timedistributions.reactions.CentralAgent
 import it.unibo.learning.abstractions.AgentState
 import it.unibo.learning.abstractions.ReplayBuffer.Experience
@@ -32,7 +31,6 @@ class OfflineLearnerContinuous(
   private var random: Random = new Random((randomKey.toLong * 31L) ^ java.lang.Double.doubleToLongBits(weight))
   private val rootManager: NDManager = NDManager.newBaseManager()
   private val actionScaler: TorchNetwork.MinMaxActionScaler = TorchNetwork.MinMaxActionScaler(min, max)
-  private val l2Loss: Loss = Loss.l2Loss()
 
   private val baseSeed: Int = (randomKey.toInt * 1009) ^ weight.hashCode()
   private val actor: TorchNetwork =
@@ -56,17 +54,6 @@ class OfflineLearnerContinuous(
       seed = baseSeed + 2
     )
   targetActor.softUpdateFrom(actor, 1.0f)
-
-  private val behaviorNet: TorchNetwork =
-    TorchNetwork.createMLP(
-      "behavior-net",
-      stateDim,
-      Seq(hiddenSize, hiddenSize),
-      1,
-      Some(Activation.tanhBlock()),
-      lr = lr,
-      seed = baseSeed + 3
-    )
 
   private val critic1: TorchNetwork =
     TorchNetwork.createMLP("critic-1", stateDim + 1, Seq(hiddenSize, hiddenSize), 1, lr = lr, seed = baseSeed + 4)
@@ -96,7 +83,6 @@ class OfflineLearnerContinuous(
 
   private val epsilon: Double = 0.99
   private val targetUpdateTau: Float = 0.02f
-  private val bcConstraintWeight: Float = 0.5f
   private val counterfactualWeights: Array[Double] = Array(0.5, 0.8, 0.95, 0.99, 1.0)
 
   private var ticks: Int = 0

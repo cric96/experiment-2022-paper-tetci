@@ -75,7 +75,7 @@ final class OfflineLearner(
 
   override protected def record(trajectory: Trajectory): Unit =
     Relabelling
-      .relabel(trajectory, weight, gamma.toDouble, encodeForOwnWeight, SpatialTemporal.FeatureDim - 1)
+      .relabel(trajectory, weight, gamma.toDouble, encodeForOwnWeight, SpatialTemporal.Feature.Beta)
       .filter(relabelled => actionSpace.indices.contains(relabelled.step.actionIndex))
       .foreach(relabelled => transitions.add(toTransition(relabelled), relabelled.isUnstable))
 

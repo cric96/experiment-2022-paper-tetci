@@ -76,7 +76,7 @@ final class OfflineLearnerContinuous(
 
   override protected def record(trajectory: Trajectory): Unit =
     Relabelling
-      .relabel(trajectory, weight, gamma.toDouble, encodeForOwnWeight, SpatialTemporal.FeatureDim - 1)
+      .relabel(trajectory, weight, gamma.toDouble, encodeForOwnWeight, SpatialTemporal.Feature.Beta)
       .foreach(relabelled => transitions.add(toTransition(relabelled), relabelled.isUnstable))
 
   private def encodeForOwnWeight(state: AgentState): Array[Float] = SpatialTemporal.encode(state, weight, max)

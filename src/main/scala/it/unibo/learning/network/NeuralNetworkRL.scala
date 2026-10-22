@@ -34,6 +34,19 @@ object NeuralNetworkRL {
   object SpatialTemporal {
     val FeatureDim: Int = 9
 
+    /** Positions of the features in the encoded vector. */
+    object Feature {
+      val LatestTrend: Int = 0
+      val PreviousTrend: Int = 1
+      val SelfChange: Int = 2
+      val NeighbourChange: Int = 3
+      val ChangedRatio: Int = 4
+      val Residual: Int = 5
+      val ChildrenRatio: Int = 6
+      val ShortestNeighbourPeriod: Int = 7
+      val Beta: Int = 8
+    }
+
     /** Scale used when the node has no finite output to compare with. */
     val DefaultScale: Double = 50.0
 

@@ -1,237 +1,149 @@
 package it.unibo.learning.agents
 
-import ai.djl.ndarray.{NDList, NDManager}
 import ai.djl.ndarray.types.Shape
+import ai.djl.ndarray.{NDArray, NDList, NDManager}
 import ai.djl.training.loss.Loss
 import it.unibo.learning.TradeOff
-import it.unibo.learning.abstractions.{AgentState, Step, Trajectory}
+import it.unibo.learning.abstractions.{AgentState, Trajectory}
+import it.unibo.learning.agents.OfflineLearner._
+import it.unibo.learning.agents.offline._
 import it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal
 import it.unibo.learning.network.TorchNetwork
 import it.unibo.learning.network.TorchNetwork._
 
-import scala.collection.mutable.ArrayBuffer
-import scala.util.Random
-
-class OfflineLearner(
+/** Discrete Batch-Constrained Q-Learning (BCQ) over the spatial-temporal state, conditioned on the trade-off weight β:
+  * a Q network chooses among the actions that an imitation network deems likely enough under the logged behaviour.
+  */
+final class OfflineLearner(
     actionSpace: Seq[Double],
     randomKey: Double,
     weight: Double,
-    val stateDim: Int = SpatialTemporal.FeatureDim,
-    val hiddenSize: Int = 64,
-    val gamma: Float = 0.9f,
-    val bcqThreshold: Float = 0.08f,
-    val lr: Float = 1e-3f,
-    val batchSize: Int = 64,
-    val steps: Int = 160,
-    val explorationSteps: Int = 10,
-    val learningStepAfter: Int = 3
-) extends Learner {
-
-  private val numActions: Int = actionSpace.size
+    stateDim: Int = SpatialTemporal.FeatureDim,
+    hiddenSize: Int = 64,
+    gamma: Float = 0.9f,
+    bcqThreshold: Float = 0.08f,
+    lr: Float = 1e-3f,
+    batchSize: Int = 64,
+    stepsPerEpisode: Int = 160,
+    explorationEpisodes: Int = 10,
+    finalTrainingMultiplier: Int = 3
+) extends EpisodicOfflineLearner[DiscreteTransition](
+      randomKey,
+      weight,
+      TrainingSchedule(explorationEpisodes, stepsPerEpisode, finalTrainingMultiplier),
+      batchSize
+    ) {
   private val maxAction: Double = actionSpace.max
-  private var random: Random = new Random((randomKey.toLong * 31L) ^ java.lang.Double.doubleToLongBits(weight))
-  private val rootManager: NDManager = NDManager.newBaseManager()
-
-  private val baseSeed: Int = (randomKey.toInt * 1009) ^ weight.hashCode()
-  private val qNet: TorchNetwork =
-    TorchNetwork.createMLP("bcq-q", stateDim, Seq(hiddenSize, hiddenSize), numActions, lr = lr, seed = baseSeed + 1)
-  private val targetQNet: TorchNetwork =
-    TorchNetwork.createMLP(
-      "bcq-target-q",
-      stateDim,
-      Seq(hiddenSize, hiddenSize),
-      numActions,
-      lr = lr,
-      seed = baseSeed + 2
-    )
-  targetQNet.softUpdateFrom(qNet, 1.0f)
-
-  private val imitatorNet: TorchNetwork =
-    TorchNetwork.createMLP(
-      "bcq-imitator",
-      stateDim,
-      Seq(hiddenSize, hiddenSize),
-      numActions,
-      lr = lr,
-      seed = baseSeed + 3
-    )
+  private val networkSeed: Int = LearnerSeeds.networks(randomKey, weight)
+  private val qNetwork: TorchNetwork = network("bcq-q", seedOffset = 1)
+  private val targetQNetwork: TorchNetwork = network("bcq-target-q", seedOffset = 2)
+  targetQNetwork.softUpdateFrom(qNetwork, HardCopy)
+  private val imitationNetwork: TorchNetwork = network("bcq-imitator", seedOffset = 3)
   private val crossEntropyLoss: Loss = Loss.softmaxCrossEntropyLoss()
+  @volatile private var fastQValues: Array[Float] => Array[Float] = qNetwork.snapshotFastMLP()
+  @volatile private var fastImitationLogits: Array[Float] => Array[Float] = imitationNetwork.snapshotFastMLP()
 
-  private val initialEpsilon: Double = 0.99
-  private val finalEpsilon: Double = 0.0
-  private val targetUpdateTau: Float = 0.02f
-  private val counterfactualWeights: Array[Double] = Array(0.5, 0.8, 0.95, 0.99, 1.0)
-
-  private var ticks: Int = 0
-  private val unstableTransitions: ArrayBuffer[OfflineLearner.DiscreteTransition] = ArrayBuffer.empty
-  private val stableTransitions: ArrayBuffer[OfflineLearner.DiscreteTransition] = ArrayBuffer.empty
-  @volatile private var fastQEval: Array[Float] => Array[Float] = qNet.snapshotFastMLP(useTanh = false)
-  @volatile private var fastImEval: Array[Float] => Array[Float] = imitatorNet.snapshotFastMLP(useTanh = false)
-
-  private def encode(state: AgentState, targetWeight: Double = weight): Array[Float] =
-    SpatialTemporal.encode(state, targetWeight, maxAction)
-
-  private def currentEpsilon: Double =
-    if (ticks >= explorationSteps) finalEpsilon
-    else initialEpsilon + (finalEpsilon - initialEpsilon) * (ticks.toDouble / explorationSteps.toDouble)
-
-  private def selectBCQAction(stateFeatures: Array[Float]): Int = {
-    val qValues = fastQEval(stateFeatures)
-    val logits = fastImEval(stateFeatures)
-    var maxLogit = Float.NegativeInfinity
-    var i = 0
-    while (i < numActions) {
-      if (logits(i) > maxLogit) maxLogit = logits(i)
-      i += 1
-    }
-    val probs = new Array[Float](numActions)
-    var sumExp = 0.0f
-    i = 0
-    while (i < numActions) {
-      val e = math.exp(logits(i) - maxLogit).toFloat
-      probs(i) = e
-      sumExp += e
-      i += 1
-    }
-    var maxProb = 0.0f
-    i = 0
-    while (i < numActions) {
-      probs(i) /= sumExp
-      if (probs(i) > maxProb) maxProb = probs(i)
-      i += 1
-    }
-    val thresh = bcqThreshold * maxProb
-    var bestAct = 0
-    var bestQ = Float.NegativeInfinity
-    i = 0
-    while (i < numActions) {
-      if (probs(i) >= thresh && qValues(i) > bestQ) {
-        bestQ = qValues(i)
-        bestAct = i
-      }
-      i += 1
-    }
-    bestAct
-  }
-
-  override def policyForWeight(customWeight: Double): AgentState => Double = { state =>
-    val actionIdx = if (ticks < explorationSteps && random.nextDouble() < currentEpsilon) {
-      random.nextInt(numActions)
-    } else {
-      selectBCQAction(encode(state, customWeight))
-    }
-    actionSpace(actionIdx)
-  }
+  private def network(name: String, seedOffset: Int): TorchNetwork =
+    TorchNetwork.createMLP(
+      name,
+      stateDim,
+      Seq(hiddenSize, hiddenSize),
+      actionSpace.size,
+      lr = lr,
+      seed = networkSeed + seedOffset
+    )
 
   override def policy: AgentState => Double = policyForWeight(weight)
 
-  override def injectRandom(random: Random): Unit = this.random = random
-
-  override def endEpisode(trajectories: Seq[Trajectory]): Unit = {
-    appendEpisodeTrajectories(trajectories)
-    if (ticks <= explorationSteps && (unstableTransitions.nonEmpty || stableTransitions.nonEmpty)) {
-      val nSteps = if (ticks < explorationSteps) steps else steps * learningStepAfter
-      fit(nSteps)
-      fastQEval = qNet.snapshotFastMLP(useTanh = false)
-      fastImEval = imitatorNet.snapshotFastMLP(useTanh = false)
-    }
-    ticks += 1
+  override def policyForWeight(customWeight: Double): AgentState => Double = { state =>
+    val isRandom = schedule.isExploring(currentEpisode) && random.nextDouble() < schedule.epsilonAt(currentEpisode)
+    val action =
+      if (isRandom) random.nextInt(actionSpace.size)
+      else bcqAction(SpatialTemporal.encode(state, customWeight, maxAction))
+    actionSpace(action)
   }
 
-  private def counterfactualReward(rawIntensity: Double, dt: Double, beta: Double): Float =
-    TradeOff.offlineReward(rawIntensity, dt, beta, TradeOff.FastestPeriod, maxAction).toFloat
-
-  private def withWeight(baseFeatures: Array[Float], beta: Double): Array[Float] = {
-    val copy = baseFeatures.clone()
-    copy(copy.length - 1) = TradeOff.betaFeature(beta)
-    copy
+  /** The action with the highest Q value among those whose imitation probability is at least `bcqThreshold` times the
+    * probability of the most likely one.
+    */
+  private def bcqAction(features: Array[Float]): Int = {
+    val probabilities = softmax(fastImitationLogits(features))
+    val threshold = bcqThreshold * probabilities.foldLeft(0.0f)(math.max)
+    val qValues = fastQValues(features)
+    qValues.indices.filter(action => probabilities(action) >= threshold).maxBy(qValues)(Ordering.Float.IeeeOrdering)
   }
 
-  private def appendEpisodeTrajectories(episodes: Seq[Trajectory]): Unit =
-    episodes.foreach { trajectory =>
-      val baseStates = trajectory.map(step => encode(step.state, weight)).toIndexedSeq
-      val intensities = trajectory.map(step => SpatialTemporal.instabilityIntensity(step.state)).toIndexedSeq
-      val weightsToTrain = Array(weight, weight) ++ counterfactualWeights
-      trajectory.indices.foreach { i =>
-        val Step(_, actionIdx, rawAction, _) = trajectory(i)
-        if (actionIdx >= 0 && actionIdx < numActions) {
-          val isTerminal = i == trajectory.size - 1
-          val nextBase = if (isTerminal) baseStates(i) else baseStates(i + 1)
-          // SMDP continuous-time discount factor: gamma^(Delta t)
-          val smdpDiscount = math.pow(gamma.toDouble, math.max(0.5, rawAction)).toFloat
-          val intensity = intensities(i)
-          val targetBuffer = if (intensity > 0.0) unstableTransitions else stableTransitions
-          weightsToTrain.foreach { beta =>
-            targetBuffer += OfflineLearner.DiscreteTransition(
-              state = withWeight(baseStates(i), beta),
-              action = actionIdx,
-              reward = counterfactualReward(intensity, rawAction, beta),
-              nextState = withWeight(nextBase, beta),
-              terminal = if (isTerminal) 1.0f else 0.0f,
-              discountFactor = smdpDiscount
-            )
-          }
-        }
-      }
-    }
+  override protected def record(trajectory: Trajectory): Unit =
+    Relabelling
+      .relabel(trajectory, weight, gamma.toDouble, encodeForOwnWeight, SpatialTemporal.FeatureDim - 1)
+      .filter(relabelled => actionSpace.indices.contains(relabelled.step.actionIndex))
+      .foreach(relabelled => transitions.add(toTransition(relabelled), relabelled.isUnstable))
 
-  private def sampleStratifiedBatch(effectiveBatch: Int): Vector[OfflineLearner.DiscreteTransition] = {
-    if (unstableTransitions.isEmpty) {
-      Vector.fill(effectiveBatch)(stableTransitions(random.nextInt(stableTransitions.size)))
-    } else if (stableTransitions.isEmpty) {
-      Vector.fill(effectiveBatch)(unstableTransitions(random.nextInt(unstableTransitions.size)))
-    } else {
-      val half = effectiveBatch / 2
-      val unstPart = Vector.fill(half)(unstableTransitions(random.nextInt(unstableTransitions.size)))
-      val stabPart = Vector.fill(effectiveBatch - half)(stableTransitions(random.nextInt(stableTransitions.size)))
-      unstPart ++ stabPart
-    }
+  private def encodeForOwnWeight(state: AgentState): Array[Float] = SpatialTemporal.encode(state, weight, maxAction)
+
+  private def toTransition(relabelled: RelabelledStep): DiscreteTransition = {
+    val step = relabelled.step
+    val reward =
+      TradeOff.offlineReward(relabelled.intensity, step.action, relabelled.beta, TradeOff.FastestPeriod, maxAction)
+    DiscreteTransition(
+      state = relabelled.state,
+      action = step.actionIndex,
+      reward = reward.toFloat,
+      nextState = relabelled.nextState,
+      terminal = relabelled.terminalFlag,
+      discountFactor = relabelled.discount
+    )
   }
 
-  private def fit(nSteps: Int): Unit = {
-    val dataSize = unstableTransitions.size + stableTransitions.size
-    if (dataSize == 0) return
-    val effectiveBatch = math.min(batchSize, dataSize)
-
-    (0 until nSteps).foreach { _ =>
-      val batch = sampleStratifiedBatch(effectiveBatch)
-      withSubManager(rootManager) { sub =>
-        val states = sub.create(batch.map(_.state).toArray)
-        val nextStates = sub.create(batch.map(_.nextState).toArray)
-        val actions = sub.create(batch.map(_.action.toLong).toArray, new Shape(effectiveBatch, 1))
-        val rewards = sub.create(batch.map(_.reward).toArray, new Shape(effectiveBatch, 1))
-        val terminals = sub.create(batch.map(_.terminal).toArray, new Shape(effectiveBatch, 1))
-        val discounts = sub.create(batch.map(_.discountFactor).toArray, new Shape(effectiveBatch, 1))
-
-        val nextQ = qNet.evaluate(nextStates)
-        val nextProbs = imitatorNet.evaluate(nextStates).softmax(1)
-        val maxNextProbs = nextProbs.max(Array(1), true)
-        val allowedMask = nextProbs.div(maxNextProbs).gte(bcqThreshold)
-        val maskedNextQ = nextQ.duplicate()
-        maskedNextQ.set(allowedMask.logicalNot(), -1e8f)
-        val bestNextActions = maskedNextQ.argMax(1).reshape(effectiveBatch, 1)
-        val nextTargetQ = targetQNet.evaluate(nextStates).gather(bestNextActions, 1)
-        val targetValues = (rewards + nextTargetQ * discounts * (-terminals + 1.0f)).stopGradient()
-
-        qNet.trainStep {
-          val currentQ = qNet.forward(states, training = true).gather(actions, 1)
-          TorchNetwork.smoothL1Loss(currentQ, targetValues)
-        }
-
-        imitatorNet.trainStep {
-          val logits = imitatorNet.forward(states, training = true)
-          val ceLoss = crossEntropyLoss.evaluate(new NDList(actions.squeeze(1)), new NDList(logits))
-          val l2Penalty = logits.pow(2).mean() * 1e-2f
-          ceLoss + l2Penalty
-        }
-
-        targetQNet.softUpdateFrom(qNet, targetUpdateTau)
-      }
+  override protected def trainOn(batch: Vector[DiscreteTransition], manager: NDManager): Unit = {
+    val tensors = DiscreteBatch(batch, manager)
+    val targets = bcqTargets(tensors)
+    qNetwork.trainStep {
+      TorchNetwork.smoothL1Loss(qNetwork.forward(tensors.states, training = true).gather(tensors.actions, 1), targets)
     }
+    imitationNetwork.trainStep(imitationLoss(tensors))
+    targetQNetwork.softUpdateFrom(qNetwork, TargetUpdateRate)
+  }
+
+  /** r + γ^Δt · Q_target(s', a*), with a* the best next action among those the imitation network allows. */
+  private def bcqTargets(tensors: DiscreteBatch): NDArray = {
+    val nextQValues = qNetwork.evaluate(tensors.nextStates)
+    val nextProbabilities = imitationNetwork.evaluate(tensors.nextStates).softmax(1)
+    val isAllowed = nextProbabilities.div(nextProbabilities.max(Array(1), true)).gte(bcqThreshold)
+    val maskedNextQValues = nextQValues.duplicate()
+    maskedNextQValues.set(isAllowed.logicalNot(), ForbiddenActionValue)
+    val bestNextActions = maskedNextQValues.argMax(1).reshape(tensors.size.toLong, 1)
+    val nextValues = targetQNetwork.evaluate(tensors.nextStates).gather(bestNextActions, 1)
+    (tensors.rewards + nextValues * tensors.discounts * (-tensors.terminals + 1.0f)).stopGradient()
+  }
+
+  /** Cross-entropy with the logged actions, plus an L2 penalty that keeps the logits calibrated. */
+  private def imitationLoss(tensors: DiscreteBatch): NDArray = {
+    val logits = imitationNetwork.forward(tensors.states, training = true)
+    val crossEntropy = crossEntropyLoss.evaluate(new NDList(tensors.actions.squeeze(1)), new NDList(logits))
+    crossEntropy + logits.pow(2).mean() * LogitsPenalty
+  }
+
+  override protected def onTrained(): Unit = {
+    fastQValues = qNetwork.snapshotFastMLP()
+    fastImitationLogits = imitationNetwork.snapshotFastMLP()
   }
 }
 
 object OfflineLearner {
+
+  /** Soft-update rate of the target Q network after every gradient step. */
+  val TargetUpdateRate: Float = 0.02f
+
+  /** Soft-update rate that copies the source network. */
+  val HardCopy: Float = 1.0f
+
+  /** Q value given to the actions the imitation network forbids, so that they are never the best ones. */
+  val ForbiddenActionValue: Float = -1e8f
+
+  /** Weight of the L2 penalty on the imitation logits. */
+  val LogitsPenalty: Float = 1e-2f
+
   final case class DiscreteTransition(
       state: Array[Float],
       action: Int,
@@ -240,4 +152,38 @@ object OfflineLearner {
       terminal: Float,
       discountFactor: Float
   )
+
+  /** A batch of discrete transitions as tensors; the scalar fields are columns. */
+  final private case class DiscreteBatch(
+      size: Int,
+      states: NDArray,
+      nextStates: NDArray,
+      actions: NDArray,
+      rewards: NDArray,
+      terminals: NDArray,
+      discounts: NDArray
+  )
+
+  private object DiscreteBatch {
+    def apply(batch: Vector[DiscreteTransition], manager: NDManager): DiscreteBatch = {
+      val column = new Shape(batch.size.toLong, 1)
+      DiscreteBatch(
+        size = batch.size,
+        states = manager.create(batch.map(_.state).toArray),
+        nextStates = manager.create(batch.map(_.nextState).toArray),
+        actions = manager.create(batch.map(_.action.toLong).toArray, column),
+        rewards = manager.create(batch.map(_.reward).toArray, column),
+        terminals = manager.create(batch.map(_.terminal).toArray, column),
+        discounts = manager.create(batch.map(_.discountFactor).toArray, column)
+      )
+    }
+  }
+
+  /** Numerically stable softmax, in single precision like the fast inference path. */
+  private def softmax(logits: Array[Float]): Array[Float] = {
+    val maxLogit = logits.foldLeft(Float.NegativeInfinity)(math.max)
+    val exponentials = logits.map(logit => math.exp((logit - maxLogit).toDouble).toFloat)
+    val total = exponentials.sum
+    exponentials.map(_ / total)
+  }
 }

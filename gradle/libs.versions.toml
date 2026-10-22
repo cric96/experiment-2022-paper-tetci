@@ -1,7 +1,6 @@
 [versions]
 alchemist = "45.0.0"
 scala = "3.10.0"
-kotlin = "2.4.10"
 djl = "0.39.0"
 scalatest = "3.2.20"
 scalatest-junit-runner = "0.2.0"
@@ -10,7 +9,6 @@ scalafmt = "3.11.5"
 [libraries]
 alchemist = { module = "it.unibo.alchemist:alchemist", version.ref = "alchemist" }
 alchemist-swingui = { module = "it.unibo.alchemist:alchemist-swingui", version.ref = "alchemist" }
-kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
 scala3-library = { module = "org.scala-lang:scala3-library_3", version.ref = "scala" }
 alchemist-incarnation-scafi = { module = "it.unibo.alchemist:alchemist-incarnation-scafi", version.ref = "alchemist"}
 djl-api = { module = "ai.djl:api", version.ref = "djl" }

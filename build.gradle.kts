@@ -17,8 +17,6 @@ dependencies {
     implementation(libs.bundles.alchemist)
     implementation(libs.bundles.djl)
     implementation(libs.scala3.library)
-    // The Scala compiler reads the Kotlin signatures of the Alchemist API.
-    implementation(libs.kotlin.stdlib)
     testImplementation(libs.scalatest)
     testRuntimeOnly(libs.scalatest.junit.runner)
     testRuntimeOnly(libs.junit.platform.launcher)

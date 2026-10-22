@@ -1,11 +1,11 @@
 [versions]
 alchemist = "25.4.0"
-scalaVersion = "2.13.10"
+scalaVersion = "2.13.18"
 kotlin = "1.8.0"
 djl = "0.27.0"
-scalatest = "3.2.19"
+scalatest = "3.2.20"
 scalatest-junit-runner = "0.2.0"
-junit-platform = "1.10.2"
+junit-platform = "1.14.4"
 scalafmt = "3.11.5"
 [libraries]
 alchemist = { module = "it.unibo.alchemist:alchemist", version.ref = "alchemist" }

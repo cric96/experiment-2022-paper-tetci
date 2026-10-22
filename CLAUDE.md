@@ -64,8 +64,8 @@ and update it in the same commit.
 - `val` and immutable collections by default. `var` is acceptable only for the inherently stateful Alchemist glue
   (reactions, learners that accumulate data); keep it `private` and as narrow as possible.
 - Prefer expressions to statements: no `return`, no "init then mutate" — use `if`/`match`/`fold` as expressions.
-- Model fixed sets of alternatives as ADTs (`sealed trait` + `case object`/`final case class`), not as `String` or
-  `Int` codes. Parse external values (YAML, molecules) once, at the boundary, into the ADT.
+- Model fixed sets of alternatives as `enum`s (or `sealed trait`s when the cases carry different data), not as
+  `String` or `Int` codes. Parse external values (YAML, molecules) once, at the boundary, into the ADT.
 - Use a `final case class` instead of a tuple as soon as it has more than two fields or crosses a module boundary.
 - **No magic numbers.** Every literal with a domain meaning (thresholds, gains, sizes, times, seeds, file names,
   column names) is a named constant: `val UpperCamelCase` inside an `object` (the companion or a dedicated
@@ -101,7 +101,9 @@ and update it in the same commit.
 ### Types and API
 - Explicit return types on every public member.
 - `final` for classes not meant to be extended; `private` for everything that is not API.
-- Implicit enrichments: `implicit final class XOps(private val self: X) extends AnyVal`.
+- Scala 3 idioms: `extension` methods instead of implicit classes, `given`/`using` instead of implicit values and
+  parameters, top-level definitions instead of `package object`s, `*` in imports and `?` in wildcard types
+  (scalafmt rewrites the syntax; keep the braces style used by the code base).
 - Named and default arguments for constructors used from YAML; keep positional order stable.
 - Traits provide sensible default implementations instead of forcing every implementor to write no-op overrides.
 

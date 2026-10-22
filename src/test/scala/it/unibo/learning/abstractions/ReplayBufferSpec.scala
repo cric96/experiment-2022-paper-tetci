@@ -11,7 +11,7 @@ class ReplayBufferSpec extends AnyFlatSpec with Matchers:
 
   /** A buffer filled with experiences whose action index is 0 until `count`, in insertion order. */
   private def bufferWith(count: Int, capacity: Int, seed: Int = 42): ReplayBuffer =
-    val buffer = new ReplayBuffer(capacity, new Random(seed))
+    val buffer = ReplayBuffer(capacity, new Random(seed))
     (0 until count).foreach(i => buffer.put(state, i, i.toDouble, 0.0, state))
     buffer
 

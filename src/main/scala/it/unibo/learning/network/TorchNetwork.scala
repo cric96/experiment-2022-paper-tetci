@@ -138,7 +138,7 @@ object TorchNetwork:
       lr: Float = DefaultLearningRate,
       seed: Int = DefaultSeed
   ): TorchNetwork[SequentialBlock] =
-    new TorchNetwork(name, inputDim, mlpBlock(hiddenSizes, outputSize, outputActivation), lr, seed = seed)
+    TorchNetwork(name, inputDim, mlpBlock(hiddenSizes, outputSize, outputActivation), lr, seed = seed)
 
   def createEdgeGAT(
       name: String,
@@ -153,8 +153,8 @@ object TorchNetwork:
       seed: Int = DefaultSeed
   ): TorchNetwork[EdgeGATBlock] =
     val block =
-      new EdgeGATBlock(selfDim, maxNeighbors, neighDim, edgeHidden, readoutHidden, outputSize, outputActivation)
-    new TorchNetwork(name, selfDim + maxNeighbors * neighDim, block, lr, seed = seed)
+      EdgeGATBlock(selfDim, maxNeighbors, neighDim, edgeHidden, readoutHidden, outputSize, outputActivation)
+    TorchNetwork(name, selfDim + maxNeighbors * neighDim, block, lr, seed = seed)
 
   /** Smooth L1 (Huber) loss: 0.5 · x² if |x| < δ, |x| − 0.5 otherwise, averaged. */
   def smoothL1Loss(predicted: NDArray, target: NDArray): NDArray =

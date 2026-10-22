@@ -114,7 +114,7 @@ final class OfflineLearnerContinuous(
   override protected def onTrained(): Unit =
     fastActor = actor.snapshotFastMLP(useTanh = true)
     if currentEpisode == explorationEpisodes && math.abs(randomKey - InspectedRun) < RunTolerance then
-      new ActorInspection(actor, critic1, actionScaler, stateDim, inspectionDirectory)
+      ActorInspection(actor, critic1, actionScaler, stateDim, inspectionDirectory)
         .save(transitions.oldest(ActorInspection.SamplesPerRegime).map(_.state), weight)
 end OfflineLearnerContinuous
 

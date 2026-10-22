@@ -24,8 +24,8 @@ final class CentralAgent[T, P <: Position[P]](
     environmentBox: Box
 ) extends AbstractGlobalReaction[T, P](environment, distribution):
   private val randomness = new Random(learningInfo.randomSeed)
-  private val redeployment = new Redeployment(environment, environmentBox, learningInfo.randomSeed)
-  private val snapshots = new FinalEpisodeSnapshots(environment, learner, learningInfo, groundTruth(_))
+  private val redeployment = Redeployment(environment, environmentBox, learningInfo.randomSeed)
+  private val snapshots = FinalEpisodeSnapshots(environment, learner, learningInfo, groundTruth(_))
   private var steps: Int = 0
   private var episode: Int = 0
 
@@ -33,7 +33,7 @@ final class CentralAgent[T, P <: Position[P]](
   private var groundTruthsCache: Option[(Int, GroundTruths)] = None
 
   /** The experience of all the nodes, for the learners that train online. */
-  val memory: ReplayBuffer = new ReplayBuffer(learningInfo.bufferSize, randomness)
+  val memory: ReplayBuffer = ReplayBuffer(learningInfo.bufferSize, randomness)
   learner.injectRandom(randomness)
 
   override protected def onInitializationComplete(time: Time, environment: Environment[T, ?]): Unit =

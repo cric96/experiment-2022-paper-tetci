@@ -20,7 +20,7 @@ abstract class EpisodicOfflineLearner[T](
   private val rootManager: NDManager = NDManager.newBaseManager()
   private var episode: Int = 0
 
-  protected val transitions: StratifiedTransitions[T] = new StratifiedTransitions[T]
+  protected val transitions: StratifiedTransitions[T] = StratifiedTransitions[T]
 
   /** The episode in progress (0-based); during [[onTrained]] it is the episode that has just ended. */
   protected def currentEpisode: Int = episode

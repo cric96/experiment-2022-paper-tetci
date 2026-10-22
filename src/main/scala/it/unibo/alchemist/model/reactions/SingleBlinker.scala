@@ -40,7 +40,7 @@ final class SingleBlinker[T, P <: Position[P]](
     else agents.maxByOption(distance)(Ordering.Double.TotalOrdering)
 
   private def setSource(node: Node[T], isSource: Boolean): Unit =
-    new SimpleNodeManager[T](node).put(Sensors.source, isSource)
+    SimpleNodeManager[T](node).put(Sensors.source, isSource)
 end SingleBlinker
 
 object SingleBlinker:

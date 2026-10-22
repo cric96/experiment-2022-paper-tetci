@@ -6,7 +6,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
 class HeuristicAdaptiveAgentSpec extends AnyFlatSpec with Matchers:
-  private val agent = new HeuristicAdaptiveAgent(Seq(1.0, 2.0, 3.0, 4.0, 5.0), weight = 0.95)
+  private val agent = HeuristicAdaptiveAgent(Seq(1.0, 2.0, 3.0, 4.0, 5.0), weight = 0.95)
   private val changedTwoRoundsAgo = AgentStates.of(
     me = 0,
     Map(0 -> Reading(20.0)),

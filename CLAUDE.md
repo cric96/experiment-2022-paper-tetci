@@ -73,8 +73,8 @@ and update it in the same commit.
   top-level definitions (types, extensions) instead of `package object`s.
 - `enum` for fixed sets of alternatives, with parameters and methods when the cases share behaviour
   (`BuildingBlock`, `Regime`); `values` lists the cases.
-- Prefer creator applications without `new` for Scala classes (`SimpleNodeManager[T](node)`); keep `new` for Java
-  classes and anonymous classes.
+- Instantiate the classes of this project (and case classes) without `new` (`ReplayBuffer(capacity, random)`); keep
+  `new` for Java and library classes and for anonymous classes.
 
 ### Values and state
 - `val` and immutable collections by default. `var` is acceptable only for the inherently stateful Alchemist glue

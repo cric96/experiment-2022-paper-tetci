@@ -12,7 +12,7 @@ class QLearningSpec extends AnyFlatSpec with Matchers:
 
   private def seededLearner(): QLearning =
     val learner =
-      new QLearning(actions, DecayReference.constant(0.2), DecayReference.constant(0.5), 0.9, 3)
+      QLearning(actions, DecayReference.constant(0.2), DecayReference.constant(0.5), 0.9, 3)
     learner.injectRandom(new Random(7))
     learner
 

@@ -25,8 +25,8 @@ final class FinalEpisodeSnapshots[T, P <: Position[P]](
     directory: File = DefaultDirectory
 ):
   private val episodeStart: Double = (RecordedEpisode * learningInfo.episodeSize).toDouble
-  private lazy val spatialRecorder = new SpatialSnapshotRecorder(directory, weightOr(NoWeight))
-  private lazy val attentionRecorder = new AttentionSnapshotRecorder(directory)
+  private lazy val spatialRecorder = SpatialSnapshotRecorder(directory, weightOr(NoWeight))
+  private lazy val attentionRecorder = AttentionSnapshotRecorder(directory)
 
   /** Called by the central agent at every step. */
   def observe(time: Double): Unit =

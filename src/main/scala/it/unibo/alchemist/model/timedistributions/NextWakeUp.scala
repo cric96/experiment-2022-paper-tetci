@@ -33,7 +33,7 @@ class NextWakeUp[T] private (
   override def getMeanDelay: Double = period
 
   override def newInstanceOn(destination: Node[T]): TimeDistribution[T] =
-    new NextWakeUp[T](
+    NextWakeUp[T](
       destination,
       Time.ZERO,
       molecule,

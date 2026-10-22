@@ -10,7 +10,7 @@ class StratifiedTransitionsSpec extends AnyFlatSpec with Matchers:
   private val stable = Seq("s1", "s2")
 
   private def transitionsWith(unstable: Seq[String], stable: Seq[String]): StratifiedTransitions[String] =
-    val transitions = new StratifiedTransitions[String]
+    val transitions = StratifiedTransitions[String]
     unstable.foreach(transitions.add(_, isUnstable = true))
     stable.foreach(transitions.add(_, isUnstable = false))
     transitions

@@ -36,6 +36,7 @@ PROGRAM_LABELS = {
     "broadcast": "Broadcast (G-cast)",
     "collect": "Collect (C)",
 }
+PROGRAM_SHORT_LABELS = {"gradient": "Gradient", "hop": "Hop count", "broadcast": "Broadcast", "collect": "Collect"}
 
 # --- statistics -------------------------------------------------------------
 CONFIDENCE = 0.95

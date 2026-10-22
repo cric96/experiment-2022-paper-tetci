@@ -55,8 +55,11 @@ and update it in the same commit.
 - Model fixed sets of alternatives as ADTs (`sealed trait` + `case object`/`final case class`), not as `String` or
   `Int` codes. Parse external values (YAML, molecules) once, at the boundary, into the ADT.
 - Use a `final case class` instead of a tuple as soon as it has more than two fields or crosses a module boundary.
-- Constants are `val UpperCamelCase` inside an `object`, with a one-line doc comment saying what they mean.
-  No unexplained magic numbers in method bodies.
+- **No magic numbers.** Every literal with a domain meaning (thresholds, gains, sizes, times, seeds, file names,
+  column names) is a named constant: `val UpperCamelCase` inside an `object` (the companion or a dedicated
+  `object ...Constants`), with a one-line doc comment saying what it means. Only neutral literals are allowed inline
+  (`0`, `1`, `0.0`, `1.0`, `2` in `x * x`-like arithmetic, empty collections). If a value is derived from others
+  (e.g. the start of the last episode = `(episodes - 1) * episodeLength`), compute it instead of hard-coding it.
 
 ### Absence and failure
 - No `null` (wrap Java values with `Option(...)`), no `Option.get`, no `head` on possibly empty collections:
@@ -67,6 +70,10 @@ and update it in the same commit.
 - Resources (files, DJL managers) are handled with `scala.util.Using`.
 
 ### Functions and collections
+- **Short methods.** A method does one thing and fits in a screen: aim for ≤ 15 lines of body, never more than ~25.
+  When a method grows, extract well-named sub-methods (private, or local `def`s when they are tiny) until the
+  top-level method reads as a sequence of steps. Deep nesting (`if` inside `foreach` inside `match`) is a signal to
+  extract.
 - Small pure functions, placed in the companion `object` or in a dedicated `object`; keep side effects
   (Alchemist node access, file I/O, logging) at the edges so that the logic is testable without a simulator.
 - Use combinators (`map`, `collect`, `foldLeft`, `sliding`, `zip`, `groupMapReduce`, `sum`, `maxBy`) instead of
@@ -83,8 +90,11 @@ and update it in the same commit.
 - Traits provide sensible default implementations instead of forcing every implementor to write no-op overrides.
 
 ### Naming and layout
-- Descriptive names (`groundTruth`, not `gtFin`; `ticks`, not `tks`); `camelCase` for terms, `UpperCamelCase` for
-  types and constants.
+- **No compact or abbreviated names**: `groundTruth`, not `gtFin`; `ticks`, not `tks`; `maybeParent`/`parent`, not
+  `opt`/`parentOpt`; `previous`/`current`, not `prev`/`curr`; `manager`, not `m`; `neighbour`, not `n`/`nId`.
+  Single-letter names only for conventional math in a short expression (`u` for the normalized period of a formula
+  that documents it, `i`/`k` for indices in a hot loop) and `_` placeholders in one-line lambdas.
+- `camelCase` for terms, `UpperCamelCase` for types and constants.
 - Imports at the top of the file; no fully qualified names inline (`new java.io.File`, `scala.collection.mutable.X`).
   Use `scala.jdk.CollectionConverters._` for Java interop.
 - Formatting is owned by scalafmt (`maxColumn = 120`): don't hand-format, run `spotlessApply`.

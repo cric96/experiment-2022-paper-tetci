@@ -1,17 +1,19 @@
 package it.unibo.scafi
 
-import it.unibo.alchemist.model.implementations.nodes.SimpleNodeManager
 import it.unibo.alchemist.model.implementations.timedistributions.reactions.CentralAgent
 import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist._
 import it.unibo.learning.TradeOff
-import it.unibo.learning.abstractions.AgentState.NeighborInfo
+import it.unibo.learning.abstractions.AgentState.{NeighborInfo, Snapshot}
+import it.unibo.learning.abstractions.{AgentState, Step}
 import it.unibo.learning.encoding.InstabilityIntensity
-import it.unibo.learning.abstractions.{AgentState, ReplayBuffer, Step}
-import it.unibo.util.TemporalInfo
-import scala.collection.immutable.Queue
-import scala.concurrent.duration.FiniteDuration
-import scala.jdk.CollectionConverters.IteratorHasAsScala
+import it.unibo.scafi.Main._
 
+import scala.collection.immutable.Queue
+import scala.jdk.CollectionConverters._
+
+/** The aggregate program of every node: it runs the active building block, observes its neighbourhood, asks the shared
+  * policy when to wake up next, and records what the learners and the exports need.
+  */
 class Main
     extends AggregateProgram
     with StandardSensors
@@ -22,132 +24,131 @@ class Main
     with FieldUtils
     with StateManagement {
 
-  import Sensors._
-
-  private lazy val localWindowSize = node.getOption(Sensors.window).getOrElse(3)
-  private lazy val resultSize = 3
-  private lazy val actionSpace = node.getOption(actions).getOrElse(List(1.0, 1.5, 2, 3))
-  private lazy val sharedMemory: ReplayBuffer = loadMemory()
-  private lazy val weightForConvergence = node.getOption(Sensors.weight).getOrElse(0.9)
+  private lazy val windowSize: Int = node.getOption[Int](Sensors.window).getOrElse(DefaultWindowSize)
+  private lazy val actionSpace: List[Double] =
+    node.getOption[List[Double]](Sensors.actions).getOrElse(DefaultActionSpace)
+  private lazy val weight: Double = node.getOption[Double](Sensors.weight).getOrElse(DefaultWeight)
   private lazy val targetBlock: BuildingBlock =
     node.getOption[Any](Sensors.program).fold[BuildingBlock](BuildingBlock.Gradient)(BuildingBlock.fromMolecule)
-  def activeBlock: BuildingBlock = global().activeBlock(targetBlock)
-  def policy: (AgentState => Double) = loadPolicy()
-
-  override def main(): Any = {
-    val localComputation = computation()
-    val computationWindow = rep(Queue.empty[Double])(queue => (queue :+ localComputation).takeRight(resultSize))
-    node.put(Sensors.localComputation, localComputation)
-    update(localComputation, computationWindow)
-  }
-
-  def update(localComputation: Double, elements: Queue[Double]): Unit = {
-    val (_, Some(action)) = rep((Option.empty[AgentState], Option.empty[Double])) { case (oldState, oldAction) =>
-      val fieldComputation =
-        includingSelf.reifyField(NeighborInfo(nbr(localComputation), nbrRange(), nbr(oldAction).getOrElse(1.0)))
-
-      val windowComputation = window(fieldComputation)
-
-      val state = AgentState(mid(), windowComputation)
-      val reward = oldState.map(evalReward).getOrElse(0.0)
-      val (action) = policy(state)
-      oldState.zip(oldAction).foreach { case (stateT, actionT) =>
-        val index = if (actionSpace.contains(actionT)) actionSpace.indexOf(actionT) else -1
-        sharedMemory.put(stateT, index, actionT, reward, state)
-      }
-      val accumulatedReward = rep(0.0)(acc => acc + reward)
-      val unstableTime = rep((0.0, localComputation)) { case (stable, old) =>
-        (
-          if (localComputation == old) { 0.0 }
-          else { deltaFixed },
-          localComputation
-        )
-      }._1
-      val accumulatedUnstableTime = rep(0.0)(acc => acc + unstableTime)
-      node.put("accumulatedUnstableTime", accumulatedUnstableTime)
-      val allExperience = rep(Queue.empty[Step]) { queue =>
-        oldState.zip(oldAction) match {
-          case Some((stateT, actionT)) =>
-            val index = if (actionSpace.contains(actionT)) actionSpace.indexOf(actionT) else -1
-            queue :+ Step(stateT, index, actionT, reward)
-          case None =>
-            queue
-        }
-      }
-      val block = activeBlock
-      val groundTruth = global().groundTruth(mid(), block)
-      val fullScale = block.errorScale
-      val absError =
-        if (localComputation.isFinite && groundTruth.isFinite) math.abs(localComputation - groundTruth)
-        else if (!localComputation.isFinite && !groundTruth.isFinite) 0.0
-        else fullScale
-      val normalizedStepError = math.min(1.0, absError / fullScale)
-      val stepErrorIntegral = normalizedStepError * deltaFixed
-      val accumulatedError = rep(0.0)(acc => acc + stepErrorIntegral)
-      node.put(Sensors.groundTruth, groundTruth)
-      node.put(Sensors.error, absError)
-      node.put(Sensors.accumulatedError, accumulatedError)
-      node.put("experiences", allExperience)
-      node.put(Sensors.accumulatedReward, accumulatedReward)
-      node.put(Sensors.reward, reward)
-      node.put(Sensors.fieldComputation, fieldComputation)
-      node.put(Sensors.localComputationWindow, windowComputation)
-      node.put(Sensors.ticks, roundCounter())
-      node.put(Sensors.nextWakeUp, action) // Actuation
-      (Some(state), Some(action))
-    }
-  }
-
-  def exec(): Unit =
-    node.put(Sensors.nextWakeUp, actionSpace.min)
-
-  def computation(): Double = {
-    val src = sense[Boolean](Sensors.source)
-    val block = activeBlock
-    // Separate ScaFi alignment branches per building block so switching at episode boundaries is 100% clean
-    branch(block == BuildingBlock.HopGradient) {
-      hopDistance(src)
-    } {
-      branch(block == BuildingBlock.Broadcast) {
-        val g = classicGradient(src)
-        val payload = if (src) BuildingBlock.Broadcast.payloadOf(mid()) else 0.0
-        rep(payload) { value =>
-          mux(g == 0.0)(payload)(
-            excludingSelf.minHoodSelector[Double, Double](nbr(g) + nbrRange())(nbr(value)).getOrElse(payload)
-          )
-        }
-      } {
-        branch(block == BuildingBlock.Collect) {
-          val pot = classicGradient(src)
-          C[Double, Double](pot, _ + _, 1.0, 0.0)
-        } {
-          classicGradient(src)
-        }
-      }
-    }
-  }
-
-  def window(snapshot: Map[ID, NeighborInfo]): Queue[Map[ID, NeighborInfo]] =
-    rep(Queue.empty[Map[ID, NeighborInfo]])(queue => (queue :+ snapshot).takeRight(localWindowSize))
-
-  def loadPolicy(): (AgentState => Double) = global().policy
-
-  def loadMemory(): ReplayBuffer = global().memory
-
-  def evalReward(state: AgentState): Double = {
-    val myOutput = state.neighborhoodOutput.flatMap(_.get(state.me)).takeRight(4)
-    val history = TemporalInfo.computeDeltaTrend(myOutput.map(_.data))
-    node.put(Sensors.history, history)
-    val intensity = InstabilityIntensity.of(state)
-    TradeOff.onlineReward(intensity, deltaFixed, weightForConvergence, TradeOff.FastestPeriod, actionSpace.max)
-  }
-
-  def global(): CentralAgent[_, _] = alchemistEnvironment.getGlobalReactions
+  private lazy val centralAgent: CentralAgent[_, _] = alchemistEnvironment.getGlobalReactions
     .iterator()
     .asScala
-    .collectFirst { case reaction: CentralAgent[_, _] => reaction }
-    .get
+    .collectFirst { case agent: CentralAgent[_, _] => agent }
+    .getOrElse(throw new IllegalStateException("The simulation must include a CentralAgent global reaction"))
 
-  def deltaFixed: Double = alchemistDeltaTime(0.0)
+  override def main(): Any = {
+    val output = blockOutput()
+    node.put(Sensors.localComputation, output)
+    decide(output)
+  }
 
+  private def activeBlock: BuildingBlock = centralAgent.activeBlock(targetBlock)
+
+  /** Each block runs in its own branch, so that switching block at an episode boundary starts from a clean state. */
+  private def blockOutput(): Double = {
+    val isSource = sense[Boolean](Sensors.source)
+    val block = activeBlock
+    branch(block == BuildingBlock.HopGradient)(hopDistance(isSource)) {
+      branch(block == BuildingBlock.Broadcast)(broadcast(isSource)) {
+        branch(block == BuildingBlock.Collect)(collect(isSource))(classicGradient(isSource))
+      }
+    }
+  }
+
+  private def broadcast(isSource: Boolean): Double = {
+    val potential = classicGradient(isSource)
+    val payload = if (isSource) BuildingBlock.Broadcast.payloadOf(mid()) else 0.0
+    rep(payload) { value =>
+      mux(potential == 0.0)(payload) {
+        excludingSelf.minHoodSelector[Double, Double](nbr(potential) + nbrRange())(nbr(value)).getOrElse(payload)
+      }
+    }
+  }
+
+  private def collect(isSource: Boolean): Double =
+    C[Double, Double](classicGradient(isSource), _ + _, local = 1.0, Null = 0.0)
+
+  /** Chooses the next wake-up period, and logs the transition from the previous decision to the current state. */
+  private def decide(output: Double): Unit =
+    rep(Option.empty[Decision]) { previous =>
+      val state = AgentState(mid(), window(observe(output, previous)))
+      val reward = previous.fold(0.0)(decision => rewardOf(decision.state))
+      val period = centralAgent.policy(state)
+      previous.foreach { decision =>
+        centralAgent.memory.put(decision.state, indexOf(decision.period), decision.period, reward, state)
+      }
+      recordProgress(output, reward)
+      recordExperience(previous, reward)
+      node.put(Sensors.localComputationWindow, state.neighborhoodOutput)
+      node.put(Sensors.ticks, roundCounter())
+      node.put(Sensors.nextWakeUp, period)
+      Some(Decision(state, period))
+    }
+
+  /** The outputs, distances and last periods of the node and of its neighbours. */
+  private def observe(output: Double, previous: Option[Decision]): Snapshot =
+    includingSelf.reifyField {
+      NeighborInfo(nbr(output), nbrRange(), nbr(previous.map(_.period)).getOrElse(UndecidedPeriod))
+    }
+
+  /** The last `windowSize` snapshots, oldest first. */
+  private def window(snapshot: Snapshot): Queue[Snapshot] =
+    rep(Queue.empty[Snapshot])(snapshots => (snapshots :+ snapshot).takeRight(windowSize))
+
+  /** The reward of having slept for the last round in `state`. */
+  private def rewardOf(state: AgentState): Double =
+    TradeOff.onlineReward(InstabilityIntensity.of(state), elapsedTime, weight, TradeOff.FastestPeriod, actionSpace.max)
+
+  private def recordProgress(output: Double, reward: Double): Unit = {
+    val block = activeBlock
+    val groundTruth = centralAgent.groundTruth(mid(), block)
+    node.put(Sensors.accumulatedReward, accumulated(reward))
+    node.put(Sensors.accumulatedUnstableTime, accumulated(if (hasChanged(output)) elapsedTime else 0.0))
+    node.put(Sensors.accumulatedError, accumulated(block.normalizedError(output, groundTruth) * elapsedTime))
+    node.put(Sensors.groundTruth, groundTruth)
+    node.put(Sensors.error, block.absoluteError(output, groundTruth))
+    node.put(Sensors.reward, reward)
+  }
+
+  /** The node's trajectory in the current episode, for the offline learners. */
+  private def recordExperience(previous: Option[Decision], reward: Double): Unit =
+    node.put(
+      Sensors.experiences,
+      rep(Queue.empty[Step]) { steps =>
+        previous.fold(steps)(decision =>
+          steps :+ Step(decision.state, indexOf(decision.period), decision.period, reward)
+        )
+      }
+    )
+
+  /** The sum of `value` over the rounds of the episode. */
+  private def accumulated(value: Double): Double = rep(0.0)(_ + value)
+
+  /** Whether `output` differs from the one of the previous round. */
+  private def hasChanged(output: Double): Boolean =
+    rep((false, output)) { case (_, previousOutput) => (output != previousOutput, output) }._1
+
+  /** The index of `period` in the discrete action space, −1 if the period is continuous. */
+  private def indexOf(period: Double): Int = actionSpace.indexOf(period)
+
+  /** Time elapsed since the previous round. */
+  private def elapsedTime: Double = alchemistDeltaTime(0.0)
+}
+
+object Main {
+
+  /** Number of rounds observed by the policy, when the `window` molecule is missing. */
+  val DefaultWindowSize: Int = 3
+
+  /** Wake-up periods, when the `actions` molecule is missing. */
+  val DefaultActionSpace: List[Double] = List(1.0, 1.5, 2.0, 3.0)
+
+  /** Trade-off weight, when the `weight` molecule is missing. */
+  val DefaultWeight: Double = 0.9
+
+  /** Period attributed to the neighbours that have not decided yet. */
+  val UndecidedPeriod: Double = 1.0
+
+  /** The state a decision was taken in, and the chosen wake-up period. */
+  final case class Decision(state: AgentState, period: Double)
 }

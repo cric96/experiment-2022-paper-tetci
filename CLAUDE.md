@@ -11,8 +11,11 @@ with tabular, offline-deep and graph-based reinforcement learning.
 - Compile: `./gradlew compileScala`
 - Tests: `./gradlew test` (ScalaTest, specs live in `src/test/scala`, mirroring the main packages)
 - Format: `./gradlew spotlessApply` (scalafmt, configuration in `.scalafmt.conf`); `spotlessCheck` must pass.
+- Stack: Scala 3.10, Alchemist 45 with the ScaFi 1.8 incarnation, DJL 0.39 (PyTorch 2.7). The Scala snippets of the
+  YAML files are evaluated by the Scala 3 REPL shipped with Alchemist.
 - One Gradle task per simulation file: `src/main/yaml/simulationDeepOffline.yml` → `./gradlew runSimulationDeepOffline`.
-  `gradle.properties` sets `batch=true` (headless) and the variables to sweep; exports land in `build/exports/`.
+  `gradle.properties` sets `batch=true` (headless, a `DefaultLauncher` sweeping the listed variables) or `false`
+  (Swing GUI with the effects in `effects/`); exports land in `build/exports/`.
 - Charts, tables and statistics: `plotter.py` over the `analysis` package (Python, only for the paper outputs).
   The system Python has no matplotlib, use `uv`:
   `uv venv --python 3.13 .venv && uv pip install --python .venv/bin/python -r requirements.txt`, then
@@ -24,8 +27,8 @@ with tabular, offline-deep and graph-based reinforcement learning.
 | Package | Role |
 | --- | --- |
 | `it.unibo.scafi` | `Main`, the aggregate program of every node (runs the active `BuildingBlock`, observes its neighbourhood, asks the policy for the next wake-up, logs rewards, errors and trajectories); `BuildingBlock`, `Topology`, `GroundTruth(s)` and `EvaluationProtocol` (training on the gradient, then evaluation on the target block and on each β). |
-| `...timedistributions.reactions` | `CentralAgent`, the global reaction that runs the episode loop (online/offline training, `Redeployment` of the nodes, ground truths); `FinalEpisodeSnapshots` (spatial and attention exports of the inspected run); `SingleBlinker` (moves the source). |
-| `...timedistributions.NextWakeUp` | Time distribution that reads `nextWakeUp` to schedule the node's next round. |
+| `it.unibo.alchemist.model.reactions` | `CentralAgent`, the global reaction that runs the episode loop (online/offline training, `Redeployment` of the nodes, ground truths); `FinalEpisodeSnapshots` (spatial and attention exports of the inspected run); `SingleBlinker` (moves the source). |
+| `it.unibo.alchemist.model.timedistributions.NextWakeUp` | Time distribution that reads `nextWakeUp` to schedule the node's next round. |
 | `it.unibo.learning` | `TradeOff` (the convergence/energy objective, β feature and rewards), `Box`, `LearningInfo`. |
 | `it.unibo.learning.abstractions` | `AgentState` (windows of neighbourhood snapshots), `Step`/`Trajectory`, `ReplayBuffer`, `DecayReference`. |
 | `it.unibo.learning.encoding` | State features: `NeighbourhoodSignals`, `InstabilityIntensity`, `OwnTrends`, and the `SpatialTemporal` (MLP) and `StarGraph` (GNN) encoders. |
@@ -33,7 +36,7 @@ with tabular, offline-deep and graph-based reinforcement learning.
 | `it.unibo.learning.agents.offline` | What the offline learners share: `EpisodicOfflineLearner` (end-of-episode training loop), `TrainingSchedule`, `Relabelling` (hindsight relabelling for every β), `StratifiedTransitions`, `LearnerSeeds`, `TargetNetworks`, `BatchTensors`, and the post-training `ActorInspection` (`Regime`, `PolicySurface`). |
 | `it.unibo.learning.network` | DJL/PyTorch: `TorchNetwork`, `EdgeGATBlock`, `FastInference` (lock-free forward passes used by the nodes every round), `MinMaxActionScaler`, `NDArrayOps`. |
 | `it.unibo.inspection` | Testable recorders of the snapshot CSV files (`NodeView`, `AttentionSummary`, ...). |
-| `it.unibo.alchemist` | `Molecules` (typed molecule access) and the custom Alchemist extractors used by the YAML `export` sections. |
+| `it.unibo.alchemist` | `Molecules` (typed molecule access), `KotlinInterop`, and the custom extractors used by the YAML `export` sections (`boundary.extractors`). The Alchemist glue must stay under `it.unibo.alchemist`: the loader resolves the unqualified `type:` names of the YAML files only there. |
 
 **The YAML files are a public API.** They instantiate learners and value objects through embedded Scala snippets
 (e.g. `new OfflineLearnerGNN(0.5, 5.0, random.as[Double], weight.as[Double])`) and refer to classes, molecules and
@@ -55,7 +58,7 @@ and update it in the same commit.
 - Commit messages follow Conventional Commits (`refactor(agents): ...`, `test(network): ...`, `fix: ...`).
   **No AI attribution lines** (`Co-Authored-By`, "Generated with ...").
 
-## Scala style (Scala 2.13)
+## Scala style (Scala 3)
 
 ### Values and state
 - `val` and immutable collections by default. `var` is acceptable only for the inherently stateful Alchemist glue

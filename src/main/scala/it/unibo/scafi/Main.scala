@@ -1,15 +1,15 @@
 package it.unibo.scafi
 
-import it.unibo.alchemist.model.implementations.timedistributions.reactions.CentralAgent
-import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist._
+import it.unibo.alchemist.model.reactions.CentralAgent
+import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist.*
 import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.AgentState.{NeighborInfo, Snapshot}
 import it.unibo.learning.abstractions.{AgentState, Step}
 import it.unibo.learning.encoding.InstabilityIntensity
-import it.unibo.scafi.Main._
+import it.unibo.scafi.Main.*
 
 import scala.collection.immutable.Queue
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.*
 
 /** The aggregate program of every node: it runs the active building block, observes its neighbourhood, asks the shared
   * policy when to wake up next, and records what the learners and the exports need.
@@ -30,10 +30,8 @@ class Main
   private lazy val weight: Double = node.getOption[Double](Sensors.weight).getOrElse(DefaultWeight)
   private lazy val targetBlock: BuildingBlock =
     node.getOption[Any](Sensors.program).fold[BuildingBlock](BuildingBlock.Gradient)(BuildingBlock.fromMolecule)
-  private lazy val centralAgent: CentralAgent[_, _] = alchemistEnvironment.getGlobalReactions
-    .iterator()
-    .asScala
-    .collectFirst { case agent: CentralAgent[_, _] => agent }
+  private lazy val centralAgent: CentralAgent[?, ?] = alchemistEnvironment.getReactions.getCurrent.asScala
+    .collectFirst { case agent: CentralAgent[?, ?] => agent }
     .getOrElse(throw new IllegalStateException("The simulation must include a CentralAgent global reaction"))
 
   override def main(): Any = {

@@ -24,7 +24,7 @@ final class ActorInspection(
 ) {
   private val rootManager: NDManager = NDManager.newBaseManager()
 
-  def export(states: Vector[Array[Float]], weight: Double): Unit =
+  def save(states: Vector[Array[Float]], weight: Double): Unit =
     if (states.nonEmpty) {
       TorchNetwork.withSubManager(rootManager) { manager =>
         exportEmbeddings(states, weight, manager)

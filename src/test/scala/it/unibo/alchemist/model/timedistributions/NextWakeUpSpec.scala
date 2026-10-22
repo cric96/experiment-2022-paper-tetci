@@ -1,4 +1,4 @@
-package it.unibo.alchemist.model.implementations.timedistributions
+package it.unibo.alchemist.model.timedistributions
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers

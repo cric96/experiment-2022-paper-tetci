@@ -3,7 +3,8 @@ incarnation: scafi
 _constants:
   initialClock: &initial_clock 1.0
   retentionTime: &retentionTime 15
-  exportInterval: &exportInterval 2
+  exportInterval: &exportInterval 2.0
+  episodeExportInterval: &episodeExportInterval 200.0
   actionSpace: &actionSpace List(1.0, 2.0, 3.0, 4.0, 5.0)
   windowHistory: &windowHistory 10
 
@@ -90,7 +91,7 @@ _reactions:
       - time-distribution:
           type: NextWakeUp
           parameters: "nextWakeUp"
-        type: Event
+        type: GenericReaction
         actions:
           - type: RunScafiProgram
             parameters: [it.unibo.scafi.Main, *retentionTime]
@@ -144,7 +145,7 @@ export:
       fileNameRoot: "experimentBaseline"
       exportPath: "build/exports/simulation/episode"
       fileExtension: "csv"
-      interval: 200
+      interval: *episodeExportInterval
     data:
       - time
       - molecule: ticks

@@ -1,16 +1,15 @@
-package it.unibo.alchemist.model.implementations.timedistributions.reactions
+package it.unibo.alchemist.model.reactions
 
-import it.unibo.alchemist.Molecules._
-import it.unibo.alchemist.model.implementations.timedistributions.reactions.CentralAgent._
-import it.unibo.alchemist.model.implementations.times.DoubleTime
-import it.unibo.alchemist.model.interfaces._
+import it.unibo.alchemist.KotlinInterop.command
+import it.unibo.alchemist.Molecules.*
+import it.unibo.alchemist.model.*
 import it.unibo.learning.abstractions.{AgentState, ReplayBuffer, Step}
 import it.unibo.learning.agents.Learner
 import it.unibo.learning.{Box, LearningInfo}
 import it.unibo.scafi.{BuildingBlock, EvaluationProtocol, GroundTruths, Sensors, Topology}
 
 import scala.collection.immutable.Queue
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.*
 import scala.util.Random
 
 /** The global reaction that drives the experiment: it trains the shared learner (online at every step, offline at the
@@ -37,14 +36,14 @@ final class CentralAgent[T, P <: Position[P]](
   val memory: ReplayBuffer = new ReplayBuffer(learningInfo.bufferSize, randomness)
   learner.injectRandom(randomness)
 
-  override def initializationComplete(time: Time, environment: Environment[T, _]): Unit =
+  override protected def onInitializationComplete(time: Time, environment: Environment[T, ?]): Unit =
     redeployment.capturePrototypes()
 
-  override def executeBeforeUpdateDistribution(): Unit = {
+  override protected def react(): Unit = {
     val now = environment.getSimulation.getTime
     if (steps > 0) { // the first step happens at the very beginning, before any round
       trainOnline()
-      if (steps % learningInfo.episodeSize == 0) endEpisode(now)
+      if (steps % learningInfo.episodeSize == 0) endEpisode()
     }
     steps += 1
     snapshots.observe(now.toDouble)
@@ -53,13 +52,13 @@ final class CentralAgent[T, P <: Position[P]](
   private def trainOnline(): Unit =
     if (memory.totalSize >= learningInfo.batchSize) learner.update(memory.sample(learningInfo.batchSize))
 
-  private def endEpisode(now: Time): Unit = {
+  private def endEpisode(): Unit = {
     learner.endEpisode(agents.map(_.valueOf[Queue[Step]](Sensors.experiences).getOrElse(Queue.empty)))
     val positions = redeployment.positionsFor(episode)
-    environment.getSimulation.schedule { () =>
-      redeployment.redeploy(positions, now.plus(new DoubleTime(RestartDelay)))
+    environment.getSimulation.schedule(command {
+      redeployment.redeploy(positions)
       episode += 1
-    }
+    })
     learner.decayingParameters.foreach { case (_, parameter) => parameter.update() }
   }
 
@@ -99,17 +98,11 @@ final class CentralAgent[T, P <: Position[P]](
 
   private def topology: Topology = {
     def linksOf(node: Node[T]): Seq[(Int, Double)] = {
-      val position = environment.getPosition(node)
-      environment.getNeighborhood(node).getNeighbors.iterator().asScala.toSeq.map { neighbour =>
-        neighbour.getId -> position.distanceTo(environment.getPosition(neighbour))
+      val position = environment.getCurrentPosition(node)
+      environment.getNeighborhood(node).getCurrent.getNeighbors.asScala.toSeq.map { neighbour =>
+        neighbour.getId -> position.distanceTo(environment.getCurrentPosition(neighbour))
       }
     }
     Topology(agents.map(_.getId), agents.map(node => node.getId -> linksOf(node)).toMap)
   }
-}
-
-object CentralAgent {
-
-  /** The nodes of a new episode start this long after the end of the previous one. */
-  val RestartDelay: Double = 1.0
 }

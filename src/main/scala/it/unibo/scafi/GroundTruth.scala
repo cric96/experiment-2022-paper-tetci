@@ -11,7 +11,7 @@ object GroundTruth {
 
   /** Gradient: length of the shortest path from the nearest source (Dijkstra). */
   def shortestPaths(topology: Topology, sources: Set[Int]): Map[Int, Double] = {
-    val queue = mutable.PriorityQueue.empty[(Double, Int)](Ordering.by[(Double, Int), Double](-_._1))
+    val queue = mutable.PriorityQueue.empty[(Double, Int)](using Ordering.by[(Double, Int), Double](-_._1))
     @tailrec def settle(distances: Map[Int, Double]): Map[Int, Double] =
       if (queue.isEmpty) {
         distances

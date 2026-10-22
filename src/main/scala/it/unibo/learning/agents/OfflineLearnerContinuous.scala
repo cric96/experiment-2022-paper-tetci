@@ -123,7 +123,7 @@ final class OfflineLearnerContinuous(
     fastActor = actor.snapshotFastMLP(useTanh = true)
     if (currentEpisode == explorationEpisodes && math.abs(randomKey - InspectedRun) < RunTolerance) {
       new ActorInspection(actor, critic1, actionScaler, stateDim, inspectionDirectory)
-        .export(transitions.oldest(ActorInspection.SamplesPerRegime).map(_.state), weight)
+        .save(transitions.oldest(ActorInspection.SamplesPerRegime).map(_.state), weight)
     }
   }
 }

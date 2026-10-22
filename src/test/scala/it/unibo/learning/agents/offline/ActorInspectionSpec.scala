@@ -24,7 +24,7 @@ class ActorInspectionSpec extends AnyFlatSpec with Matchers {
     val samples = AgentStates.fixtures.map(SpatialTemporal.encode(_, weight, 5.0)).toVector ++
       Vector.fill(6)(Array.fill(stateDim)(random.nextFloat() * 2 - 1))
     val directory = Files.createTempDirectory("inspection").toFile
-    new ActorInspection(actor, critic, MinMaxActionScaler(0.5, 5.0), stateDim, directory).export(samples, weight)
+    new ActorInspection(actor, critic, MinMaxActionScaler(0.5, 5.0), stateDim, directory).save(samples, weight)
     Seq(actor, critic).foreach(_.close())
     Seq(s"embeddings_weight-$weight.csv", s"surface_weight-$weight.csv").map(new File(directory, _))
   }

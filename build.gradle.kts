@@ -16,7 +16,7 @@ dependencies {
     // Check the catalog at gradle/libs.versions.toml
     implementation(libs.bundles.alchemist)
     implementation(libs.bundles.djl)
-    implementation(libs.scalacompiler)
+    implementation(libs.scala3.library)
     // The Scala compiler reads the Kotlin signatures of the Alchemist API.
     implementation(libs.kotlin.stdlib)
     testImplementation(libs.scalatest)
@@ -74,54 +74,47 @@ val runAll by tasks.register<DefaultTask>("runAll") {
 /*
  * Scan the folder with the simulation files, and create a task for each one of them.
  */
+/*
+ * The variables of `variables` (gradle.properties) that a simulation file declares, i.e. those it can sweep.
+ */
+fun sweptVariablesOf(simulationFile: File): List<String> {
+    val yaml = simulationFile.readText()
+    return variables.split(",")
+        .map(String::trim)
+        .filter { it.isNotEmpty() && Regex("""(?m)^  ${Regex.escape(it)}\s*:""").containsMatchIn(yaml) }
+}
+
+/*
+ * Scan the folder with the simulation files, and create a task for each one of them.
+ */
 File(rootProject.rootDir.path + "/src/main/yaml").listFiles()
     ?.filter { it.extension == "yml" } // pick all yml files in src/main/yaml
     ?.sortedBy { it.nameWithoutExtension } // sort them, we like reproducibility
-    ?.forEach { it ->
+    ?.forEach { simulationFile ->
         // one simulation file -> one gradle task
-        val task by tasks.register<JavaExec>("run${it.nameWithoutExtension.replaceFirstChar { c -> c.uppercase() }}") {
+        val name = simulationFile.nameWithoutExtension
+        val task by tasks.register<JavaExec>("run${name.replaceFirstChar { c -> c.uppercase() }}") {
             group = alchemistGroup // This is for better organization when running ./gradlew tasks
-            description = "Launches simulation ${it.nameWithoutExtension}" // Just documentation
+            description = "Launches simulation $name" // Just documentation
             mainClass.set("it.unibo.alchemist.Alchemist") // The class to launch
             classpath = sourceSets["main"].runtimeClasspath // The classpath to use
-            // In case our simulation produces data, we write it in the following folder:
-            val exportsDir = File("${projectDir.path}/build/exports/${it.nameWithoutExtension}")
-            doFirst {
-                // this is not executed upfront, but only when the task is actually launched
-                // If the export folder does not exist, create it and its parents if needed
-                if (!exportsDir.exists()) {
-                    exportsDir.mkdirs()
-                }
-            }
             javaLauncher.set(
                 javaToolchains.launcherFor {
                     languageVersion.set(JavaLanguageVersion.of(17))
-                }
+                },
             )
-            // These are the program arguments
-            args("-y", it.absolutePath, "-e", "$exportsDir/${it.nameWithoutExtension}-${System.currentTimeMillis()}")
+            args("run", simulationFile.absolutePath)
             if (System.getenv("CI") == "true" || batch == "true") {
-                // If it is running in a Continuous Integration environment, use the "headless" mode of the simulator
-                // Namely, force the simulator not to use graphical output.
-                args("-hl")
-                //args("-p", "1")
-                if (variables.isNotEmpty()) {
-                    val yamlContent = it.readText()
-                    val validVars = variables.split(",")
-                        .map { v -> v.trim() }
-                        .filter { v -> v.isNotEmpty() && Regex("""(?m)^  ${Regex.escape(v)}\s*:""").containsMatchIn(yamlContent) }
-                    if (validVars.isNotEmpty()) {
-                        args("-var")
-                        validVars.forEach { v -> args(v) }
-                    }
-                }
+                // Headless: run the cartesian product of the swept variables (the default values of the others).
+                val swept = sweptVariablesOf(simulationFile).joinToString(", ")
+                args("--override", "launcher: {type: DefaultLauncher, parameters: {batch: [$swept]}}")
             } else {
-                // A graphics environment should be available, so load the effects for the UI from the "effects" folder
-                // Effects are expected to be named after the simulation file
-                args("-g", "effects/${it.nameWithoutExtension}.json")
+                // A graphics environment should be available: open the GUI with the effects named after the file.
+                val effects = File(rootProject.rootDir, "effects/$name.json")
+                val graphics = if (effects.exists()) ", parameters: {graphics: ${effects.absolutePath}}" else ""
+                args("--override", "monitors: [{type: SwingGUI$graphics}]")
             }
         }
-        // task.dependsOn(classpathJar) // Uncomment to switch to jar-based classpath resolution
         runAll.dependsOn(task)
     }
 

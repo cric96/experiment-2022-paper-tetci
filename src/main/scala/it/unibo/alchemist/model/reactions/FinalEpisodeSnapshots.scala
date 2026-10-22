@@ -1,9 +1,9 @@
-package it.unibo.alchemist.model.implementations.timedistributions.reactions
+package it.unibo.alchemist.model.reactions
 
-import it.unibo.alchemist.Molecules._
-import it.unibo.alchemist.model.implementations.timedistributions.reactions.FinalEpisodeSnapshots._
-import it.unibo.alchemist.model.interfaces.{Environment, Node, Position}
-import it.unibo.inspection._
+import it.unibo.alchemist.Molecules.*
+import it.unibo.alchemist.model.reactions.FinalEpisodeSnapshots.*
+import it.unibo.alchemist.model.{Environment, Node, Position}
+import it.unibo.inspection.*
 import it.unibo.learning.LearningInfo
 import it.unibo.learning.abstractions.AgentState
 import it.unibo.learning.abstractions.AgentState.Snapshot
@@ -12,7 +12,7 @@ import it.unibo.scafi.Sensors
 
 import java.io.File
 import scala.collection.immutable.Queue
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.*
 
 /** Records the last episode of the inspected run for the spatial figures: the state of every node (continuous learner)
   * or where the graph-attention policy looks (GNN learner).
@@ -60,15 +60,15 @@ final class FinalEpisodeSnapshots[T, P <: Position[P]](
     }
   }
 
-  private def nodes: List[Node[T]] = environment.getNodes.iterator().asScala.toList
+  private def nodes: List[Node[T]] = environment.getNodes.getCurrent.asScala.toList
 
   /** The trade-off weight of the run, read from the nodes. */
   private def weightOr(default: Double): Double =
     nodes.headOption.flatMap(_.valueOf[Double](Sensors.weight)).getOrElse(default)
 
   private def coordinatesOf(node: Node[T]): (Double, Double) = {
-    val position = environment.getPosition(node)
-    (position.getCoordinate(0), position.getCoordinate(1))
+    val position = environment.getCurrentPosition(node)
+    (position.get(0), position.get(1))
   }
 
   private def viewOf(node: Node[T]): NodeView = {
@@ -86,7 +86,7 @@ final class FinalEpisodeSnapshots[T, P <: Position[P]](
   }
 
   private def links: Seq[Link] = nodes.flatMap { node =>
-    environment.getNeighborhood(node).getNeighbors.iterator().asScala.map { neighbour =>
+    environment.getNeighborhood(node).getCurrent.getNeighbors.asScala.map { neighbour =>
       Link(node.getId, neighbour.getId, coordinatesOf(node), coordinatesOf(neighbour))
     }
   }

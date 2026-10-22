@@ -1,9 +1,9 @@
-package it.unibo.alchemist.model.implementations.timedistributions.reactions
+package it.unibo.alchemist.model.reactions
 
-import it.unibo.alchemist.Molecules._
-import it.unibo.alchemist.model.implementations.nodes.SimpleNodeManager
-import it.unibo.alchemist.model.implementations.timedistributions.reactions.SingleBlinker._
-import it.unibo.alchemist.model.interfaces.{Environment, Node, Position, TimeDistribution}
+import it.unibo.alchemist.Molecules.*
+import it.unibo.alchemist.model.reactions.SingleBlinker.*
+import it.unibo.alchemist.model.scafi.nodes.SimpleNodeManager
+import it.unibo.alchemist.model.{Environment, Node, Position, TimeDistribution}
 import it.unibo.scafi.Sensors
 import org.apache.commons.math3.random.{RandomGenerator, Well19937c}
 
@@ -21,7 +21,7 @@ final class SingleBlinker[T, P <: Position[P]](
   private val choices = new Well19937c(initialSeed)
   private var activations: Int = 0
 
-  override protected def executeBeforeUpdateDistribution(): Unit = {
+  override protected def react(): Unit = {
     choices.setSeed(initialSeed ^ (activations.toLong * ActivationSeedMultiplier))
     activations += 1
     val sources = agents.filter(_.valueOf[Boolean](Sensors.source).getOrElse(false))
@@ -35,8 +35,8 @@ final class SingleBlinker[T, P <: Position[P]](
   }
 
   private def farFrom(source: Node[T]): Option[Node[T]] = {
-    val origin = environment.getPosition(source)
-    def distance(node: Node[T]): Double = environment.getPosition(node).distanceTo(origin)
+    val origin = environment.getCurrentPosition(source)
+    def distance(node: Node[T]): Double = environment.getCurrentPosition(node).distanceTo(origin)
     val candidates = agents.filter(distance(_) > minimumDistance)
     if (candidates.nonEmpty) Some(candidates(choices.nextInt(candidates.size)))
     else agents.maxByOption(distance)(Ordering.Double.TotalOrdering)

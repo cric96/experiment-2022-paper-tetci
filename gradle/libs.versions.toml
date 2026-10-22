@@ -1,7 +1,7 @@
 [versions]
-alchemist = "25.4.0"
-scalaVersion = "2.13.18"
-kotlin = "1.8.0"
+alchemist = "45.0.0"
+scala = "3.10.0"
+kotlin = "2.4.10"
 djl = "0.39.0"
 scalatest = "3.2.20"
 scalatest-junit-runner = "0.2.0"
@@ -11,11 +11,11 @@ scalafmt = "3.11.5"
 alchemist = { module = "it.unibo.alchemist:alchemist", version.ref = "alchemist" }
 alchemist-swingui = { module = "it.unibo.alchemist:alchemist-swingui", version.ref = "alchemist" }
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
-scalacompiler = { module = "org.scala-lang:scala-compiler", version.ref = "scalaVersion" }
+scala3-library = { module = "org.scala-lang:scala3-library_3", version.ref = "scala" }
 alchemist-incarnation-scafi = { module = "it.unibo.alchemist:alchemist-incarnation-scafi", version.ref = "alchemist"}
 djl-api = { module = "ai.djl:api", version.ref = "djl" }
 djl-pytorch-engine = { module = "ai.djl.pytorch:pytorch-engine", version.ref = "djl" }
-scalatest = { module = "org.scalatest:scalatest_2.13", version.ref = "scalatest" }
+scalatest = { module = "org.scalatest:scalatest_3", version.ref = "scalatest" }
 scalatest-junit-runner = { module = "co.helmethair:scalatest-junit-runner", version.ref = "scalatest-junit-runner" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
 [bundles]

@@ -45,7 +45,8 @@ PyTorch (by DJL, on first use).
 ./gradlew runAll                        # every experiment (hours)
 ```
 
-`gradle.properties` controls the runs: with `batch=true` the simulations are headless and sweep the variables listed
+The simulations run on Alchemist 45 with the ScaFi incarnation (Scala 3). `gradle.properties` controls the runs:
+with `batch=true` the simulations are headless and sweep the variables listed
 in `variables` (seeds `random` 1–4, weights β, fixed `actions`); with `batch=false` a single run opens the graphical
 interface with the effects in `effects/`. The exports are written to `build/exports/` (`*/episode` once per episode,
 `*/full` every 2 s; `embeddings/` and `spatial/` hold the inspections of the run with seed 2).

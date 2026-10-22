@@ -2,6 +2,7 @@ package it.unibo.learning.agents.offline
 
 import ai.djl.ndarray.types.Shape
 import ai.djl.ndarray.{NDArray, NDManager}
+import it.unibo.learning.TradeOff
 import it.unibo.learning.agents.offline.ActorInspection._
 import it.unibo.learning.network.TorchNetwork
 import it.unibo.learning.network.TorchNetwork.MinMaxActionScaler
@@ -78,7 +79,7 @@ final class ActorInspection(
 
   private def exportSurface(weight: Double, manager: NDManager): Unit = {
     val rows = PolicySurface.points.map { point =>
-      val input = manager.create(point.features(betaFeature = weight.toFloat), new Shape(1, stateDim.toLong))
+      val input = manager.create(point.features(TradeOff.betaFeature(weight)), new Shape(1, stateDim.toLong))
       val scaledPeriod = actor.evaluate(input)
       val value = critic.evaluate(input.concat(scaledPeriod, 1))
       Seq(

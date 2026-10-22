@@ -35,7 +35,7 @@ class ActorInspectionSpec extends AnyFlatSpec with Matchers {
   "The actor inspection" should "keep exporting the same embeddings and policy surface" in {
     exportedFiles().map(sha256) shouldBe Seq(
       "5a2a7940d197700c9e7b7e2008ba41e975212b3122bbe97387ef12f5df0c2244",
-      "a6c7d9d022ffe19419e343078ea19af72f8c42f11da9622b9c28828f98848210"
+      "653709d17143efa4f0d8482b622c6fbac373b6709640eaf704330c4a634dc4b4"
     )
   }
 }

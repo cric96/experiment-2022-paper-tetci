@@ -26,14 +26,8 @@ class TorchNetworkSpec extends AnyFlatSpec with Matchers {
 
   private def edgeGat(): TorchNetwork[EdgeGATBlock] =
     TorchNetwork.createEdgeGAT(
-      "gat",
-      StarGraph.SelfDim,
-      StarGraph.MaxNeighbors,
-      StarGraph.NeighDim,
-      edgeHidden = 6,
-      readoutHidden = 7,
-      outputActivation = Some(Activation.tanhBlock()),
-      seed = 9
+      "gat", StarGraph.SelfDim, StarGraph.MaxNeighbors, StarGraph.NeighDim, edgeHidden = 6, readoutHidden = 7,
+      outputActivation = Some(Activation.tanhBlock()), seed = 9
     )
 
   "The fast MLP inference" should "agree with the DJL evaluation, with and without the output tanh" in {

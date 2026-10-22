@@ -87,12 +87,8 @@ final class OfflineLearner(
     val reward =
       TradeOff.offlineReward(relabelled.intensity, step.action, relabelled.beta, TradeOff.FastestPeriod, maxAction)
     DiscreteTransition(
-      state = relabelled.state,
-      action = step.actionIndex,
-      reward = reward.toFloat,
-      nextState = relabelled.nextState,
-      terminal = relabelled.terminalFlag,
-      discountFactor = relabelled.discount
+      state = relabelled.state, action = step.actionIndex, reward = reward.toFloat, nextState = relabelled.nextState,
+      terminal = relabelled.terminalFlag, discountFactor = relabelled.discount
     )
   }
 

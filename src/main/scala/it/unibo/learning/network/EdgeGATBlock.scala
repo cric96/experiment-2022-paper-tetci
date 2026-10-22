@@ -98,13 +98,8 @@ final class EdgeGATBlock(
 
   private def fastSnapshot(): FastEdgeGAT = TorchNetwork.serialized {
     FastEdgeGAT(
-      FastInference.denseLayersOf(edgeMLP),
-      DenseLayer.of(attentionScorer),
-      FastInference.denseLayersOf(readoutMLP),
-      selfDim,
-      maxNeighbors,
-      neighDim,
-      tanhOutput = outputActivation.isDefined
+      FastInference.denseLayersOf(edgeMLP), DenseLayer.of(attentionScorer), FastInference.denseLayersOf(readoutMLP),
+      selfDim, maxNeighbors, neighDim, tanhOutput = outputActivation.isDefined
     )
   }
 }

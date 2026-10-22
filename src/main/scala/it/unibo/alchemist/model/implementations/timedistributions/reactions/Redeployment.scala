@@ -24,8 +24,7 @@ final class Redeployment[T, P <: Position[P]](environment: Environment[T, P], bo
       .toList
   }
 
-  /** Replaces the current nodes with fresh clones of the prototypes in `positions`, whose reactions start at `start`.
-    */
+  /** Replaces the current nodes with fresh clones of the prototypes in `positions`, whose reactions start at `start`. */
   def redeploy(positions: List[Position[_]], start: Time): Unit = {
     nodes.foreach(environment.removeNode)
     positions.zip(prototypes).foreach { case (position, prototype) => deployClone(prototype, position, start) }

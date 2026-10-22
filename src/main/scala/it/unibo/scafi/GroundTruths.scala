@@ -14,7 +14,7 @@ final case class GroundTruths(
   def of(node: Int, block: BuildingBlock): Double = block match {
     case Gradient => gradient.getOrElse(node, Double.PositiveInfinity)
     case HopGradient => hops.getOrElse(node, Double.PositiveInfinity)
-    case Broadcast => sources.headOption.fold(0.0)(Broadcast.payloadOf)
+    case Broadcast => sources.headOption.fold(0.0)(BuildingBlock.broadcastPayloadOf)
     case Collect => collectCounts.getOrElse(node, 1.0)
   }
 }

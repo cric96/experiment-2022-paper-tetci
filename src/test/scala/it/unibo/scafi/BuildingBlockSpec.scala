@@ -19,11 +19,11 @@ class BuildingBlockSpec extends AnyFlatSpec with Matchers {
   }
 
   "Each building block" should "normalize its error by the scale of its outputs" in {
-    BuildingBlock.all.map(_.errorScale) shouldBe Seq(500.0, 10.0, 500.0, 40.0)
+    BuildingBlock.values.toSeq.map(_.errorScale) shouldBe Seq(500.0, 10.0, 500.0, 40.0)
   }
 
   "The broadcast" should "spread a payload derived from the id of the source" in {
-    Broadcast.payloadOf(sourceId = 4) shouldBe 50.0
+    BuildingBlock.broadcastPayloadOf(sourceId = 4) shouldBe 50.0
   }
 
   "The error of a node" should "be the distance from the ground truth" in {

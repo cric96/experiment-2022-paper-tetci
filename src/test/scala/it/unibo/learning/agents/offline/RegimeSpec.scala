@@ -25,6 +25,6 @@ class RegimeSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "keep the labels read by the plotting scripts" in {
-    Regime.all.map(_.label) shouldBe Seq("Backbone_Wave", "Leaf_Wave", "Neighbor_EarlyWarning", "Steady_State")
+    Regime.values.toSeq.map(_.label) shouldBe Seq("Backbone_Wave", "Leaf_Wave", "Neighbor_EarlyWarning", "Steady_State")
   }
 }

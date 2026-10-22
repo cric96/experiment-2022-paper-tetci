@@ -3,23 +3,22 @@ package it.unibo.learning.agents.offline
 import it.unibo.learning.encoding.SpatialTemporal.Feature
 
 /** The operating regime of a node, read from its spatial-temporal features: used to colour the inspected states. */
-sealed abstract class Regime(val label: String)
-
-object Regime {
+enum Regime(val label: String) {
 
   /** The wave of change is crossing the node, which routes other nodes. */
-  case object BackboneWave extends Regime("Backbone_Wave")
+  case BackboneWave extends Regime("Backbone_Wave")
 
   /** The wave of change is crossing the node, which routes no other node. */
-  case object LeafWave extends Regime("Leaf_Wave")
+  case LeafWave extends Regime("Leaf_Wave")
 
   /** The node is stable but its neighbourhood is changing: the wave is approaching. */
-  case object NeighbourEarlyWarning extends Regime("Neighbor_EarlyWarning")
+  case NeighbourEarlyWarning extends Regime("Neighbor_EarlyWarning")
 
   /** Nothing is changing around the node. */
-  case object SteadyState extends Regime("Steady_State")
+  case SteadyState extends Regime("Steady_State")
+}
 
-  val all: Seq[Regime] = Seq(BackboneWave, LeafWave, NeighbourEarlyWarning, SteadyState)
+object Regime {
 
   /** Trends whose magnitude is below this value are considered stable. */
   val TrendThreshold: Float = 0.01f

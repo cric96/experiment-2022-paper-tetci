@@ -55,7 +55,7 @@ class Main
 
   private def broadcast(isSource: Boolean): Double = {
     val potential = classicGradient(isSource)
-    val payload = if isSource then BuildingBlock.Broadcast.payloadOf(mid()) else 0.0
+    val payload = if isSource then BuildingBlock.broadcastPayloadOf(mid()) else 0.0
     rep(payload) { value =>
       mux(potential == 0.0)(payload) {
         excludingSelf.minHoodSelector[Double, Double](nbr(potential) + nbrRange())(nbr(value)).getOrElse(payload)

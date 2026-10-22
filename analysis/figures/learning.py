@@ -7,7 +7,8 @@ import numpy as np
 from matplotlib.lines import Line2D
 
 from .. import config, style
-from ..data import Dataset, select
+from ..data import select
+from ..dataset import Dataset
 from ..methods import FIXED, LEARNED
 from ..results import best_fixed_period
 from .common import METRIC_LABELS, episode_matrix, method_band, thousands

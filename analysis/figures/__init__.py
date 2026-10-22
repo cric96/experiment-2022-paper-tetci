@@ -4,12 +4,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from ..data import Dataset
-from . import learning
+from ..dataset import Dataset
+from . import learning, tradeoff
 
 FigureFunction = Callable[[Dataset, Path], None]
 
-MODULES = (learning,)
+MODULES = (learning, tradeoff)
 
 
 def all_figures() -> list[FigureFunction]:

@@ -7,7 +7,18 @@ package it.unibo.scafi
   * @param errorScale
   *   the magnitude of the block's outputs, used to normalize the error against the ground truth
   */
-sealed abstract class BuildingBlock(val name: String, val code: Int, val errorScale: Double)
+sealed abstract class BuildingBlock(val name: String, val code: Int, val errorScale: Double) {
+
+  /** How far `output` is from `groundTruth`: zero if both are unbounded, the whole `errorScale` if only one is. */
+  def absoluteError(output: Double, groundTruth: Double): Double =
+    if (output.isFinite && groundTruth.isFinite) math.abs(output - groundTruth)
+    else if (!output.isFinite && !groundTruth.isFinite) 0.0
+    else errorScale
+
+  /** The absolute error relative to the scale of the block's outputs, saturated at one. */
+  def normalizedError(output: Double, groundTruth: Double): Double =
+    math.min(1.0, absoluteError(output, groundTruth) / errorScale)
+}
 
 object BuildingBlock {
 

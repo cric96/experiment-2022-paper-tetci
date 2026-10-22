@@ -37,18 +37,19 @@ class TorchNetworkSpec extends AnyFlatSpec with Matchers {
 
   "The fast MLP inference" should "agree with the DJL evaluation, with and without the output tanh" in {
     Seq(false, true).foreach { withTanh =>
-      val network = mlp(withTanh)
-      val fast = network.snapshotFastMLP(useTanh = withTanh)
-      randomInputs(inputs).foreach { input =>
-        fast(input).zip(evaluated(network, input)).foreach { case (actual, expected) =>
-          actual shouldBe expected +- tolerance
+      Using.resource(mlp(withTanh)) { network =>
+        val fast = network.snapshotFastMLP(useTanh = withTanh)
+        randomInputs(inputs).foreach { input =>
+          fast(input).zip(evaluated(network, input)).foreach { case (actual, expected) =>
+            actual shouldBe expected +- tolerance
+          }
         }
       }
     }
   }
 
   it should "keep its exact output (reproducibility of the experiments)" in {
-    val fast = mlp(withTanh = true).snapshotFastMLP(useTanh = true)
+    val fast = Using.resource(mlp(withTanh = true))(_.snapshotFastMLP(useTanh = true))
     randomInputs(inputs).map(fast(_).toSeq) shouldBe Seq(
       Seq(0.069943115f, -0.4245219f, -0.5224342f),
       Seq(-0.28166482f, -0.92035604f, -0.41430202f),
@@ -58,20 +59,21 @@ class TorchNetworkSpec extends AnyFlatSpec with Matchers {
   }
 
   "The fast EdgeGAT inference" should "agree with the DJL evaluation" in {
-    val network = edgeGat()
-    val fast = network.block.snapshotFastInference()
-    randomInputs(StarGraph.TotalDim).foreach { input =>
-      fast(input) shouldBe evaluated(network, input).head +- tolerance
+    Using.resource(edgeGat()) { network =>
+      val fast = network.block.snapshotFastInference()
+      randomInputs(StarGraph.TotalDim).foreach { input =>
+        fast(input) shouldBe evaluated(network, input).head +- tolerance
+      }
     }
   }
 
   it should "keep its exact output (reproducibility of the experiments)" in {
-    val fast = edgeGat().block.snapshotFastInference()
+    val fast = Using.resource(edgeGat())(_.block.snapshotFastInference())
     randomInputs(StarGraph.TotalDim).map(fast) shouldBe Seq(-0.6781583f, -0.15681955f, -0.8604447f, -0.33066946f)
   }
 
   "The EdgeGAT inspection" should "expose the readout embedding and a distribution of attention over the slots" in {
-    val inspect = edgeGat().block.snapshotEmbeddingAndAttention()
+    val inspect = Using.resource(edgeGat())(_.block.snapshotEmbeddingAndAttention())
     randomInputs(StarGraph.TotalDim).foreach { input =>
       val (embedding, attention) = inspect(input)
       embedding should have size 7
@@ -81,7 +83,7 @@ class TorchNetworkSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "keep its exact output (reproducibility of the experiments)" in {
-    val inspect = edgeGat().block.snapshotEmbeddingAndAttention()
+    val inspect = Using.resource(edgeGat())(_.block.snapshotEmbeddingAndAttention())
     randomInputs(StarGraph.TotalDim).map(inspect).map { case (embedding, attention) =>
       (embedding.toSeq, attention.toSeq)
     } shouldBe Seq(

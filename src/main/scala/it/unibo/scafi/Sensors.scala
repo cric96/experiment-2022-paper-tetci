@@ -21,4 +21,7 @@ object Sensors {
   val history = "history"
   val error = "error"
   val source = "source"
+  val program = "program"
+  val experiences = "experiences"
+  val accumulatedUnstableTime = "accumulatedUnstableTime"
 }

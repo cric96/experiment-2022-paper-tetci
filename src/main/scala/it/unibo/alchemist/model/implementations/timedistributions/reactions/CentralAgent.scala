@@ -7,7 +7,7 @@ import it.unibo.alchemist.model.interfaces._
 import it.unibo.learning.{Box, LearningInfo}
 import it.unibo.learning.abstractions.{AgentState, ReplayBuffer, Step}
 import it.unibo.learning.agents.Learner
-import it.unibo.scafi.Sensors
+import it.unibo.scafi.{BuildingBlock, EvaluationProtocol, GroundTruths, Sensors, Topology}
 import org.apache.commons.math3.random.RandomGenerator
 
 import scala.collection.immutable.Queue
@@ -26,11 +26,9 @@ class CentralAgent[T, P <: Position[P]](
   private val scalaRandom = new Random(learningInfo.randomSeed)
   private var stepTicks = 0
   private var episodeCounter = 0
-  private var cachedSourceKey: (Int, Set[Int]) = (-1, Set.empty)
-  private var cachedGroundTruth: Map[Int, Double] = Map.empty
-  private var cachedHopTruth: Map[Int, Double] = Map.empty
-  private var cachedCollectTruth: Map[Int, Double] = Map.empty
-  private var cachedBroadcastTruth: Double = 0.0
+
+  /** The ground truths of the current episode, recomputed when the sources change. */
+  private var groundTruthsCache: Option[(Int, GroundTruths)] = None
   private val spatialRows = scala.collection.mutable.ArrayBuffer.empty[String]
   private val spatialEdges = scala.collection.mutable.ArrayBuffer.empty[String]
   private val gnnSpatialRows = scala.collection.mutable.ArrayBuffer.empty[String]
@@ -40,16 +38,14 @@ class CentralAgent[T, P <: Position[P]](
   val memory: ReplayBuffer = new ReplayBuffer(learningInfo.bufferSize, scalaRandom)
   learner.injectRandom(scalaRandom)
 
-  private val evalBetaSchedule = Array(0.50, 0.80, 0.95, 0.99, 1.00)
+  /** The policy of the learner; in the generalization scenario, conditioned on the weight under evaluation. */
+  def policy: AgentState => Double =
+    EvaluationProtocol
+      .evaluationWeightAt(episodeCounter)
+      .filter(_ => isGeneralizationScenario)
+      .fold(learner.policy)(learner.policyForWeight)
 
-  def policy = {
-    if (episodeCounter >= 10 && managers.headOption.exists(_.has("program"))) {
-      val idx = math.min(evalBetaSchedule.length - 1, (episodeCounter - 10) / 2)
-      learner.policyForWeight(evalBetaSchedule(idx))
-    } else {
-      learner.policy
-    }
-  }
+  private def isGeneralizationScenario: Boolean = managers.headOption.exists(_.has(Sensors.program))
 
   override def executeBeforeUpdateDistribution(): Unit = {
     val currentTime = environment.getSimulation.getTime
@@ -70,7 +66,6 @@ class CentralAgent[T, P <: Position[P]](
             replaceNodes(position, prototype, currentTime.plus(new DoubleTime(1)))
           }
           episodeCounter += 1
-          cachedSourceKey = (-1, Set.empty)
         }
         learner.decayingParameters.foreach { case (_, parameter) => parameter.update() }
       }
@@ -98,7 +93,7 @@ class CentralAgent[T, P <: Position[P]](
             val g =
               if (m.has(Sensors.localComputation)) m.get[Double](Sensors.localComputation) else Double.PositiveInfinity
             val gFin = if (g.isFinite) g else 600.0
-            val gt = groundTruthGradient(n.getId)
+            val gt = groundTruth(n.getId)
             val gtFin = if (gt.isFinite) gt else 600.0
             val dt = if (m.has(Sensors.nextWakeUp)) m.get[Double](Sensors.nextWakeUp) else 5.0
             val err = math.abs(gFin - gtFin)
@@ -187,7 +182,7 @@ class CentralAgent[T, P <: Position[P]](
           val g =
             if (m.has(Sensors.localComputation)) m.get[Double](Sensors.localComputation) else Double.PositiveInfinity
           val gFin = if (g.isFinite) g else 600.0
-          val gt = groundTruthGradient(n.getId)
+          val gt = groundTruth(n.getId)
           val gtFin = if (gt.isFinite) gt else 600.0
           val dt = if (m.has(Sensors.nextWakeUp)) m.get[Double](Sensors.nextWakeUp) else 5.0
           val err = math.abs(gFin - gtFin)
@@ -218,116 +213,40 @@ class CentralAgent[T, P <: Position[P]](
   def decayVariableOf(name: String): Double =
     learner.decayingParameters.collectFirst { case (`name`, parameter) => parameter.value }.getOrElse(0.0)
 
-  /** During training (first 10 episodes) always uses "gradient"; during exploitation (episodes 10+) switches to
-    * targetProgram for zero-shot transfer.
-    */
-  def activeProgramName(targetProgram: String): String =
-    if (episodeCounter < 10) "gradient" else targetProgram
+  /** The building block the nodes run in the current episode, given the one they are configured for. */
+  def activeBlock(target: BuildingBlock): BuildingBlock = EvaluationProtocol.blockAt(episodeCounter, target)
 
-  def programScale(programName: String): Double = programName match {
-    case "hopGradient" => 10.0
-    case "broadcast" => 500.0
-    case "collect" => 40.0
-    case _ => 500.0
+  /** The value `block` should converge to in node `nodeId`, given the current sources. */
+  def groundTruth(nodeId: Int, block: BuildingBlock = BuildingBlock.Gradient): Double =
+    currentGroundTruths.of(nodeId, block)
+
+  private def currentGroundTruths: GroundTruths = {
+    val sources = currentSources
+    groundTruthsCache
+      .collect { case (episode, truths) if episode == episodeCounter && truths.sources == sources => truths }
+      .getOrElse {
+        val truths = GroundTruths.of(topology, sources)
+        groundTruthsCache = Some((episodeCounter, truths))
+        truths
+      }
   }
 
-  /** Computes the exact ground truth for any supported self-stabilizing building block ("gradient", "hopGradient",
-    * "broadcast", "collect").
-    */
-  def groundTruthGradient(nodeId: Int, programName: String = "gradient"): Double = {
-    val currentSources = agents
-      .filter { n =>
-        val m = new SimpleNodeManager[T](n)
-        m.has(Sensors.source) && m.get[Boolean](Sensors.source)
-      }
-      .map(_.getId)
+  private def currentSources: Set[Int] =
+    managers
+      .filter(manager => manager.has(Sensors.source) && manager.get[Boolean](Sensors.source))
+      .map(_.node.getId)
       .toSet
 
-    val key = (episodeCounter, currentSources)
-    if (key != cachedSourceKey) {
-      cachedSourceKey = key
-      cachedGroundTruth = computeShortestPaths(currentSources)
-      cachedHopTruth = computeHopShortestPaths(currentSources)
-      cachedCollectTruth = computeCollectSubtreeCounts(cachedGroundTruth)
-      cachedBroadcastTruth = currentSources.headOption.map(id => (id + 1).toDouble * 10.0).getOrElse(0.0)
-    }
-    programName match {
-      case "hopGradient" => cachedHopTruth.getOrElse(nodeId, Double.PositiveInfinity)
-      case "broadcast" => if (currentSources.nonEmpty) cachedBroadcastTruth else 0.0
-      case "collect" => cachedCollectTruth.getOrElse(nodeId, 1.0)
-      case _ => cachedGroundTruth.getOrElse(nodeId, Double.PositiveInfinity)
-    }
-  }
-
-  private def computeHopShortestPaths(sources: Set[Int]): Map[Int, Double] = {
-    if (sources.isEmpty) return Map.empty
-    val dist = scala.collection.mutable.Map.empty[Int, Double].withDefaultValue(Double.PositiveInfinity)
-    val q = scala.collection.mutable.Queue.empty[Node[T]]
-    val nodeById = agents.map(n => n.getId -> n).toMap
-    sources.flatMap(nodeById.get).foreach { srcNode =>
-      dist(srcNode.getId) = 0.0
-      q.enqueue(srcNode)
-    }
-    while (q.nonEmpty) {
-      val u = q.dequeue()
-      val d = dist(u.getId)
-      environment.getNeighborhood(u).getNeighbors.iterator().asScala.foreach { v =>
-        if (d + 1.0 < dist(v.getId)) {
-          dist(v.getId) = d + 1.0
-          q.enqueue(v)
-        }
+  private def topology: Topology = {
+    def linksOf(node: Node[T]): Seq[(Int, Double)] = {
+      val position = environment.getPosition(node)
+      environment.getNeighborhood(node).getNeighbors.iterator().asScala.toSeq.map { neighbour =>
+        neighbour.getId -> position.distanceTo(environment.getPosition(neighbour))
       }
     }
-    dist.toMap
+    Topology(agents.map(_.getId), agents.map(node => node.getId -> linksOf(node)).toMap)
   }
 
-  private def computeCollectSubtreeCounts(potentials: Map[Int, Double]): Map[Int, Double] = {
-    if (potentials.isEmpty) return Map.empty
-    val counts = scala.collection.mutable.Map.empty[Int, Double]
-    agents.foreach(n => counts(n.getId) = 1.0)
-    val sortedNodes = agents.sortBy(n => -potentials.getOrElse(n.getId, Double.PositiveInfinity))
-    sortedNodes.foreach { u =>
-      val potU = potentials.getOrElse(u.getId, Double.PositiveInfinity)
-      if (potU > 0.0 && potU.isFinite) {
-        val neighbors = environment.getNeighborhood(u).getNeighbors.iterator().asScala.toList
-        val parentOpt = neighbors
-          .filter(v => potentials.getOrElse(v.getId, Double.PositiveInfinity) < potU)
-          .minByOption(v => (potentials.getOrElse(v.getId, Double.PositiveInfinity), v.getId))
-        parentOpt.foreach { p =>
-          counts(p.getId) = counts(p.getId) + counts(u.getId)
-        }
-      }
-    }
-    counts.toMap
-  }
-
-  private def computeShortestPaths(sources: Set[Int]): Map[Int, Double] = {
-    if (sources.isEmpty) return Map.empty
-    val dist = scala.collection.mutable.Map.empty[Int, Double].withDefaultValue(Double.PositiveInfinity)
-    val pq = scala.collection.mutable.PriorityQueue.empty[(Double, Node[T])](
-      Ordering.by[(Double, Node[T]), Double](-_._1)
-    )
-    val nodeById = agents.map(n => n.getId -> n).toMap
-    sources.flatMap(nodeById.get).foreach { srcNode =>
-      dist(srcNode.getId) = 0.0
-      pq.enqueue((0.0, srcNode))
-    }
-    while (pq.nonEmpty) {
-      val (d, u) = pq.dequeue()
-      if (d <= dist(u.getId)) {
-        val posU = environment.getPosition(u)
-        environment.getNeighborhood(u).getNeighbors.iterator().asScala.foreach { v =>
-          val weight = posU.distanceTo(environment.getPosition(v))
-          val alt = d + weight
-          if (alt < dist(v.getId)) {
-            dist(v.getId) = alt
-            pq.enqueue((alt, v))
-          }
-        }
-      }
-    }
-    dist.toMap
-  }
   private def createPositions() = {
     val gridRng =
       new org.apache.commons.math3.random.Well19937c(learningInfo.randomSeed.toLong * 1000L + episodeCounter + 1L)

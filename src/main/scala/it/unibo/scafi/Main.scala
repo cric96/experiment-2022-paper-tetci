@@ -29,21 +29,9 @@ class Main
   private lazy val actionSpace = node.getOption(actions).getOrElse(List(1.0, 1.5, 2, 3))
   private lazy val sharedMemory: ReplayBuffer = loadMemory()
   private lazy val weightForConvergence = node.getOption(Sensors.weight).getOrElse(0.9)
-  private lazy val configuredProgram: String =
-    if (node.has("program")) {
-      node.get[Any]("program") match {
-        case n: Number =>
-          n.intValue() match {
-            case 1 => "hopGradient"
-            case 2 => "broadcast"
-            case 3 => "collect"
-            case _ => "gradient"
-          }
-        case s: String => s
-        case _ => "gradient"
-      }
-    } else "gradient"
-  def activeProgram: String = global().activeProgramName(configuredProgram)
+  private lazy val targetBlock: BuildingBlock =
+    node.getOption[Any](Sensors.program).fold[BuildingBlock](BuildingBlock.Gradient)(BuildingBlock.fromMolecule)
+  def activeBlock: BuildingBlock = global().activeBlock(targetBlock)
   def policy: (AgentState => Double) = loadPolicy()
 
   override def main(): Any = {
@@ -90,9 +78,9 @@ class Main
             queue
         }
       }
-      val prog = activeProgram
-      val groundTruth = global().groundTruthGradient(mid(), prog)
-      val fullScale = global().programScale(prog)
+      val block = activeBlock
+      val groundTruth = global().groundTruth(mid(), block)
+      val fullScale = block.errorScale
       val absError =
         if (localComputation.isFinite && groundTruth.isFinite) math.abs(localComputation - groundTruth)
         else if (!localComputation.isFinite && !groundTruth.isFinite) 0.0
@@ -121,21 +109,21 @@ class Main
 
   def computation(): Double = {
     val src = sense[Boolean](Sensors.source)
-    val prog = activeProgram
+    val block = activeBlock
     // Separate ScaFi alignment branches per building block so switching at episode boundaries is 100% clean
-    branch(prog == "hopGradient") {
+    branch(block == BuildingBlock.HopGradient) {
       hopDistance(src)
     } {
-      branch(prog == "broadcast") {
+      branch(block == BuildingBlock.Broadcast) {
         val g = classicGradient(src)
-        val payload = if (src) (mid() + 1).toDouble * 10.0 else 0.0
+        val payload = if (src) BuildingBlock.Broadcast.payloadOf(mid()) else 0.0
         rep(payload) { value =>
           mux(g == 0.0)(payload)(
             excludingSelf.minHoodSelector[Double, Double](nbr(g) + nbrRange())(nbr(value)).getOrElse(payload)
           )
         }
       } {
-        branch(prog == "collect") {
+        branch(block == BuildingBlock.Collect) {
           val pot = classicGradient(src)
           C[Double, Double](pot, _ + _, 1.0, 0.0)
         } {

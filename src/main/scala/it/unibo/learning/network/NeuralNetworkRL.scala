@@ -1,5 +1,6 @@
 package it.unibo.learning.network
 
+import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.AgentState
 import it.unibo.util.TemporalInfo
 
@@ -182,9 +183,7 @@ object NeuralNetworkRL {
         .map(a => (a / maxAction).toFloat)
         .getOrElse(1.0f)
 
-      val energyW = math.max(0.005, 1.0 - weight)
-      // Maps weight in [0.5, 1.0] smoothly to [-1.0, +1.0] according to the steady-state trade-off ratio
-      val betaFeature = (2.0 * (energyW / (energyW + 0.06 * weight)) - 1.0).toFloat
+      val betaFeature = TradeOff.betaFeature(weight)
 
       Array(
         deltaLatest, deltaPrev, selfDeltaMag, maxNeighDeltaMag, neighChangedRatio, bfRes, childrenRatio, minNeighAction,
@@ -214,8 +213,7 @@ object NeuralNetworkRL {
       } else 0.0f
 
       val childrenRatio = SpatialTemporal.downstreamChildrenRatio(state).toFloat
-      val energyW = math.max(0.005, 1.0 - weight)
-      val betaFeature = (2.0 * (energyW / (energyW + 0.06 * weight)) - 1.0).toFloat
+      val betaFeature = TradeOff.betaFeature(weight)
 
       val out = new Array[Float](TotalDim)
       out(0) = deltaLatest

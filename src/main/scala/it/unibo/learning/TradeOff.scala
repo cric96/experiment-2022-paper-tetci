@@ -20,6 +20,9 @@ object TradeOff {
   /** Gain of the instability intensity in the counterfactual rewards used to train the offline learners. */
   val OfflineIntensityGain: Double = 8.0
 
+  /** Fastest wake-up period used to normalize the periods when the action space does not define it. */
+  val FastestPeriod: Double = 0.5
+
   /** Normalized weights of the two objectives; they sum to one. */
   final case class ObjectiveWeights(convergence: Double, energy: Double)
 

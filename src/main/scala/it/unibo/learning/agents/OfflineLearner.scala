@@ -4,6 +4,7 @@ import ai.djl.ndarray.{NDList, NDManager}
 import ai.djl.ndarray.types.Shape
 import ai.djl.training.loss.Loss
 import it.unibo.alchemist.model.implementations.timedistributions.reactions.CentralAgent
+import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.AgentState
 import it.unibo.learning.abstractions.ReplayBuffer.Experience
 import it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal
@@ -147,21 +148,12 @@ class OfflineLearner(
     ticks += 1
   }
 
-  private def counterfactualReward(rawIntensity: Double, dt: Double, beta: Double): Float = {
-    val effectiveIntensity = 0.06 + 8.0 * rawIntensity
-    val minAct = 0.5
-    val u = math.max(0.0, math.min(1.0, (dt - minAct) / (maxAction - minAct)))
-    val energyWeight = math.max(0.005, 1.0 - beta)
-    val wConv = beta * effectiveIntensity
-    val normSum = wConv + energyWeight
-    val r = -(wConv / normSum) * (u * u) - (energyWeight / normSum) * ((1.0 - u) * (1.0 - u))
-    r.toFloat
-  }
+  private def counterfactualReward(rawIntensity: Double, dt: Double, beta: Double): Float =
+    TradeOff.offlineReward(rawIntensity, dt, beta, TradeOff.FastestPeriod, maxAction).toFloat
 
   private def withWeight(baseFeatures: Array[Float], beta: Double): Array[Float] = {
     val copy = baseFeatures.clone()
-    val energyW = math.max(0.005, 1.0 - beta)
-    copy(copy.length - 1) = (2.0 * (energyW / (energyW + 0.06 * beta)) - 1.0).toFloat
+    copy(copy.length - 1) = TradeOff.betaFeature(beta)
     copy
   }
 

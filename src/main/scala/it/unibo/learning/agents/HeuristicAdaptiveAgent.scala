@@ -1,6 +1,7 @@
 package it.unibo.learning.agents
 
 import it.unibo.alchemist.model.implementations.timedistributions.reactions.CentralAgent
+import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.{AgentState, ReplayBuffer}
 import it.unibo.util.TemporalInfo
 
@@ -18,7 +19,7 @@ class HeuristicAdaptiveAgent(
 
   override def policyForWeight(customWeight: Double): AgentState => Double = { state =>
     val energyW = math.max(0.01, 1.0 - customWeight)
-    val uSteady = energyW / (energyW + 0.06 * customWeight)
+    val uSteady = energyW / (energyW + TradeOff.SteadyStateIntensity * customWeight)
     val cSteady = minAct + (maxAct - minAct) * uSteady
     val cFast = math.max(minAct, minAct + (1.0 - customWeight) * 2.5)
     val myOutputs = state.neighborhoodOutput.flatMap(_.get(state.me)).takeRight(3).map(_.data)

@@ -3,7 +3,9 @@ package it.unibo.scafi
 import it.unibo.alchemist.model.implementations.nodes.SimpleNodeManager
 import it.unibo.alchemist.model.implementations.timedistributions.reactions.CentralAgent
 import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist._
+import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.AgentState.NeighborInfo
+import it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal
 import it.unibo.learning.abstractions.{AgentState, Contextual, ReplayBuffer}
 import it.unibo.util.TemporalInfo
 import scala.collection.immutable.Queue
@@ -155,13 +157,8 @@ class Main
     val myOutput = state.neighborhoodOutput.flatMap(_.get(state.me)).takeRight(4)
     val history = TemporalInfo.computeDeltaTrend(myOutput.map(_.data))
     node.put(Sensors.history, history)
-    val rawIntensity = it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal.instabilityIntensity(state)
-    val effectiveIntensity = 0.06 + 0.94 * rawIntensity
-    val minAct = 0.5
-    val maxAct = actionSpace.max
-    val u = math.max(0.0, math.min(1.0, (deltaFixed - minAct) / (maxAct - minAct)))
-    val energyWeight = math.max(0.005, 1.0 - weightForConvergence)
-    -weightForConvergence * effectiveIntensity * (u * u) - energyWeight * ((1.0 - u) * (1.0 - u))
+    val intensity = SpatialTemporal.instabilityIntensity(state)
+    TradeOff.onlineReward(intensity, deltaFixed, weightForConvergence, TradeOff.FastestPeriod, actionSpace.max)
   }
 
   def global(): CentralAgent[_, _] = alchemistEnvironment.getGlobalReactions

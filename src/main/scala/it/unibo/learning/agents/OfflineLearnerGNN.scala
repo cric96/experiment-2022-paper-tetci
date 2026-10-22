@@ -5,6 +5,7 @@ import ai.djl.ndarray.index.NDIndex
 import ai.djl.ndarray.types.Shape
 import ai.djl.nn.Activation
 import it.unibo.alchemist.model.implementations.timedistributions.reactions.CentralAgent
+import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.AgentState
 import it.unibo.learning.abstractions.ReplayBuffer.Experience
 import it.unibo.learning.network.NeuralNetworkRL.{SpatialTemporal, StarGraph}
@@ -192,22 +193,16 @@ class OfflineLearnerGNN(
       dt: Double,
       beta: Double
   ): (Float, Float, Float, Float) = {
-    val effectiveIntensity = 0.06 + 8.0 * rawIntensity
-    val u = math.max(0.0, math.min(1.0, (dt - min) / (max - min)))
-    val energyWeight = math.max(0.005, 1.0 - beta)
-    val wConv = beta * effectiveIntensity
-    val normSum = wConv + energyWeight
-    val w1 = (wConv / normSum).toFloat
-    val w2 = (energyWeight / normSum).toFloat
+    val u = TradeOff.normalizedPeriod(dt, min, max)
+    val weights = TradeOff.objectiveWeights(rawIntensity, beta)
     val rConv = (-(u * u)).toFloat
     val rEnergy = (-((1.0 - u) * (1.0 - u))).toFloat
-    (w1, w2, rConv, rEnergy)
+    (weights.convergence.toFloat, weights.energy.toFloat, rConv, rEnergy)
   }
 
   private def withWeight(baseFeatures: Array[Float], beta: Double): Array[Float] = {
     val copy = baseFeatures.clone()
-    val energyW = math.max(0.005, 1.0 - beta)
-    copy(4) = (2.0 * (energyW / (energyW + 0.06 * beta)) - 1.0).toFloat
+    copy(4) = TradeOff.betaFeature(beta)
     copy
   }
 

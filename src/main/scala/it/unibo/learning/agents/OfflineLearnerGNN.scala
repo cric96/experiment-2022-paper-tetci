@@ -9,8 +9,8 @@ import it.unibo.learning.agents.OfflineLearnerGNN._
 import it.unibo.learning.agents.offline.BatchTensors.{column, rows}
 import it.unibo.learning.agents.offline._
 import it.unibo.learning.network.NeuralNetworkRL.StarGraph
-import it.unibo.learning.network.TorchNetwork
-import it.unibo.learning.network.TorchNetwork._
+import it.unibo.learning.network.{EdgeGATBlock, MinMaxActionScaler, TorchNetwork}
+import it.unibo.learning.network.NDArrayOps._
 
 /** Offline actor-critic on the node's star graph: an edge-conditioned graph-attention actor (EdgeGAT) and twin
   * multi-objective critics that predict [Q_convergence, Q_energy], scalarized with the objective weights of each
@@ -37,20 +37,20 @@ final class OfflineLearnerGNN(
     ) {
   private val actionScaler: MinMaxActionScaler = MinMaxActionScaler(min, max)
   private val networkSeed: Int = LearnerSeeds.networks(randomKey, weight)
-  private val actor: TorchNetwork = actorNetwork("gat-actor", seedOffset = 101)
-  private val targetActor: TorchNetwork = actorNetwork("gat-target-actor", seedOffset = 102)
+  private val actor: TorchNetwork[EdgeGATBlock] = actorNetwork("gat-actor", seedOffset = 101)
+  private val targetActor: TorchNetwork[EdgeGATBlock] = actorNetwork("gat-target-actor", seedOffset = 102)
   targetActor.softUpdateFrom(actor, TargetNetworks.HardCopy)
-  private val critic1: TorchNetwork = criticNetwork("gat-critic-1", seedOffset = 103)
-  private val targetCritic1: TorchNetwork = criticNetwork("gat-target-critic-1", seedOffset = 104)
+  private val critic1: TorchNetwork[EdgeGATBlock] = criticNetwork("gat-critic-1", seedOffset = 103)
+  private val targetCritic1: TorchNetwork[EdgeGATBlock] = criticNetwork("gat-target-critic-1", seedOffset = 104)
   targetCritic1.softUpdateFrom(critic1, TargetNetworks.HardCopy)
-  private val critic2: TorchNetwork = criticNetwork("gat-critic-2", seedOffset = 105)
-  private val targetCritic2: TorchNetwork = criticNetwork("gat-target-critic-2", seedOffset = 106)
+  private val critic2: TorchNetwork[EdgeGATBlock] = criticNetwork("gat-critic-2", seedOffset = 105)
+  private val targetCritic2: TorchNetwork[EdgeGATBlock] = criticNetwork("gat-target-critic-2", seedOffset = 106)
   targetCritic2.softUpdateFrom(critic2, TargetNetworks.HardCopy)
-  @volatile private var fastActor: Array[Float] => Float = attentionBlockOf(actor).snapshotFastInference()
+  @volatile private var fastActor: Array[Float] => Float = actor.block.snapshotFastInference()
   @volatile private var fastEmbeddingAndAttention: Array[Float] => (Array[Float], Array[Float]) =
-    attentionBlockOf(actor).snapshotEmbeddingAndAttention()
+    actor.block.snapshotEmbeddingAndAttention()
 
-  private def actorNetwork(name: String, seedOffset: Int): TorchNetwork =
+  private def actorNetwork(name: String, seedOffset: Int): TorchNetwork[EdgeGATBlock] =
     TorchNetwork.createEdgeGAT(
       name,
       StarGraph.SelfDim,
@@ -65,7 +65,7 @@ final class OfflineLearnerGNN(
     )
 
   /** A critic sees the scaled action as an extra ego feature and predicts one value per objective. */
-  private def criticNetwork(name: String, seedOffset: Int): TorchNetwork =
+  private def criticNetwork(name: String, seedOffset: Int): TorchNetwork[EdgeGATBlock] =
     TorchNetwork.createEdgeGAT(
       name,
       StarGraph.SelfDim + 1,
@@ -156,8 +156,8 @@ final class OfflineLearnerGNN(
   }
 
   override protected def onTrained(): Unit = {
-    fastActor = attentionBlockOf(actor).snapshotFastInference()
-    fastEmbeddingAndAttention = attentionBlockOf(actor).snapshotEmbeddingAndAttention()
+    fastActor = actor.block.snapshotFastInference()
+    fastEmbeddingAndAttention = actor.block.snapshotEmbeddingAndAttention()
   }
 }
 
@@ -207,10 +207,5 @@ object OfflineLearnerGNN {
         terminals = column(batch.map(_.terminal), manager),
         discounts = column(batch.map(_.discountFactor), manager)
       )
-  }
-
-  private def attentionBlockOf(network: TorchNetwork): EdgeGATBlock = network.block match {
-    case block: EdgeGATBlock => block
-    case other => throw new IllegalArgumentException(s"Expected an EdgeGAT network, got ${other.getClass.getName}")
   }
 }

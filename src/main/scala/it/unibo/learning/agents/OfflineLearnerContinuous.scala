@@ -1,15 +1,15 @@
 package it.unibo.learning.agents
 
 import ai.djl.ndarray.{NDArray, NDManager}
-import ai.djl.nn.Activation
+import ai.djl.nn.{Activation, SequentialBlock}
 import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.{AgentState, Trajectory}
 import it.unibo.learning.agents.OfflineLearnerContinuous._
 import it.unibo.learning.agents.offline.BatchTensors.{column, rows}
 import it.unibo.learning.agents.offline._
 import it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal
-import it.unibo.learning.network.TorchNetwork
-import it.unibo.learning.network.TorchNetwork._
+import it.unibo.learning.network.{MinMaxActionScaler, TorchNetwork}
+import it.unibo.learning.network.NDArrayOps._
 
 import java.io.File
 
@@ -38,18 +38,18 @@ final class OfflineLearnerContinuous(
     ) {
   private val actionScaler: MinMaxActionScaler = MinMaxActionScaler(min, max)
   private val networkSeed: Int = LearnerSeeds.networks(randomKey, weight)
-  private val actor: TorchNetwork = actorNetwork("actor", seedOffset = 1)
-  private val targetActor: TorchNetwork = actorNetwork("target-actor", seedOffset = 2)
+  private val actor: TorchNetwork[SequentialBlock] = actorNetwork("actor", seedOffset = 1)
+  private val targetActor: TorchNetwork[SequentialBlock] = actorNetwork("target-actor", seedOffset = 2)
   targetActor.softUpdateFrom(actor, TargetNetworks.HardCopy)
-  private val critic1: TorchNetwork = criticNetwork("critic-1", seedOffset = 4)
-  private val targetCritic1: TorchNetwork = criticNetwork("target-critic-1", seedOffset = 5)
+  private val critic1: TorchNetwork[SequentialBlock] = criticNetwork("critic-1", seedOffset = 4)
+  private val targetCritic1: TorchNetwork[SequentialBlock] = criticNetwork("target-critic-1", seedOffset = 5)
   targetCritic1.softUpdateFrom(critic1, TargetNetworks.HardCopy)
-  private val critic2: TorchNetwork = criticNetwork("critic-2", seedOffset = 6)
-  private val targetCritic2: TorchNetwork = criticNetwork("target-critic-2", seedOffset = 7)
+  private val critic2: TorchNetwork[SequentialBlock] = criticNetwork("critic-2", seedOffset = 6)
+  private val targetCritic2: TorchNetwork[SequentialBlock] = criticNetwork("target-critic-2", seedOffset = 7)
   targetCritic2.softUpdateFrom(critic2, TargetNetworks.HardCopy)
   @volatile private var fastActor: Array[Float] => Array[Float] = actor.snapshotFastMLP(useTanh = true)
 
-  private def actorNetwork(name: String, seedOffset: Int): TorchNetwork =
+  private def actorNetwork(name: String, seedOffset: Int): TorchNetwork[SequentialBlock] =
     TorchNetwork.createMLP(
       name,
       stateDim,
@@ -61,7 +61,7 @@ final class OfflineLearnerContinuous(
     )
 
   /** A critic takes the state followed by the scaled action. */
-  private def criticNetwork(name: String, seedOffset: Int): TorchNetwork =
+  private def criticNetwork(name: String, seedOffset: Int): TorchNetwork[SequentialBlock] =
     TorchNetwork.createMLP(name, stateDim + 1, Seq(hiddenSize, hiddenSize), 1, lr = lr, seed = networkSeed + seedOffset)
 
   override def policy: AgentState => Double = policyForWeight(weight)

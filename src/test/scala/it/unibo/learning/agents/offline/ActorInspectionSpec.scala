@@ -2,7 +2,7 @@ package it.unibo.learning.agents.offline
 
 import ai.djl.nn.Activation
 import it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal
-import it.unibo.learning.network.TorchNetwork
+import it.unibo.learning.network.{MinMaxActionScaler, TorchNetwork}
 import it.unibo.testing.AgentStates
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -24,7 +24,7 @@ class ActorInspectionSpec extends AnyFlatSpec with Matchers {
     val samples = AgentStates.fixtures.map(SpatialTemporal.encode(_, weight, 5.0)).toVector ++
       Vector.fill(6)(Array.fill(stateDim)(random.nextFloat() * 2 - 1))
     val directory = Files.createTempDirectory("inspection").toFile
-    new ActorInspection(actor, critic, TorchNetwork.MinMaxActionScaler(0.5, 5.0), stateDim, directory)
+    new ActorInspection(actor, critic, MinMaxActionScaler(0.5, 5.0), stateDim, directory)
       .export(samples, weight)
     Seq(s"embeddings_weight-$weight.csv", s"surface_weight-$weight.csv").map(new File(directory, _))
   }

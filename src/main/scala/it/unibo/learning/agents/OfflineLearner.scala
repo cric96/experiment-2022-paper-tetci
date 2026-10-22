@@ -1,6 +1,7 @@
 package it.unibo.learning.agents
 
 import ai.djl.ndarray.{NDArray, NDList, NDManager}
+import ai.djl.nn.SequentialBlock
 import ai.djl.training.loss.Loss
 import it.unibo.learning.TradeOff
 import it.unibo.learning.abstractions.{AgentState, Trajectory}
@@ -8,8 +9,8 @@ import it.unibo.learning.agents.OfflineLearner._
 import it.unibo.learning.agents.offline.BatchTensors.{column, indexColumn, rows}
 import it.unibo.learning.agents.offline._
 import it.unibo.learning.network.NeuralNetworkRL.SpatialTemporal
-import it.unibo.learning.network.TorchNetwork
-import it.unibo.learning.network.TorchNetwork._
+import it.unibo.learning.network.{FastInference, TorchNetwork}
+import it.unibo.learning.network.NDArrayOps._
 
 /** Discrete Batch-Constrained Q-Learning (BCQ) over the spatial-temporal state, conditioned on the trade-off weight β:
   * a Q network chooses among the actions that an imitation network deems likely enough under the logged behaviour.
@@ -35,15 +36,15 @@ final class OfflineLearner(
     ) {
   private val maxAction: Double = actionSpace.max
   private val networkSeed: Int = LearnerSeeds.networks(randomKey, weight)
-  private val qNetwork: TorchNetwork = network("bcq-q", seedOffset = 1)
-  private val targetQNetwork: TorchNetwork = network("bcq-target-q", seedOffset = 2)
+  private val qNetwork: TorchNetwork[SequentialBlock] = network("bcq-q", seedOffset = 1)
+  private val targetQNetwork: TorchNetwork[SequentialBlock] = network("bcq-target-q", seedOffset = 2)
   targetQNetwork.softUpdateFrom(qNetwork, TargetNetworks.HardCopy)
-  private val imitationNetwork: TorchNetwork = network("bcq-imitator", seedOffset = 3)
+  private val imitationNetwork: TorchNetwork[SequentialBlock] = network("bcq-imitator", seedOffset = 3)
   private val crossEntropyLoss: Loss = Loss.softmaxCrossEntropyLoss()
   @volatile private var fastQValues: Array[Float] => Array[Float] = qNetwork.snapshotFastMLP()
   @volatile private var fastImitationLogits: Array[Float] => Array[Float] = imitationNetwork.snapshotFastMLP()
 
-  private def network(name: String, seedOffset: Int): TorchNetwork =
+  private def network(name: String, seedOffset: Int): TorchNetwork[SequentialBlock] =
     TorchNetwork.createMLP(
       name,
       stateDim,
@@ -67,7 +68,7 @@ final class OfflineLearner(
     * probability of the most likely one.
     */
   private def bcqAction(features: Array[Float]): Int = {
-    val probabilities = softmax(fastImitationLogits(features))
+    val probabilities = FastInference.softmax(fastImitationLogits(features))
     val threshold = bcqThreshold * probabilities.foldLeft(0.0f)(math.max)
     val qValues = fastQValues(features)
     qValues.indices.filter(action => probabilities(action) >= threshold).maxBy(qValues)(Ordering.Float.IeeeOrdering)
@@ -169,13 +170,5 @@ object OfflineLearner {
         terminals = column(batch.map(_.terminal), manager),
         discounts = column(batch.map(_.discountFactor), manager)
       )
-  }
-
-  /** Numerically stable softmax, in single precision like the fast inference path. */
-  private def softmax(logits: Array[Float]): Array[Float] = {
-    val maxLogit = logits.foldLeft(Float.NegativeInfinity)(math.max)
-    val exponentials = logits.map(logit => math.exp((logit - maxLogit).toDouble).toFloat)
-    val total = exponentials.sum
-    exponentials.map(_ / total)
   }
 }

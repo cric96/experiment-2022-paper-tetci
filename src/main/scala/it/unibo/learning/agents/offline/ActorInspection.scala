@@ -2,10 +2,10 @@ package it.unibo.learning.agents.offline
 
 import ai.djl.ndarray.types.Shape
 import ai.djl.ndarray.{NDArray, NDManager}
+import ai.djl.nn.Block
 import it.unibo.learning.TradeOff
 import it.unibo.learning.agents.offline.ActorInspection._
-import it.unibo.learning.network.TorchNetwork
-import it.unibo.learning.network.TorchNetwork.MinMaxActionScaler
+import it.unibo.learning.network.{MinMaxActionScaler, TorchNetwork}
 import it.unibo.util.Csv
 
 import java.io.File
@@ -16,8 +16,8 @@ import java.io.File
   *   - `surface_weight-β.csv`: the predicted period and value on the [[PolicySurface]].
   */
 final class ActorInspection(
-    actor: TorchNetwork,
-    critic: TorchNetwork,
+    actor: TorchNetwork[Block],
+    critic: TorchNetwork[Block],
     actionScaler: MinMaxActionScaler,
     stateDim: Int,
     outputDirectory: File

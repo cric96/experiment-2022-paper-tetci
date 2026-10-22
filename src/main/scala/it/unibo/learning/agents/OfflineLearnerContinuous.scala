@@ -36,24 +36,62 @@ class OfflineLearnerContinuous(
 
   private val baseSeed: Int = (randomKey.toInt * 1009) ^ weight.hashCode()
   private val actor: TorchNetwork =
-    TorchNetwork.createMLP("actor", stateDim, Seq(hiddenSize, hiddenSize), 1, Some(Activation.tanhBlock()), lr = lr * 0.5f, seed = baseSeed + 1)
+    TorchNetwork.createMLP(
+      "actor",
+      stateDim,
+      Seq(hiddenSize, hiddenSize),
+      1,
+      Some(Activation.tanhBlock()),
+      lr = lr * 0.5f,
+      seed = baseSeed + 1
+    )
   private val targetActor: TorchNetwork =
-    TorchNetwork.createMLP("target-actor", stateDim, Seq(hiddenSize, hiddenSize), 1, Some(Activation.tanhBlock()), lr = lr * 0.5f, seed = baseSeed + 2)
+    TorchNetwork.createMLP(
+      "target-actor",
+      stateDim,
+      Seq(hiddenSize, hiddenSize),
+      1,
+      Some(Activation.tanhBlock()),
+      lr = lr * 0.5f,
+      seed = baseSeed + 2
+    )
   targetActor.softUpdateFrom(actor, 1.0f)
 
   private val behaviorNet: TorchNetwork =
-    TorchNetwork.createMLP("behavior-net", stateDim, Seq(hiddenSize, hiddenSize), 1, Some(Activation.tanhBlock()), lr = lr, seed = baseSeed + 3)
+    TorchNetwork.createMLP(
+      "behavior-net",
+      stateDim,
+      Seq(hiddenSize, hiddenSize),
+      1,
+      Some(Activation.tanhBlock()),
+      lr = lr,
+      seed = baseSeed + 3
+    )
 
   private val critic1: TorchNetwork =
     TorchNetwork.createMLP("critic-1", stateDim + 1, Seq(hiddenSize, hiddenSize), 1, lr = lr, seed = baseSeed + 4)
   private val targetCritic1: TorchNetwork =
-    TorchNetwork.createMLP("target-critic-1", stateDim + 1, Seq(hiddenSize, hiddenSize), 1, lr = lr, seed = baseSeed + 5)
+    TorchNetwork.createMLP(
+      "target-critic-1",
+      stateDim + 1,
+      Seq(hiddenSize, hiddenSize),
+      1,
+      lr = lr,
+      seed = baseSeed + 5
+    )
   targetCritic1.softUpdateFrom(critic1, 1.0f)
 
   private val critic2: TorchNetwork =
     TorchNetwork.createMLP("critic-2", stateDim + 1, Seq(hiddenSize, hiddenSize), 1, lr = lr, seed = baseSeed + 6)
   private val targetCritic2: TorchNetwork =
-    TorchNetwork.createMLP("target-critic-2", stateDim + 1, Seq(hiddenSize, hiddenSize), 1, lr = lr, seed = baseSeed + 7)
+    TorchNetwork.createMLP(
+      "target-critic-2",
+      stateDim + 1,
+      Seq(hiddenSize, hiddenSize),
+      1,
+      lr = lr,
+      seed = baseSeed + 7
+    )
   targetCritic2.softUpdateFrom(critic2, 1.0f)
 
   private val epsilon: Double = 0.99
@@ -152,15 +190,8 @@ class OfflineLearnerContinuous(
       val embFile = new java.io.PrintWriter(new java.io.File(outDir, s"embeddings_weight-$weight.csv"))
       try {
         val featNames = Seq(
-          "deltaLatest",
-          "deltaPrev",
-          "selfDeltaMag",
-          "maxNeighDeltaMag",
-          "neighChangedRatio",
-          "bfResidual",
-          "childrenRatio",
-          "minNeighAction",
-          "weight"
+          "deltaLatest", "deltaPrev", "selfDeltaMag", "maxNeighDeltaMag", "neighChangedRatio", "bfResidual",
+          "childrenRatio", "minNeighAction", "weight"
         )
         val sensNames = featNames.map(n => s"sens_$n")
         val hidNames = (0 until hiddenDim).map(h => s"h_$h")
@@ -183,9 +214,8 @@ class OfflineLearnerContinuous(
           val sVec = s.map(v => f"$v%.5f")
           embFile.println((sVec ++ Seq(f"$dt%.5f", f"$qv%.5f", regime) ++ sensVec ++ hVec).mkString(","))
         }
-      } finally {
+      } finally
         embFile.close()
-      }
 
       // Also export a 2D Policy Response Surface grid for beta = weight
       val surfFile = new java.io.PrintWriter(new java.io.File(outDir, s"surface_weight-$weight.csv"))
@@ -200,7 +230,8 @@ class OfflineLearnerContinuous(
           val deltaFlag = if (selfMag > 0.05f) 1.0f else 0.0f
           val neighRatio = if (neighMag > 0.05f) math.min(1.0f, neighMag * 0.8f) else 0.0f
           val minAct = if (neighMag > 0.1f) 0.3f else 0.8f
-          val row = Array(deltaFlag, 0.0f, selfMag, neighMag, neighRatio, neighMag * 0.5f, childR, minAct, weight.toFloat)
+          val row =
+            Array(deltaFlag, 0.0f, selfMag, neighMag, neighRatio, neighMag * 0.5f, childR, minAct, weight.toFloat)
           val tIn = sub.create(row, new Shape(1, stateDim))
           val scOut = actor.evaluate(tIn)
           val qOut = critic1.evaluate(tIn.concat(scOut, 1))
@@ -208,9 +239,8 @@ class OfflineLearnerContinuous(
           val qv = qOut.getFloat(0L)
           surfFile.println(f"$selfMag%.4f,$neighMag%.4f,$childR%.2f,$minAct%.2f,$dt%.5f,$qv%.5f")
         }
-      } finally {
+      } finally
         surfFile.close()
-      }
     }
   }
 

@@ -32,9 +32,8 @@ class ReplayBuffer(size: Int, random: Random) {
       var i = 0
       while (i < batchSize) {
         var candidate = random.nextInt(n)
-        while (chosen.contains(candidate)) {
+        while (chosen.contains(candidate))
           candidate = random.nextInt(n)
-        }
         chosen.add(candidate)
         indices(i) = candidate
         i += 1

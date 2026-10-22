@@ -14,8 +14,8 @@ import it.unibo.learning.network.TorchNetwork._
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
 
-/** Edge-Conditioned Graph Attention Network (EdgeGAT) + Vectorial 2-Head Multi-Objective Critic
-  * ([Q_conv, Q_energy] in R^2) for Continuous Offline Reinforcement Learning on Star-Graphs.
+/** Edge-Conditioned Graph Attention Network (EdgeGAT) + Vectorial 2-Head Multi-Objective Critic ([Q_conv, Q_energy] in
+  * R^2) for Continuous Offline Reinforcement Learning on Star-Graphs.
   */
 class OfflineLearnerGNN(
     min: Double,
@@ -130,7 +130,10 @@ class OfflineLearnerGNN(
   @volatile private var fastEmbAndAttn: Array[Float] => (Array[Float], Array[Float]) =
     actor.block.asInstanceOf[TorchNetwork.EdgeGATBlock].snapshotEmbeddingAndAttention()
 
-  def inspectEmbeddingAndAttention(state: AgentState, targetWeight: Double = weight): (Array[Float], Array[Float], List[Int]) = {
+  def inspectEmbeddingAndAttention(
+      state: AgentState,
+      targetWeight: Double = weight
+  ): (Array[Float], Array[Float], List[Int]) = {
     val feat = encode(state, targetWeight)
     val (emb, alphas) = fastEmbAndAttn(feat)
     val currSnap = state.neighborhoodOutput.lastOption.getOrElse(Map.empty)
@@ -184,7 +187,11 @@ class OfflineLearnerGNN(
     ticks += 1
   }
 
-  private def objectiveWeightsAndRewards(rawIntensity: Double, dt: Double, beta: Double): (Float, Float, Float, Float) = {
+  private def objectiveWeightsAndRewards(
+      rawIntensity: Double,
+      dt: Double,
+      beta: Double
+  ): (Float, Float, Float, Float) = {
     val effectiveIntensity = 0.06 + 8.0 * rawIntensity
     val u = math.max(0.0, math.min(1.0, (dt - min) / (max - min)))
     val energyWeight = math.max(0.005, 1.0 - beta)
@@ -248,7 +255,10 @@ class OfflineLearnerGNN(
   }
 
   /** Inserts the action tensor (B, 1) right after selfFeat (B, selfDim) before neighbor features (B, K * neighDim). */
-  private def insertActionIntoGraphState(states: ai.djl.ndarray.NDArray, actions: ai.djl.ndarray.NDArray): ai.djl.ndarray.NDArray = {
+  private def insertActionIntoGraphState(
+      states: ai.djl.ndarray.NDArray,
+      actions: ai.djl.ndarray.NDArray
+  ): ai.djl.ndarray.NDArray = {
     val selfPart = states.get(new NDIndex(":, :{}", java.lang.Long.valueOf(selfDim)))
     val neighPart = states.get(new NDIndex(":, {}:", java.lang.Long.valueOf(selfDim)))
     selfPart.concat(actions, 1).concat(neighPart, 1)

@@ -6,8 +6,8 @@ import it.unibo.util.TemporalInfo
 
 import scala.util.Random
 
-/** Hand-crafted Adaptive Heuristic Baseline (AIMD / Local Trend Thresholding):
-  * Wakes up fast when the node's own output changes, ramps up on the next step, and sleeps at steadyAct when stable.
+/** Hand-crafted Adaptive Heuristic Baseline (AIMD / Local Trend Thresholding): Wakes up fast when the node's own output
+  * changes, ramps up on the next step, and sleeps at steadyAct when stable.
   */
 class HeuristicAdaptiveAgent(
     actionSpace: Seq[Double],

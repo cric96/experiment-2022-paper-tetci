@@ -39,7 +39,7 @@ class Main
             case _ => "gradient"
           }
         case s: String => s
-        case _         => "gradient"
+        case _ => "gradient"
       }
     } else "gradient"
   def activeProgram: String = global().activeProgramName(configuredProgram)

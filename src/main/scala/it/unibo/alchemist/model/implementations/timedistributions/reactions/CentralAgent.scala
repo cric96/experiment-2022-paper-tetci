@@ -103,7 +103,9 @@ class CentralAgent[T, P <: Position[P]](
   private def recordGNNSpatialEmbeddingsIfFinalEpisode(currentTime: Double): Unit = {
     learner match {
       case gnnLearner: it.unibo.learning.agents.OfflineLearnerGNN if learningInfo.randomSeed == 2 =>
-        val w = if (managers.nonEmpty && managers.head.has(Sensors.weight)) managers.head.get[Double](Sensors.weight) else 0.95
+        val w =
+          if (managers.nonEmpty && managers.head.has(Sensors.weight)) managers.head.get[Double](Sensors.weight)
+          else 0.95
         if (math.abs(w - 0.95) < 1e-6 && currentTime >= 3885.0 && currentTime <= 3960.5) {
           val tEp = currentTime - 3800.0
           val nodePosById = agents.map(n => n.getId -> environment.getPosition(n)).toMap
@@ -113,7 +115,8 @@ class CentralAgent[T, P <: Position[P]](
             val x = pos.getCoordinate(0)
             val y = pos.getCoordinate(1)
             val isSrc = if (m.has(Sensors.source) && m.get[Boolean](Sensors.source)) 1 else 0
-            val g = if (m.has(Sensors.localComputation)) m.get[Double](Sensors.localComputation) else Double.PositiveInfinity
+            val g =
+              if (m.has(Sensors.localComputation)) m.get[Double](Sensors.localComputation) else Double.PositiveInfinity
             val gFin = if (g.isFinite) g else 600.0
             val gt = groundTruthGradient(n.getId)
             val gtFin = if (gt.isFinite) gt else 600.0
@@ -121,7 +124,9 @@ class CentralAgent[T, P <: Position[P]](
             val err = math.abs(gFin - gtFin)
             val windowComp =
               if (m.has(Sensors.localComputationWindow))
-                m.get[Queue[Map[Int, it.unibo.learning.abstractions.AgentState.NeighborInfo]]](Sensors.localComputationWindow)
+                m.get[Queue[Map[Int, it.unibo.learning.abstractions.AgentState.NeighborInfo]]](
+                  Sensors.localComputationWindow
+                )
               else Queue.empty
             val windowSens =
               if (m.has(Sensors.windowSensing))
@@ -162,7 +167,9 @@ class CentralAgent[T, P <: Position[P]](
             val pw = new java.io.PrintWriter(new java.io.File(outDir, "gnn_spatiotemporal_embeddings.csv"))
             try {
               val hCols = (0 until 16).map(i => s"h_$i").mkString(",")
-              pw.println(s"tEp,nodeId,x,y,isSource,gradient,groundTruth,nextWakeUp,error,maxAlpha,attEntropy,attDx,attDy,bestNbrX,bestNbrY,$hCols")
+              pw.println(
+                s"tEp,nodeId,x,y,isSource,gradient,groundTruth,nextWakeUp,error,maxAlpha,attEntropy,attDx,attDy,bestNbrX,bestNbrY,$hCols"
+              )
               gnnSpatialRows.foreach(pw.println)
             } finally pw.close()
           }
@@ -174,7 +181,8 @@ class CentralAgent[T, P <: Position[P]](
   private def recordSpatialSnapshotIfFinalEpisode(currentTime: Double): Unit = {
     if (learningInfo.randomSeed != 2 || learner.getClass.getSimpleName != "OfflineLearnerContinuous") return
     if (currentTime >= 3802.0 && currentTime <= 4000.5) {
-      val w = if (managers.nonEmpty && managers.head.has(Sensors.weight)) managers.head.get[Double](Sensors.weight) else 0.0
+      val w =
+        if (managers.nonEmpty && managers.head.has(Sensors.weight)) managers.head.get[Double](Sensors.weight) else 0.0
       if (math.abs(w - 0.8) < 1e-6 || math.abs(w - 0.95) < 1e-6) {
         if (spatialEdges.isEmpty) {
           agents.foreach { u =>
@@ -182,7 +190,8 @@ class CentralAgent[T, P <: Position[P]](
             environment.getNeighborhood(u).getNeighbors.iterator().asScala.foreach { v =>
               if (u.getId < v.getId) {
                 val posV = environment.getPosition(v)
-                spatialEdges += f"${u.getId},${v.getId},${posU.getCoordinate(0)}%.2f,${posU.getCoordinate(1)}%.2f,${posV.getCoordinate(0)}%.2f,${posV.getCoordinate(1)}%.2f"
+                spatialEdges += f"${u.getId},${v.getId},${posU.getCoordinate(0)}%.2f,${posU.getCoordinate(1)}%.2f,${posV
+                    .getCoordinate(0)}%.2f,${posV.getCoordinate(1)}%.2f"
               }
             }
           }
@@ -194,7 +203,8 @@ class CentralAgent[T, P <: Position[P]](
           val x = pos.getCoordinate(0)
           val y = pos.getCoordinate(1)
           val isSrc = if (m.has(Sensors.source) && m.get[Boolean](Sensors.source)) 1 else 0
-          val g = if (m.has(Sensors.localComputation)) m.get[Double](Sensors.localComputation) else Double.PositiveInfinity
+          val g =
+            if (m.has(Sensors.localComputation)) m.get[Double](Sensors.localComputation) else Double.PositiveInfinity
           val gFin = if (g.isFinite) g else 600.0
           val gt = groundTruthGradient(n.getId)
           val gtFin = if (gt.isFinite) gt else 600.0
@@ -227,18 +237,22 @@ class CentralAgent[T, P <: Position[P]](
   def decayVariableOf(name: String): Double =
     references.find(_._1 == name).map(_._2.value).getOrElse(0.0)
 
-  /** During training (first 10 episodes) always uses "gradient"; during exploitation (episodes 10+) switches to targetProgram for zero-shot transfer. */
+  /** During training (first 10 episodes) always uses "gradient"; during exploitation (episodes 10+) switches to
+    * targetProgram for zero-shot transfer.
+    */
   def activeProgramName(targetProgram: String): String =
     if (episodeCounter < 10) "gradient" else targetProgram
 
   def programScale(programName: String): Double = programName match {
     case "hopGradient" => 10.0
-    case "broadcast"   => 500.0
-    case "collect"     => 40.0
-    case _             => 500.0
+    case "broadcast" => 500.0
+    case "collect" => 40.0
+    case _ => 500.0
   }
 
-  /** Computes the exact ground truth for any supported self-stabilizing building block ("gradient", "hopGradient", "broadcast", "collect"). */
+  /** Computes the exact ground truth for any supported self-stabilizing building block ("gradient", "hopGradient",
+    * "broadcast", "collect").
+    */
   def groundTruthGradient(nodeId: Int, programName: String = "gradient"): Double = {
     val currentSources = agents
       .filter { n =>
@@ -258,9 +272,9 @@ class CentralAgent[T, P <: Position[P]](
     }
     programName match {
       case "hopGradient" => cachedHopTruth.getOrElse(nodeId, Double.PositiveInfinity)
-      case "broadcast"   => if (currentSources.nonEmpty) cachedBroadcastTruth else 0.0
-      case "collect"     => cachedCollectTruth.getOrElse(nodeId, 1.0)
-      case _             => cachedGroundTruth.getOrElse(nodeId, Double.PositiveInfinity)
+      case "broadcast" => if (currentSources.nonEmpty) cachedBroadcastTruth else 0.0
+      case "collect" => cachedCollectTruth.getOrElse(nodeId, 1.0)
+      case _ => cachedGroundTruth.getOrElse(nodeId, Double.PositiveInfinity)
     }
   }
 
@@ -334,7 +348,8 @@ class CentralAgent[T, P <: Position[P]](
     dist.toMap
   }
   private def createPositions() = {
-    val gridRng = new org.apache.commons.math3.random.Well19937c(learningInfo.randomSeed.toLong * 1000L + episodeCounter + 1L)
+    val gridRng =
+      new org.apache.commons.math3.random.Well19937c(learningInfo.randomSeed.toLong * 1000L + episodeCounter + 1L)
     new Grid(
       environment,
       gridRng,

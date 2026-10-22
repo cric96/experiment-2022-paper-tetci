@@ -58,7 +58,9 @@ final class TorchNetwork(
     trainer.evaluate(new NDList(input)).singletonOrThrow()
   }
 
-  /** Extracts a lock-free fast inference function for standard 3-Linear MLP blocks (Linear -> ReLU -> Linear -> ReLU -> Linear [-> Tanh]). */
+  /** Extracts a lock-free fast inference function for standard 3-Linear MLP blocks (Linear -> ReLU -> Linear -> ReLU ->
+    * Linear [-> Tanh]).
+    */
   def snapshotFastMLP(useTanh: Boolean = false): Array[Float] => Array[Float] = TorchNetwork.lock.synchronized {
     def extractLinear(b: Block): (Array[Float], Array[Float], Int, Int) = {
       val params = b.getParameters
@@ -285,7 +287,8 @@ object TorchNetwork {
       readoutMLP.forward(parameterStore, new NDList(combined), training, params)
     }
 
-    /** Extracts a lock-free fast inference function from the current PyTorch parameters for parallel simulation rounds. */
+    /** Extracts a lock-free fast inference function from the current PyTorch parameters for parallel simulation rounds.
+      */
     def snapshotFastInference(): Array[Float] => Float = TorchNetwork.lock.synchronized {
       def extractLinear(b: Block): (Array[Float], Array[Float], Int, Int) = {
         val params = b.getParameters
@@ -479,7 +482,8 @@ object TorchNetwork {
     new TorchNetwork(
       name = name,
       inputDim = selfDim + maxNeighbors * neighDim,
-      block = new EdgeGATBlock(selfDim, maxNeighbors, neighDim, edgeHidden, readoutHidden, outputSize, outputActivation),
+      block =
+        new EdgeGATBlock(selfDim, maxNeighbors, neighDim, edgeHidden, readoutHidden, outputSize, outputActivation),
       lr = lr,
       seed = seed
     )

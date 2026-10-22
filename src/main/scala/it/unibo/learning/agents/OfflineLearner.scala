@@ -37,11 +37,25 @@ class OfflineLearner(
   private val qNet: TorchNetwork =
     TorchNetwork.createMLP("bcq-q", stateDim, Seq(hiddenSize, hiddenSize), numActions, lr = lr, seed = baseSeed + 1)
   private val targetQNet: TorchNetwork =
-    TorchNetwork.createMLP("bcq-target-q", stateDim, Seq(hiddenSize, hiddenSize), numActions, lr = lr, seed = baseSeed + 2)
+    TorchNetwork.createMLP(
+      "bcq-target-q",
+      stateDim,
+      Seq(hiddenSize, hiddenSize),
+      numActions,
+      lr = lr,
+      seed = baseSeed + 2
+    )
   targetQNet.softUpdateFrom(qNet, 1.0f)
 
   private val imitatorNet: TorchNetwork =
-    TorchNetwork.createMLP("bcq-imitator", stateDim, Seq(hiddenSize, hiddenSize), numActions, lr = lr, seed = baseSeed + 3)
+    TorchNetwork.createMLP(
+      "bcq-imitator",
+      stateDim,
+      Seq(hiddenSize, hiddenSize),
+      numActions,
+      lr = lr,
+      seed = baseSeed + 3
+    )
   private val crossEntropyLoss: Loss = Loss.softmaxCrossEntropyLoss()
 
   private val initialEpsilon: Double = 0.99

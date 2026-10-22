@@ -21,16 +21,13 @@ object NeuralNetworkRL {
     }
   }
 
-  /** Rich 9D Spatial-Temporal + Topological Role + Weight-Conditioned encoder:
-    *   0: latest self output delta trend in {-1, 0, +1}
-    *   1: previous self output delta trend in {-1, 0, +1}
-    *   2: self output change magnitude tanh(|g_i(t) - g_i(t-1)| / 50) in [0, 1]
-    *   3: max neighbor output change magnitude tanh(max_{j!=i} |g_j(t) - g_j(t-1)| / 50) in [0, 1]
-    *   4: fraction of 1-hop neighbors whose output changed in the last step in [0, 1]
-    *   5: local Bellman-Ford residual tanh(|g_i(t) - min_{j!=i}(g_j(t) + d_ij)| / 50) in [0, 1]
-    *   6: downstream children ratio in shortest-path tree in [0, 1] (topological backbone vs leaf role)
-    *   7: normalized minimum wake-up period among 1-hop neighbors in [0, 1]
-    *   8: convergence trade-off weight beta in [0, 1]
+  /** Rich 9D Spatial-Temporal + Topological Role + Weight-Conditioned encoder: 0: latest self output delta trend in
+    * {-1, 0, +1} 1: previous self output delta trend in {-1, 0, +1} 2: self output change magnitude tanh(|g_i(t) -
+    * g_i(t-1)| / 50) in [0, 1] 3: max neighbor output change magnitude tanh(max_{j!=i} |g_j(t) - g_j(t-1)| / 50) in [0,
+    * 1] 4: fraction of 1-hop neighbors whose output changed in the last step in [0, 1] 5: local Bellman-Ford residual
+    * tanh(|g_i(t) - min_{j!=i}(g_j(t) + d_ij)| / 50) in [0, 1] 6: downstream children ratio in shortest-path tree in
+    * [0, 1] (topological backbone vs leaf role) 7: normalized minimum wake-up period among 1-hop neighbors in [0, 1] 8:
+    * convergence trade-off weight beta in [0, 1]
     */
   object SpatialTemporal {
     val FeatureDim: Int = 9
@@ -64,7 +61,9 @@ object NeuralNetworkRL {
       }
     }
 
-    /** Continuous instability intensity I(s) in [0, 1] combining self history, 1-hop neighborhood, and topological role. */
+    /** Continuous instability intensity I(s) in [0, 1] combining self history, 1-hop neighborhood, and topological
+      * role.
+      */
     def instabilityIntensity(state: AgentState): Double = {
       val scale = localScale(state)
       val myOutputs = state.neighborhoodOutput.flatMap(_.get(state.me)).takeRight(4).map(_.data)
@@ -190,21 +189,14 @@ object NeuralNetworkRL {
       val betaFeature = (2.0 * (energyW / (energyW + 0.06 * weight)) - 1.0).toFloat
 
       Array(
-        deltaLatest,
-        deltaPrev,
-        selfDeltaMag,
-        maxNeighDeltaMag,
-        neighChangedRatio,
-        bfRes,
-        childrenRatio,
-        minNeighAction,
+        deltaLatest, deltaPrev, selfDeltaMag, maxNeighDeltaMag, neighChangedRatio, bfRes, childrenRatio, minNeighAction,
         betaFeature
       )
     }
   }
 
-  /** Star-Graph encoder for EdgeGAT (Graph Attention + Relational Max-Pooling GNN):
-    * Encodes the ego node (5 features) + up to MaxNeighbors = 8 1-hop neighbors (6 node/edge features each).
+  /** Star-Graph encoder for EdgeGAT (Graph Attention + Relational Max-Pooling GNN): Encodes the ego node (5 features) +
+    * up to MaxNeighbors = 8 1-hop neighbors (6 node/edge features each).
     */
   object StarGraph {
     val SelfDim: Int = 5

@@ -19,10 +19,12 @@ final class SpatialSnapshotRecorder(directory: File, weight: Double) {
     rows ++= nodes.map(node => (Csv.number(timeInEpisode, TimeDecimals) +: node.columns) :+ node.ticks.toString)
   }
 
-  def flush(): Unit = {
-    Csv.write(directory, s"spatial_snapshots_weight-$weight.csv", SnapshotHeader, rows)
-    Csv.write(directory, s"spatial_edges_weight-$weight.csv", LinkHeader, links)
-  }
+  /** Writes the files, if something has been recorded. */
+  def flush(): Unit =
+    if (rows.nonEmpty) {
+      Csv.write(directory, s"spatial_snapshots_weight-$weight.csv", SnapshotHeader, rows)
+      Csv.write(directory, s"spatial_edges_weight-$weight.csv", LinkHeader, links)
+    }
 }
 
 object SpatialSnapshotRecorder {

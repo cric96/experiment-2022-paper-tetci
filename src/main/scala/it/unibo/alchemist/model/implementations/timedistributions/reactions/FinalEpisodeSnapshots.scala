@@ -1,0 +1,134 @@
+package it.unibo.alchemist.model.implementations.timedistributions.reactions
+
+import it.unibo.alchemist.Molecules._
+import it.unibo.alchemist.model.implementations.timedistributions.reactions.FinalEpisodeSnapshots._
+import it.unibo.alchemist.model.interfaces.{Environment, Node, Position}
+import it.unibo.inspection._
+import it.unibo.learning.LearningInfo
+import it.unibo.learning.abstractions.AgentState
+import it.unibo.learning.abstractions.AgentState.Snapshot
+import it.unibo.learning.agents.{Learner, OfflineLearnerContinuous, OfflineLearnerGNN}
+import it.unibo.scafi.Sensors
+
+import java.io.File
+import scala.collection.immutable.Queue
+import scala.jdk.CollectionConverters._
+
+/** Records the last episode of the inspected run for the spatial figures: the state of every node (continuous learner)
+  * or where the graph-attention policy looks (GNN learner).
+  */
+final class FinalEpisodeSnapshots[T, P <: Position[P]](
+    environment: Environment[T, P],
+    learner: Learner,
+    learningInfo: LearningInfo,
+    groundTruth: Int => Double,
+    directory: File = DefaultDirectory
+) {
+  private val episodeStart: Double = (RecordedEpisode * learningInfo.episodeSize).toDouble
+  private lazy val spatialRecorder = new SpatialSnapshotRecorder(directory, weightOr(NoWeight))
+  private lazy val attentionRecorder = new AttentionSnapshotRecorder(directory)
+
+  /** Called by the central agent at every step. */
+  def observe(time: Double): Unit =
+    if (learningInfo.randomSeed == InspectedRun) {
+      learner match {
+        case _: OfflineLearnerContinuous => observeNodes(time - episodeStart)
+        case graphLearner: OfflineLearnerGNN => observeAttention(graphLearner, time - episodeStart)
+        case _ => ()
+      }
+    }
+
+  private def observeNodes(timeInEpisode: Double): Unit =
+    if (SpatialWindow.contains(timeInEpisode) && SpatialWeights.exists(isWeight(weightOr(NoWeight), _))) {
+      spatialRecorder.record(timeInEpisode, nodes.map(viewOf), links)
+      if (timeInEpisode >= SpatialWindow.flushFrom) spatialRecorder.flush()
+    }
+
+  private def observeAttention(graphLearner: OfflineLearnerGNN, timeInEpisode: Double): Unit = {
+    val weight = weightOr(AttentionWeight)
+    if (isWeight(weight, AttentionWeight) && AttentionWindow.contains(timeInEpisode)) {
+      val positions = nodes.map(node => node.getId -> coordinatesOf(node)).toMap
+      nodes.foreach { node =>
+        stateOf(node).foreach { state =>
+          val inspection = graphLearner.inspectEmbeddingAndAttention(state, weight)
+          val neighbourPositions = inspection.neighbours.map(positions.get)
+          val summary = AttentionSummary.of(positions(node.getId), inspection.attention.toSeq, neighbourPositions)
+          attentionRecorder.record(timeInEpisode, viewOf(node), summary, inspection.embedding)
+        }
+      }
+      if (timeInEpisode >= AttentionWindow.flushFrom) attentionRecorder.flush()
+    }
+  }
+
+  private def nodes: List[Node[T]] = environment.getNodes.iterator().asScala.toList
+
+  /** The trade-off weight of the run, read from the nodes. */
+  private def weightOr(default: Double): Double =
+    nodes.headOption.flatMap(_.valueOf[Double](Sensors.weight)).getOrElse(default)
+
+  private def coordinatesOf(node: Node[T]): (Double, Double) = {
+    val position = environment.getPosition(node)
+    (position.getCoordinate(0), position.getCoordinate(1))
+  }
+
+  private def viewOf(node: Node[T]): NodeView = {
+    val (x, y) = coordinatesOf(node)
+    NodeView(
+      node.getId,
+      x,
+      y,
+      isSource = node.valueOf[Boolean](Sensors.source).getOrElse(false),
+      output = node.valueOf[Double](Sensors.localComputation).getOrElse(Double.PositiveInfinity),
+      groundTruth = groundTruth(node.getId),
+      period = node.valueOf[Double](Sensors.nextWakeUp).getOrElse(UnknownPeriod),
+      ticks = node.valueOf[Number](Sensors.ticks).fold(0)(_.intValue())
+    )
+  }
+
+  private def links: Seq[Link] = nodes.flatMap { node =>
+    environment.getNeighborhood(node).getNeighbors.iterator().asScala.map { neighbour =>
+      Link(node.getId, neighbour.getId, coordinatesOf(node), coordinatesOf(neighbour))
+    }
+  }
+
+  /** The state the node's policy observed in its last round, if it has run at least once. */
+  private def stateOf(node: Node[T]): Option[AgentState] = {
+    val outputs = node.valueOf[Queue[Snapshot]](Sensors.localComputationWindow).getOrElse(Queue.empty)
+    val sensing = node.valueOf[Queue[Snapshot]](Sensors.windowSensing).getOrElse(Queue.empty)
+    Option.when(outputs.nonEmpty)(AgentState(node.getId, outputs, sensing))
+  }
+}
+
+object FinalEpisodeSnapshots {
+
+  /** Where the snapshots of the experiments are exported. */
+  val DefaultDirectory: File = new File("build/exports/spatial")
+
+  /** Seed of the run whose last episode is recorded. */
+  val InspectedRun: Int = 2
+
+  /** Index of the recorded episode: the last of the 20 episodes of the experiments. */
+  val RecordedEpisode: Int = 19
+
+  /** A time window within the recorded episode; the files are (re)written from `flushFrom` on. */
+  final case class Window(from: Double, to: Double, flushFrom: Double) {
+    def contains(timeInEpisode: Double): Boolean = timeInEpisode >= from && timeInEpisode <= to
+  }
+
+  /** Node snapshots: the whole episode, after the time the re-deployed nodes need to restart. */
+  val SpatialWindow: Window = Window(from = 2.0, to = 200.5, flushFrom = 199.0)
+  val SpatialWeights: Seq[Double] = Seq(0.8, 0.95)
+
+  /** Attention snapshots: around the move of the source, in the middle of the episode. */
+  val AttentionWindow: Window = Window(from = 85.0, to = 160.5, flushFrom = 159.5)
+  val AttentionWeight: Double = 0.95
+
+  /** Weight read when the nodes have none, matching none of the recorded weights. */
+  val NoWeight: Double = 0.0
+  val WeightTolerance: Double = 1e-6
+
+  /** Period exported for the nodes that have not chosen one yet: the longest one. */
+  val UnknownPeriod: Double = 5.0
+
+  private def isWeight(weight: Double, expected: Double): Boolean = math.abs(weight - expected) < WeightTolerance
+}

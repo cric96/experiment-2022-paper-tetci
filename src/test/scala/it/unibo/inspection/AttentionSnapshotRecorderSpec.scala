@@ -9,7 +9,13 @@ import java.nio.file.Files
 import scala.jdk.CollectionConverters._
 
 class AttentionSnapshotRecorderSpec extends AnyFlatSpec with Matchers {
-  "The attention snapshots" should "contain the node, its attention summary and the first embedding units" in {
+  "The attention snapshots" should "not be written before something is recorded" in {
+    val directory = Files.createTempDirectory("attention").toFile
+    new AttentionSnapshotRecorder(directory).flush()
+    directory.list() shouldBe empty
+  }
+
+  they should "contain the node, its attention summary and the first embedding units" in {
     val directory = Files.createTempDirectory("attention").toFile
     val recorder = new AttentionSnapshotRecorder(directory)
     val node = NodeView(3, 1.25, -5.5, isSource = false, 12.25, 12.5, period = 1.5, ticks = 7)

@@ -11,7 +11,13 @@ class SpatialSnapshotRecorderSpec extends AnyFlatSpec with Matchers {
   private def linesOf(directory: File, name: String): Seq[String] =
     Files.readAllLines(new File(directory, name).toPath).asScala.toSeq
 
-  "The spatial snapshots" should "contain one row per node and time, and the links of the network once" in {
+  "The spatial snapshots" should "not be written before something is recorded" in {
+    val directory = Files.createTempDirectory("spatial").toFile
+    new SpatialSnapshotRecorder(directory, weight = 0.8).flush()
+    directory.list() shouldBe empty
+  }
+
+  they should "contain one row per node and time, and the links of the network once" in {
     val directory = Files.createTempDirectory("spatial").toFile
     val recorder = new SpatialSnapshotRecorder(directory, weight = 0.8)
     val node = NodeView(3, 1.25, -5.5, isSource = true, 12.25, Double.PositiveInfinity, period = 1.5, ticks = 7)

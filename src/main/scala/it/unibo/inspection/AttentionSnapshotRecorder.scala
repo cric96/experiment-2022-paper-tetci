@@ -14,7 +14,8 @@ final class AttentionSnapshotRecorder(directory: File) {
     rows += Seq(Csv.number(timeInEpisode, TimeDecimals)) ++ node.columns ++ summaryColumns(summary) ++
       embedding.take(EmbeddingUnits).map(Csv.number(_, EmbeddingDecimals))
 
-  def flush(): Unit = Csv.write(directory, FileName, Header, rows)
+  /** Writes the file, if something has been recorded. */
+  def flush(): Unit = if (rows.nonEmpty) Csv.write(directory, FileName, Header, rows)
 
   private def summaryColumns(summary: AttentionSummary): Seq[String] =
     Seq(

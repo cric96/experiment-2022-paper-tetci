@@ -1,13 +1,14 @@
 plugins {
-    id("com.gradle.enterprise") version "3.16"
+    id("com.gradle.develocity") version "4.6.1"
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
-gradleEnterprise {
+develocity {
     buildScan {
-        termsOfServiceUrl = "https://gradle.com/terms-of-service"
-        termsOfServiceAgree = "yes"
-        publishOnFailure()
+        termsOfUseUrl = "https://gradle.com/help/legal-terms-of-use"
+        termsOfUseAgree = "yes"
+        publishing.onlyIf { it.buildResult.failures.isNotEmpty() }
     }
 }
 
-rootProject.name = "experiement-2023-paper-tetci"
+rootProject.name = "experiment-2023-paper-tetci"

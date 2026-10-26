@@ -20,3 +20,9 @@ target
 
 .sims
 venv
+
+# Python analysis
+.venv/
+__pycache__/
+.pytest_cache/
+charts/

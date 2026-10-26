@@ -1,24 +1,20 @@
 package it.unibo.scafi
 
-object Sensors {
+/** Names of the molecules the aggregate program reads (configuration) and writes (state, exports). */
+object Sensors:
   val nextWakeUp = "nextWakeUp"
-  val groundTruthWindow = "groundTruthWindow"
   val groundTruth = "groundTruth"
-  val fieldComputation = "fieldComputation"
   val localComputation = "localComputation"
   val localComputationWindow = "localComputationWindow"
-  val fieldSensing = "fieldSensing"
-  val windowComputation = "windowComputation"
-  val windowSensing = "window-sensing"
   val ticks = "ticks"
   val reward = "reward"
   val accumulatedReward = "accumulatedReward"
   val accumulatedError = "accumulatedError"
-  val fullSpeed = "full"
   val window = "window"
   val actions = "actions"
   val weight = "weight"
-  val history = "history"
   val error = "error"
   val source = "source"
-}
+  val program = "program"
+  val experiences = "experiences"
+  val accumulatedUnstableTime = "accumulatedUnstableTime"

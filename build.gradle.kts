@@ -1,13 +1,11 @@
-import org.apache.tools.ant.taskdefs.condition.Os
-
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 
 plugins {
     application
     alias(libs.plugins.multiJvmTesting) // Pre-configures the Java toolchains
     alias(libs.plugins.taskTree) // Helps debugging dependencies among gradle tasks
-    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.spotless)
     scala
-
 }
 
 repositories {
@@ -15,17 +13,49 @@ repositories {
 }
 
 dependencies {
-    // Check the catalog at gradle/libs.versions.gradle
+    // Check the catalog at gradle/libs.versions.toml
     implementation(libs.bundles.alchemist)
-    implementation(libs.scalapy)// https://mvnrepository.com/artifact/org.scala-lang/scala-library
-    implementation(libs.scalacompiler)
-    implementation("org.graalvm.polyglot:polyglot:23.1.2")
-    implementation("org.graalvm.polyglot:python:23.1.2")
+    implementation(libs.bundles.djl)
+    implementation(libs.scala3.library)
+    testImplementation(libs.scalatest)
+    testRuntimeOnly(libs.scalatest.junit.runner)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
+tasks.test {
+    useJUnitPlatform {
+        includeEngines("scalatest")
+        if (System.getenv("CI") == "true") {
+            // Exact values of the PyTorch CPU kernels are pinned on the development machine only.
+            excludeTags("it.unibo.testing.PyTorchNumerics")
+        }
+    }
+    // Multi-threaded (and dynamically-threaded) BLAS kernels change the order of floating-point reductions,
+    // which makes training, and hence the golden masters, non-reproducible: pin PyTorch to a single thread.
+    systemProperty("ai.djl.pytorch.num_threads", "1")
+    systemProperty("ai.djl.pytorch.num_interop_threads", "1")
+    environment("OMP_NUM_THREADS", "1")
+    environment("MKL_NUM_THREADS", "1")
+    // A transitive dependency registers an obsolete SAX parser that cannot read logback-test.xml: use the JDK one.
+    systemProperty(
+        "javax.xml.parsers.SAXParserFactory",
+        "com.sun.org.apache.xerces.internal.jaxp.SAXParserFactoryImpl",
+    )
+    testLogging {
+        events("failed")
+        exceptionFormat = TestExceptionFormat.FULL
+    }
+}
+
+spotless {
+    scala {
+        scalafmt(libs.versions.scalafmt.get()).configFile(".scalafmt.conf")
+    }
+}
 
 multiJvm {
     jvmVersionForCompilation.set(17)
+    testByDefaultWith(17)
 }
 
 val batch: String by project
@@ -39,60 +69,50 @@ val runAll by tasks.register<DefaultTask>("runAll") {
     group = alchemistGroup
     description = "Launches all simulations"
 }
-val pythonVirtualEnvName = "env"
+/*
+ * Scan the folder with the simulation files, and create a task for each one of them.
+ */
+/*
+ * The variables of `variables` (gradle.properties) that a simulation file declares, i.e. those it can sweep.
+ */
+fun sweptVariablesOf(simulationFile: File): List<String> {
+    val yaml = simulationFile.readText()
+    return variables.split(",")
+        .map(String::trim)
+        .filter { it.isNotEmpty() && Regex("""(?m)^  ${Regex.escape(it)}\s*:""").containsMatchIn(yaml) }
+}
+
 /*
  * Scan the folder with the simulation files, and create a task for each one of them.
  */
 File(rootProject.rootDir.path + "/src/main/yaml").listFiles()
-    .filter { it.extension == "yml" } // pick all yml files in src/main/yaml
-    .sortedBy { it.nameWithoutExtension } // sort them, we like reproducibility
-    .forEach { it ->
+    ?.filter { it.extension == "yml" } // pick all yml files in src/main/yaml
+    ?.sortedBy { it.nameWithoutExtension } // sort them, we like reproducibility
+    ?.forEach { simulationFile ->
         // one simulation file -> one gradle task
-        val task by tasks.register<JavaExec>("run${it.nameWithoutExtension.capitalize()}") {
+        val name = simulationFile.nameWithoutExtension
+        val task by tasks.register<JavaExec>("run${name.replaceFirstChar { c -> c.uppercase() }}") {
             group = alchemistGroup // This is for better organization when running ./gradlew tasks
-            description = "Launches simulation ${it.nameWithoutExtension}" // Just documentation
-            mainClass = "it.unibo.alchemist.Alchemist" // The class to launch
+            description = "Launches simulation $name" // Just documentation
+            mainClass.set("it.unibo.alchemist.Alchemist") // The class to launch
             classpath = sourceSets["main"].runtimeClasspath // The classpath to use
-            // In case our simulation produces data, we write it in the following folder:
-            val exportsDir = File("${projectDir.path}/build/exports/${it.nameWithoutExtension}")
-            doFirst {
-                // this is not executed upfront, but only when the task is actually launched
-                // If the export folder doesn not exist, create it and its parents if needed
-                if (!exportsDir.exists()) {
-                    exportsDir.mkdirs()
-                }
-            }
-            // Uses the latest version of java
             javaLauncher.set(
                 javaToolchains.launcherFor {
-                    vendor.set(JvmVendorSpec.GRAAL_VM)
                     languageVersion.set(JavaLanguageVersion.of(17))
-                }
+                },
             )
-            jvmArgs(when (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                true -> "-Dscalapy.python.programname=$pythonVirtualEnvName\\Scripts\\python"
-                false -> "-Dscalapy.python.programname=$pythonVirtualEnvName/bin/python"
-            },"-Dscalapy.python.library=python3.12")
-            // These are the program arguments
-            args("-y", it.absolutePath, "-e", "$exportsDir/${it.nameWithoutExtension}-${System.currentTimeMillis()}")
+            args("run", simulationFile.absolutePath)
             if (System.getenv("CI") == "true" || batch == "true") {
-                // If it is running in a Continuous Integration environment, use the "headless" mode of the simulator
-                // Namely, force the simulator not to use graphical output.
-                args("-hl")
-                //args("-p", "1")
-                if(variables.isNotEmpty()) {
-                    args("-var")
-                    variables.split(",").forEach { args(it) }
-                }
+                // Headless: run the cartesian product of the swept variables (the default values of the others).
+                val swept = sweptVariablesOf(simulationFile).joinToString(", ")
+                args("--override", "launcher: {type: DefaultLauncher, parameters: {batch: [$swept]}}")
             } else {
-                // A graphics environment should be available, so load the effects for the UI from the "effects" folder
-                // Effects are expected to be named after the simulation file
-                args("-g", "effects/${it.nameWithoutExtension}.json")
+                // A graphics environment should be available: open the GUI with the effects named after the file.
+                val effects = File(rootProject.rootDir, "effects/$name.json")
+                val graphics = if (effects.exists()) ", parameters: {graphics: ${effects.absolutePath}}" else ""
+                args("--override", "monitors: [{type: SwingGUI$graphics}]")
             }
-            // This tells gradle that this task may modify the content of the export directory
-            outputs.dir(exportsDir)
         }
-        // task.dependsOn(classpathJar) // Uncomment to switch to jar-based classpath resolution
         runAll.dependsOn(task)
     }
 

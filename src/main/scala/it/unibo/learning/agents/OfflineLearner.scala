@@ -70,7 +70,7 @@ final class OfflineLearner(
     val probabilities = FastInference.softmax(fastImitationLogits(features))
     val threshold = bcqThreshold * probabilities.foldLeft(0.0f)(math.max)
     val qValues = fastQValues(features)
-    qValues.indices.filter(action => probabilities(action) >= threshold).maxBy(qValues)(Ordering.Float.IeeeOrdering)
+    qValues.indices.filter(action => probabilities(action) >= threshold).maxBy(qValues)(using Ordering.Float.IeeeOrdering)
 
   override protected def record(trajectory: Trajectory): Unit =
     Relabelling

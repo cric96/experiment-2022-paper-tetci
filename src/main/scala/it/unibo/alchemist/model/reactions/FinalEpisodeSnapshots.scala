@@ -8,7 +8,7 @@ import it.unibo.learning.LearningInfo
 import it.unibo.learning.abstractions.AgentState
 import it.unibo.learning.abstractions.AgentState.Snapshot
 import it.unibo.learning.agents.{Learner, OfflineLearnerContinuous, OfflineLearnerGNN}
-import it.unibo.scafi.Sensors
+import it.unibo.scafi.{BuildingBlock, EvaluationProtocol, Sensors}
 
 import java.io.File
 import scala.collection.immutable.Queue
@@ -24,9 +24,19 @@ final class FinalEpisodeSnapshots[T, P <: Position[P]](
     groundTruth: Int => Double,
     directory: File = DefaultDirectory
 ):
-  private val episodeStart: Double = (RecordedEpisode * learningInfo.episodeSize).toDouble
-  private lazy val spatialRecorder = SpatialSnapshotRecorder(directory, weightOr(NoWeight))
-  private lazy val attentionRecorder = AttentionSnapshotRecorder(directory)
+  private def targetBlock: Option[BuildingBlock] =
+    nodes.headOption.flatMap(_.valueOf[Any](Sensors.program)).map(BuildingBlock.fromMolecule)
+
+  private def recordedEpisode: Int =
+    if targetBlock.nonEmpty then GeneralizationEpisode else RecordedEpisode
+
+  private def episodeStart: Double = (recordedEpisode * learningInfo.episodeSize).toDouble
+
+  private def recordingDirectory: File = targetBlock.fold(directory) { block =>
+    new File(directory, s"generalization/${block.name}")
+  }
+  private lazy val spatialRecorder = SpatialSnapshotRecorder(recordingDirectory, weightOr(NoWeight))
+  private lazy val attentionRecorder = AttentionSnapshotRecorder(recordingDirectory)
 
   /** Called by the central agent at every step. */
   def observe(time: Double): Unit =
@@ -43,7 +53,8 @@ final class FinalEpisodeSnapshots[T, P <: Position[P]](
 
   private def observeAttention(graphLearner: OfflineLearnerGNN, timeInEpisode: Double): Unit =
     val weight = weightOr(AttentionWeight)
-    if isWeight(weight, AttentionWeight) && AttentionWindow.contains(timeInEpisode) then
+    val window = if targetBlock.contains(BuildingBlock.LeaderElection) then ElectionAttentionWindow else AttentionWindow
+    if isWeight(weight, AttentionWeight) && window.contains(timeInEpisode) then
       val positions = nodes.map(node => node.getId -> coordinatesOf(node)).toMap
       nodes.foreach { node =>
         stateOf(node).foreach { state =>
@@ -53,7 +64,7 @@ final class FinalEpisodeSnapshots[T, P <: Position[P]](
           attentionRecorder.record(timeInEpisode, viewOf(node), summary, inspection.embedding)
         }
       }
-      if timeInEpisode >= AttentionWindow.flushFrom then attentionRecorder.flush()
+      if timeInEpisode >= window.flushFrom then attentionRecorder.flush()
 
   private def nodes: List[Node[T]] = environment.getNodes.getCurrent.asScala.toList
 
@@ -75,7 +86,9 @@ final class FinalEpisodeSnapshots[T, P <: Position[P]](
       output = node.valueOf[Double](Sensors.localComputation).getOrElse(Double.PositiveInfinity),
       groundTruth = groundTruth(node.getId),
       period = node.valueOf[Double](Sensors.nextWakeUp).getOrElse(UnknownPeriod),
-      ticks = node.valueOf[Number](Sensors.ticks).fold(0)(_.intValue())
+      ticks = node.valueOf[Number](Sensors.ticks).fold(0)(_.intValue()),
+      isLeader = node.valueOf[Boolean](Sensors.electedLeader).getOrElse(false),
+      categoricalOutput = targetBlock.contains(BuildingBlock.LeaderElection)
     )
 
   private def links: Seq[Link] = nodes.flatMap { node =>
@@ -112,6 +125,14 @@ object FinalEpisodeSnapshots:
   /** Attention snapshots: around the move of the source, in the middle of the episode. */
   val AttentionWindow: Window = Window(from = 85.0, to = 160.5, flushFrom = 159.5)
   val AttentionWeight: Double = 0.95
+
+  /** Election recovery can outlast a source-change wave; retain attention until the episode ends. */
+  val ElectionAttentionWindow: Window = Window(from = 85.0, to = 199.5, flushFrom = 198.5)
+
+  /** Last evaluation episode at beta = 0.95 (zero-based), shared by all target programs. */
+  val GeneralizationEpisode: Int = EvaluationProtocol.TrainingEpisodes +
+    EvaluationProtocol.EvaluationWeights.indexOf(AttentionWeight) * EvaluationProtocol.EpisodesPerWeight +
+    EvaluationProtocol.EpisodesPerWeight - 1
 
   /** Weight read when the nodes have none, matching none of the recorded weights. */
   val NoWeight: Double = 0.0

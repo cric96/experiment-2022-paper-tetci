@@ -12,7 +12,7 @@ learning, and compared with fixed periods and a hand-crafted heuristic.
 - **Network.** 100 nodes on a randomly perturbed 10 × 10 grid of 500 m × 500 m, communicating within 75 m.
 - **Programs.** The nodes compute a *gradient* (distance from a source). The source moves to a far node every 100 s,
   so the network periodically has to re-converge. The generalization experiment also uses the *hop-count gradient*,
-  *broadcast* and *collect* building blocks.
+  *broadcast*, *collect* and sparse *leader election* (S) building blocks.
 - **Episodes.** A run lasts 20 episodes of 200 s; every episode starts on a new deployment. Policies learn during the
   first 10 episodes (with decaying exploration) and are only exploited afterwards.
 - **Actions.** The next wake-up period: one of 1–5 s (discrete learners) or any value in [0.5, 5] s (continuous ones).
@@ -76,3 +76,68 @@ The Scala tests include golden masters that run every simulation for a few episo
 nodes with pinned values, so refactorings can be proven not to change the experiments. `CLAUDE.md` describes the
 architecture, the style and the workflow of the code base. The CI runs the formatting check, the Scala tests and the
 analysis tests on every push.
+
+### Attention on other programs
+
+`gnn_program_attention_filmstrip` compares hop-count, broadcast, collect and leader election with the gradient:
+node colours show embedding PC1 and arrows point to the most-attended neighbour.
+A single PCA basis and colour scale are fitted over all five programs, so the colours are comparable.
+`gnn_program_response_filmstrips` also saves one figure per program with output, round rate,
+absolute error, and embedding/attention. Output and error scales are specific to each program.
+These are descriptions of the policy's internal state, not causal attributions.
+
+Snapshots come from seed 2, episode 16 (the last evaluation episode at beta = 0.95),
+with the same trained-on-gradient policy and deployment protocol for every program.
+They are stored separately in `build/exports/spatial/generalization/<program>/`.
+To collect them and generate the figures:
+
+```bash
+./gradlew runSimulationGeneralization -Pvariables=progId -Pbatch=true
+.venv/bin/python plotter.py --only gnn_program_attention_filmstrip gnn_program_response_filmstrips
+```
+
+The simulation command uses the default `algoId=9` (GNN) and `random=2`.
+The snapshots' legacy `gradient` column contains the active program's output; its ground truth
+and error are evaluated for that program.
+
+### Leader election and transfer
+
+Program `progId=4` / `leaderElection` implements bounded priority claims with grain **400 m**.
+Every device is eligible: a candidate with the `source` flag has higher priority, then lower ids win;
+equal candidate priorities prefer the shorter path. At 100 s of each evaluation episode, an actually elected
+leader is physically removed (boosted candidate first, then lowest id), rather than moving the source flag.
+The node stays absent until the next episode's fresh deployment. Training still uses source moves on the gradient.
+Each round relays the strongest claim that remains within the grain.
+On the inspected deployment, the reference has two leaders before failure and three afterwards.
+The program composes **S followed by G**: a gradient from the elected leaders broadcasts their ids,
+so every node outputs the id of its nearest elected leader (lower id breaks equal-distance ties).
+The actual elected-leader flag is stored separately as `electedLeader` and exported as `isLeader`;
+leader removal and plot markers use that flag, independently of the broadcast output.
+Ids are categorical: error is 0 for the correct leader id and 1 otherwise, regardless of numeric separation.
+The central reference first resolves the S candidates in priority order on the unclaimed graph,
+then computes nearest-leader ids on the full surviving topology. It is recomputed after node removal.
+The removed node's completed rounds, reward, error and unstable time are retained in the episode metrics;
+mean cumulative metrics keep the initial population denominator (100), with no further contribution after failure.
+
+All learned methods still train on the Euclidean gradient for ten episodes, then transfer to the
+five target programs for ten episodes, with the same beta sweep and fixed-period baselines.
+As for the other transfer results, the reported runs use seed 2; episode ranges are not across-seed
+confidence intervals. The scheduling policy observes the broadcast ids, making changes of leader affiliation
+visible to followers. Internal claim and gradient changes can still precede observable output changes.
+
+Run only the new program for all ten algorithm configurations, then regenerate every output:
+
+```bash
+./gradlew runSimulationGeneralization -PtargetProgram=4 -Pvariables=algoId -Pbatch=true
+.venv/bin/python plotter.py --strict
+```
+
+The attention filmstrip includes S using the same PCA basis as the other programs.
+Stars mark the source (the boosted candidate for S); orange outlined squares mark currently elected
+leaders in S's attention panels. Crosses mark the removed node at its original position.
+Arrows retain their original meaning: the most-attended neighbour.
+S's response filmstrip extends to 198 s (the attention recording ends at 199 s) to show the slower
+re-election; the comparison filmstrip keeps the common instants of the other programs.
+In the recorded GNN run (seed 2, beta 0.95, episode 16), every surviving node has the correct leader id
+from 185 s through the final 199 s snapshot. Output colours identify nominal leader ids; the error row shows
+wrong-id indicators, rather than distances between ids.

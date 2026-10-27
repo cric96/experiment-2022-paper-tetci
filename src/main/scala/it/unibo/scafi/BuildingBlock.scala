@@ -21,15 +21,21 @@ enum BuildingBlock(val name: String, val code: Int, val errorScale: Double):
   /** Number of nodes in the subtree of the gradient's spanning tree rooted in each node. */
   case Collect extends BuildingBlock("collect", code = 3, errorScale = 40.0)
 
+  /** Sparse election followed by G: the id broadcast by the nearest elected leader. */
+  case LeaderElection extends BuildingBlock("leaderElection", code = 4, errorScale = 1.0)
+
   /** How far `output` is from `groundTruth`: zero if both are unbounded, the whole `errorScale` if only one is. */
   def absoluteError(output: Double, groundTruth: Double): Double =
-    if output.isFinite && groundTruth.isFinite then math.abs(output - groundTruth)
+    if output.isFinite && groundTruth.isFinite then
+      if this == LeaderElection then if output == groundTruth then 0.0 else 1.0
+      else math.abs(output - groundTruth)
     else if !output.isFinite && !groundTruth.isFinite then 0.0
     else errorScale
 
   /** The absolute error relative to the scale of the block's outputs, saturated at one. */
   def normalizedError(output: Double, groundTruth: Double): Double =
     math.min(1.0, absoluteError(output, groundTruth) / errorScale)
+end BuildingBlock
 
 object BuildingBlock:
 

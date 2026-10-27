@@ -20,17 +20,17 @@ class EpisodicOfflineLearnerSpec extends AnyFlatSpec with Matchers:
     override protected def trainOn(batch: Vector[Int], manager: NDManager): Unit = gradientSteps += 1
     override protected def onTrained(): Unit = sessions += 1
 
-  "An episodic offline learner" should "train after each exploration episode and once more, longer, at the end" in {
+  "An episodic offline learner" should "train after each exploration episode, longer after the last one" in {
     val learner = CountingLearner()
     (1 to 5).foreach(_ => learner.endEpisode(Seq(trajectory)))
-    learner.sessions shouldBe 3
-    learner.gradientSteps shouldBe 3 + 3 + 3 * 2
+    learner.sessions shouldBe 2
+    learner.gradientSteps shouldBe 3 + 3 * 2
   }
 
   it should "stop storing transitions once it no longer trains" in {
     val learner = CountingLearner()
     (1 to 5).foreach(_ => learner.endEpisode(Seq(trajectory, trajectory)))
-    learner.recorded shouldBe 3 * 2
+    learner.recorded shouldBe 2 * 2
   }
 
   it should "not train without transitions" in {

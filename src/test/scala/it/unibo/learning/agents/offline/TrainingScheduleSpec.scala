@@ -19,7 +19,11 @@ class TrainingScheduleSpec extends AnyFlatSpec with Matchers:
 
   it should "train after each exploration episode, longer after the last one, then never again" in {
     schedule.trainingStepsAfter(0) shouldBe Some(100)
-    schedule.trainingStepsAfter(9) shouldBe Some(100)
-    schedule.trainingStepsAfter(10) shouldBe Some(300)
-    schedule.trainingStepsAfter(11) shouldBe None
+    schedule.trainingStepsAfter(8) shouldBe Some(100)
+    schedule.trainingStepsAfter(9) shouldBe Some(300)
+    schedule.trainingStepsAfter(10) shouldBe None
+  }
+
+  it should "end its last training session with the last exploration episode" in {
+    (0 to 10).filter(schedule.isLastTraining) shouldBe Seq(9)
   }

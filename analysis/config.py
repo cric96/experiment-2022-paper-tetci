@@ -30,14 +30,18 @@ SPATIAL_SEED = 2  # seed of the spatial / embedding exports
 EPISODES_PER_GENERALIZATION_BETA = 2
 
 # Self-stabilising building blocks of the generalization experiment (progId).
-PROGRAMS = {0: "gradient", 1: "hop", 2: "broadcast", 3: "collect"}
+PROGRAMS = {0: "gradient", 1: "hop", 2: "broadcast", 3: "collect", 4: "leaderElection"}
 PROGRAM_LABELS = {
     "gradient": "Gradient (G, trained)",
     "hop": "Hop-count gradient (G)",
     "broadcast": "Broadcast (G-cast)",
     "collect": "Collect (C)",
+    "leaderElection": r"Election + broadcast ($S\to G$)",
 }
-PROGRAM_SHORT_LABELS = {"gradient": "Gradient", "hop": "Hop count", "broadcast": "Broadcast", "collect": "Collect"}
+PROGRAM_SHORT_LABELS = {"gradient": "Gradient", "hop": "Hop count", "broadcast": "Broadcast", "collect": "Collect", "leaderElection": "Election + G"}
+
+# Grain of sparse leader election, matching LeaderElection.Grain in the simulator.
+LEADER_ELECTION_GRAIN_M = 400.0
 
 # --- statistics -------------------------------------------------------------
 CONFIDENCE = 0.95

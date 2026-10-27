@@ -21,7 +21,7 @@ variables:
 
   progId: &progId
     type: ArbitraryVariable
-    parameters: [0, [0, 1, 2, 3]]
+    parameters: [0, [0, 1, 2, 3, 4]]
 
   algoId: &algoId
     type: ArbitraryVariable
@@ -147,18 +147,16 @@ export:
       interval: *exportInterval
     data:
       - time
-      - molecule: ticks
-        aggregators: [ sum ]
-        value-filter: onlyfinite
+      - type: FailureAwareMetric
+        parameters: ["ticks", false]
       - molecule: nextWakeUp
         aggregators: [ mean ]
         value-filter: onlyfinite
       - molecule: reward
         aggregators: [ mean ]
         value-filter: onlyfinite
-      - molecule: accumulatedReward
-        aggregators: [ mean ]
-        value-filter: onlyfinite
+      - type: FailureAwareMetric
+        parameters: ["accumulatedReward", true]
       - molecule: localComputation
         aggregators: [ sum ]
         value-filter: onlyfinite
@@ -173,18 +171,14 @@ export:
       interval: *episodeExportInterval
     data:
       - time
-      - molecule: ticks
-        aggregators: [ sum ]
-        value-filter: onlyfinite
-      - molecule: accumulatedReward
-        aggregators: [ mean ]
-        value-filter: onlyfinite
-      - molecule: accumulatedUnstableTime
-        aggregators: [ mean ]
-        value-filter: onlyfinite
-      - molecule: accumulatedError
-        aggregators: [ mean ]
-        value-filter: onlyfinite
+      - type: FailureAwareMetric
+        parameters: ["ticks", false]
+      - type: FailureAwareMetric
+        parameters: ["accumulatedReward", true]
+      - type: FailureAwareMetric
+        parameters: ["accumulatedUnstableTime", true]
+      - type: FailureAwareMetric
+        parameters: ["accumulatedError", true]
 
 terminate:
   type: AfterTime

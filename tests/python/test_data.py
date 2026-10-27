@@ -126,3 +126,10 @@ def test_resample_interpolates_each_trace_on_a_common_grid() -> None:
     assert matrix.shape == (2, 3)
     assert matrix[0].tolist() == [0.0, 5.0, 10.0]
     assert matrix[1].tolist() == [10.0, 20.0, 30.0]
+
+
+def test_generalization_decodes_leader_election_transfer():
+    run = _episode_run("experimentGeneralization", {"random": 2.0, "progId": 4.0, "algoId": 9.0}, [1.0] * 20)
+    table = generalization_table([run])
+    assert table.program.unique().tolist() == ["leaderElection"]
+    assert table[table.episode == 16].beta_in.tolist() == [0.95]

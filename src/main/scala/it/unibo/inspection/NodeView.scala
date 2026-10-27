@@ -12,13 +12,17 @@ final case class NodeView(
     output: Double,
     groundTruth: Double,
     period: Double,
-    ticks: Int
+    ticks: Int,
+    isLeader: Boolean = false,
+    categoricalOutput: Boolean = false
 ):
   def boundedOutput: Double = bounded(output)
 
   def boundedGroundTruth: Double = bounded(groundTruth)
 
-  def error: Double = math.abs(boundedOutput - boundedGroundTruth)
+  def error: Double =
+    if categoricalOutput then if boundedOutput == boundedGroundTruth then 0.0 else 1.0
+    else math.abs(boundedOutput - boundedGroundTruth)
 
   /** Id, position, source flag, output, ground truth, wake-up period and error, as exported. */
   def columns: Seq[String] = Seq(
@@ -29,7 +33,8 @@ final case class NodeView(
     Csv.number(boundedOutput, ValueDecimals),
     Csv.number(boundedGroundTruth, ValueDecimals),
     Csv.number(period, PeriodDecimals),
-    Csv.number(error, ValueDecimals)
+    Csv.number(error, ValueDecimals),
+    if isLeader then "1" else "0"
   )
 end NodeView
 
@@ -43,7 +48,8 @@ object NodeView:
   val PeriodDecimals: Int = 4
 
   /** Header of [[NodeView.columns]]. */
-  val Header: Seq[String] = Seq("nodeId", "x", "y", "isSource", "gradient", "groundTruth", "nextWakeUp", "error")
+  val Header: Seq[String] =
+    Seq("nodeId", "x", "y", "isSource", "gradient", "groundTruth", "nextWakeUp", "error", "isLeader")
 
   private def bounded(value: Double): Double = if value.isFinite then value else UnboundedOutput
 

@@ -24,12 +24,12 @@ class Method:
 
 QLEARNING = Method("qlearning", "Tabular Q-learning", "Q-learning", "#0072B2", "o")
 BCQ = Method("bcq", "Discrete BCQ (offline)", "BCQ", "#009E73", "s")
-TD3BC = Method("td3bc", "Continuous TD3+BC (offline)", "TD3+BC", "#D55E00", "^")
+TD3 = Method("td3", "Continuous TD3 (offline)", "TD3", "#D55E00", "^")
 GNN = Method("gnn", "EdgeGAT GNN (offline)", "GNN", "#CC79A7", "D")
 HEURISTIC = Method("heuristic", "AIMD heuristic", "Heuristic", "#E69F00", "*", marker_scale=1.4)
 FIXED = Method("fixed", "Fixed period", "Fixed", "#555555", "X")
 
-LEARNED: tuple[Method, ...] = (QLEARNING, BCQ, TD3BC, GNN)
+LEARNED: tuple[Method, ...] = (QLEARNING, BCQ, TD3, GNN)
 ALL: tuple[Method, ...] = (*LEARNED, HEURISTIC, FIXED)
 BY_KEY: dict[str, Method] = {m.key: m for m in ALL}
 
@@ -40,14 +40,14 @@ FIXED_PERIOD_GREYS = {1.0: "#b0b0b0", 2.0: "#919191", 3.0: "#737373", 4.0: "#555
 EXPERIMENT_TO_METHOD = {
     "experimentTable": QLEARNING.key,
     "experimentDeepOffline": BCQ.key,
-    "experimentDeepOfflineContinuous": TD3BC.key,
+    "experimentDeepOfflineContinuous": TD3.key,
     "experimentDeepOfflineGNN": GNN.key,
     "experimentBaseline": FIXED.key,
 }
 
 # algoId of the generalization experiment -> (method key, fixed period or None).
 GENERALIZATION_ALGORITHMS: dict[int, tuple[str, float | None]] = {
-    0: (TD3BC.key, None),
+    0: (TD3.key, None),
     1: (BCQ.key, None),
     2: (QLEARNING.key, None),
     3: (HEURISTIC.key, None),
@@ -60,7 +60,7 @@ GENERALIZATION_ALGORITHMS: dict[int, tuple[str, float | None]] = {
 }
 
 # Methods whose policy takes beta as an input at inference time.
-BETA_CONDITIONED = {BCQ.key, TD3BC.key, GNN.key, HEURISTIC.key}
+BETA_CONDITIONED = {BCQ.key, TD3.key, GNN.key, HEURISTIC.key}
 
 
 def get(key: str) -> Method:

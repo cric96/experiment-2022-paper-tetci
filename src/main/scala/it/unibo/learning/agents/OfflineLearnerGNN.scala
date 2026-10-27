@@ -12,9 +12,9 @@ import it.unibo.learning.encoding.StarGraph
 import it.unibo.learning.network.{EdgeGATBlock, MinMaxActionScaler, TorchNetwork}
 import it.unibo.learning.network.NDArrayOps.*
 
-/** Offline actor-critic on the node's star graph: an edge-conditioned graph-attention actor (EdgeGAT) and twin
-  * multi-objective critics that predict [Q_convergence, Q_energy], scalarized with the objective weights of each
-  * transition's trade-off β.
+/** Offline TD3 on the node's star graph: an edge-conditioned graph-attention actor (EdgeGAT) and twin multi-objective
+  * critics that predict [Q_convergence, Q_energy], scalarized with the objective weights of each transition's trade-off
+  * β, with delayed policy updates and target policy smoothing ([[TwinDelayed]]).
   */
 final class OfflineLearnerGNN(
     min: Double,
@@ -46,6 +46,7 @@ final class OfflineLearnerGNN(
   private val critic2: TorchNetwork[EdgeGATBlock] = criticNetwork("gat-critic-2", seedOffset = 105)
   private val targetCritic2: TorchNetwork[EdgeGATBlock] = criticNetwork("gat-target-critic-2", seedOffset = 106)
   targetCritic2.softUpdateFrom(critic2, TargetNetworks.HardCopy)
+  private val policyUpdates: TwinDelayed.DelayedPolicyUpdates = TwinDelayed.DelayedPolicyUpdates()
   @volatile private var fastActor: Array[Float] => Float = actor.block.snapshotFastInference()
   @volatile private var fastEmbeddingAndAttention: Array[Float] => (Array[Float], Array[Float]) =
     actor.block.snapshotEmbeddingAndAttention()
@@ -120,14 +121,19 @@ final class OfflineLearnerGNN(
     Seq(critic1, critic2).foreach { critic =>
       critic.trainStep(TorchNetwork.smoothL1Loss(critic.forward(stateActions, training = true), targets))
     }
+    policyUpdates.afterCriticUpdate(updatePolicy(tensors))
+
+  /** Trains the actor against the first critic, then moves every target network towards its online network. */
+  private def updatePolicy(tensors: GraphBatch): Unit =
     critic1.withFrozenParameters(actor.trainStep(actorLoss(tensors)))
     targetCritic1.softUpdateFrom(critic1, TargetNetworks.UpdateRate)
     targetCritic2.softUpdateFrom(critic2, TargetNetworks.UpdateRate)
     targetActor.softUpdateFrom(actor, TargetNetworks.UpdateRate)
 
-  /** r + γ^Δt · min(Q1_target, Q2_target)(s', π_target(s')), one column per objective. */
+  /** r + γ^Δt · min(Q1_target, Q2_target)(s', π_target(s') + clipped noise), one column per objective. */
   private def clippedDoubleQTargets(tensors: GraphBatch): NDArray =
-    val nextStateActions = withAction(tensors.nextStates, targetActor.evaluate(tensors.nextStates))
+    val nextActions = TwinDelayed.smoothed(targetActor.evaluate(tensors.nextStates), random)
+    val nextStateActions = withAction(tensors.nextStates, nextActions)
     val nextValues = targetCritic1.evaluate(nextStateActions).minimum(targetCritic2.evaluate(nextStateActions))
     (tensors.rewards + nextValues * tensors.discounts * (-tensors.terminals + 1.0f)).stopGradient()
 

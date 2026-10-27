@@ -1,4 +1,4 @@
-"""Spatial view of the final episode (TD3+BC, seed 2): filmstrip, computation map, animation.
+"""Spatial view of the final episode (TD3, seed 2): filmstrip, computation map, animation.
 
 Data: ``spatial/spatial_snapshots_weight-<beta>.csv`` (one row per node every
 2 s of the final episode: position, source flag, gradient, ground truth,

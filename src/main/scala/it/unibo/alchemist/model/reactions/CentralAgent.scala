@@ -25,12 +25,19 @@ final class CentralAgent[T, P <: Position[P]](
 ) extends AbstractGlobalReaction[T, P](environment, distribution):
   private val randomness = new Random(learningInfo.randomSeed)
   private val redeployment = Redeployment(environment, environmentBox, learningInfo.randomSeed)
-  private val snapshots = FinalEpisodeSnapshots(environment, learner, learningInfo, groundTruth(_))
+  private val snapshots = FinalEpisodeSnapshots(environment, learner, learningInfo, snapshotGroundTruth(_))
+  private def snapshotGroundTruth(nodeId: Int): Double =
+    val target = agents.headOption
+      .flatMap(_.valueOf[Any](Sensors.program))
+      .map(BuildingBlock.fromMolecule)
+      .getOrElse(BuildingBlock.Gradient)
+    groundTruth(nodeId, activeBlock(target))
+
   private var steps: Int = 0
   private var episode: Int = 0
 
-  /** The ground truths of the current episode, recomputed when the sources change. */
-  private var groundTruthsCache: Option[(Int, GroundTruths)] = None
+  /** The ground truths of the current episode, recomputed when the sources or node set change. */
+  private var groundTruthsCache: Option[(Int, Set[Int], GroundTruths)] = None
 
   /** The experience of all the nodes, for the learners that train online. */
   val memory: ReplayBuffer = ReplayBuffer(learningInfo.bufferSize, randomness)
@@ -81,11 +88,16 @@ final class CentralAgent[T, P <: Position[P]](
 
   private def currentGroundTruths: GroundTruths =
     val sources = currentSources
+    val nodes = agents.map(_.getId).toSet
     groundTruthsCache
-      .collect { case (cachedEpisode, truths) if cachedEpisode == episode && truths.sources == sources => truths }
+      .collect {
+        case (cachedEpisode, cachedNodes, truths)
+            if cachedEpisode == episode && cachedNodes == nodes && truths.sources == sources =>
+          truths
+      }
       .getOrElse {
         val truths = GroundTruths.of(topology, sources)
-        groundTruthsCache = Some((episode, truths))
+        groundTruthsCache = Some((episode, nodes, truths))
         truths
       }
 

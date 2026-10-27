@@ -2,8 +2,8 @@ package it.unibo.learning.agents.offline
 
 /** How an offline learner explores and trains across the episodes. During the first `explorationEpisodes` the nodes
   * explore with an ε that decays linearly from `initialEpsilon` to zero, and the learner trains for `stepsPerEpisode`
-  * gradient steps at the end of each episode; at the end of the last exploration episode it trains one last time,
-  * `finalTrainingMultiplier` times longer. Afterwards the policy is only exploited.
+  * gradient steps at the end of each episode, `finalTrainingMultiplier` times longer at the end of the last one.
+  * Afterwards the policy is frozen and only exploited.
   */
 final case class TrainingSchedule(
     explorationEpisodes: Int,
@@ -13,14 +13,17 @@ final case class TrainingSchedule(
 ):
   def isExploring(episode: Int): Boolean = episode < explorationEpisodes
 
+  /** Whether the training session at the end of `episode` is the last one. */
+  def isLastTraining(episode: Int): Boolean = episode == explorationEpisodes - 1
+
   def epsilonAt(episode: Int): Double =
     if isExploring(episode) then initialEpsilon - initialEpsilon * episode.toDouble / explorationEpisodes.toDouble
     else 0.0
 
   /** The number of gradient steps to perform at the end of `episode`, if the learner still trains. */
   def trainingStepsAfter(episode: Int): Option[Int] =
-    if isExploring(episode) then Some(stepsPerEpisode)
-    else Option.when(episode == explorationEpisodes)(stepsPerEpisode * finalTrainingMultiplier)
+    if isLastTraining(episode) then Some(stepsPerEpisode * finalTrainingMultiplier)
+    else Option.when(isExploring(episode))(stepsPerEpisode)
 
 object TrainingSchedule:
 

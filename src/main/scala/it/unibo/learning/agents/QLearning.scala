@@ -30,8 +30,11 @@ final class QLearning(
       state.neighboursIn(current).exists { case (id, now) => previous.get(id).exists(_.data != now.data) }
     }
 
+  /** Whether the Q table still learns and the policy still explores: afterwards the policy is frozen and greedy. */
+  private def isLearning: Boolean = episodes < LearningEpisodes
+
   override def policy: AgentState => Double = state =>
-    if random.nextDouble() < epsilon.value then actionSpace(random.nextInt(actionSpace.size))
+    if isLearning && random.nextDouble() < epsilon.value then actionSpace(random.nextInt(actionSpace.size))
     else actionSpace(greedyAction(encodeState(state)))
 
   /** The index of an action with the highest Q value, ties broken at random. */
@@ -42,8 +45,7 @@ final class QLearning(
     bestActions(random.nextInt(bestActions.size))
 
   override def update(batch: Seq[Experience]): Unit =
-    if episodes <= LearningEpisodes then
-      batch.filter(experience => actionSpace.indices.contains(experience.actionT)).foreach(learnFrom)
+    if isLearning then batch.filter(experience => actionSpace.indices.contains(experience.actionT)).foreach(learnFrom)
 
   private def learnFrom(experience: Experience): Unit =
     val state = encodeState(experience.stateT)

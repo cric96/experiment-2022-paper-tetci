@@ -32,8 +32,8 @@ with tabular, offline-deep and graph-based reinforcement learning.
 | `it.unibo.learning` | `TradeOff` (the convergence/energy objective, β feature and rewards), `Box`, `LearningInfo`. |
 | `it.unibo.learning.abstractions` | `AgentState` (windows of neighbourhood snapshots), `Step`/`Trajectory`, `ReplayBuffer`, `DecayReference`. |
 | `it.unibo.learning.encoding` | State features: `NeighbourhoodSignals`, `InstabilityIntensity`, `OwnTrends`, and the `SpatialTemporal` (MLP) and `StarGraph` (GNN) encoders. |
-| `it.unibo.learning.agents` | `Learner` implementations: `QLearning`, `OfflineLearner` (discrete BCQ), `OfflineLearnerContinuous` (twin-critic actor-critic), `OfflineLearnerGNN` (EdgeGAT actor with multi-objective critics), `HeuristicAdaptiveAgent`, `SameActionAgent` (fixed-period baselines). |
-| `it.unibo.learning.agents.offline` | What the offline learners share: `EpisodicOfflineLearner` (end-of-episode training loop), `TrainingSchedule`, `Relabelling` (hindsight relabelling for every β), `StratifiedTransitions`, `LearnerSeeds`, `TargetNetworks`, `BatchTensors`, and the post-training `ActorInspection` (`Regime`, `PolicySurface`). |
+| `it.unibo.learning.agents` | `Learner` implementations: `QLearning`, `OfflineLearner` (discrete BCQ), `OfflineLearnerContinuous` (TD3), `OfflineLearnerGNN` (TD3 with an EdgeGAT actor and multi-objective critics), `HeuristicAdaptiveAgent`, `SameActionAgent` (fixed-period baselines). |
+| `it.unibo.learning.agents.offline` | What the offline learners share: `EpisodicOfflineLearner` (end-of-episode training loop), `TrainingSchedule`, `Relabelling` (hindsight relabelling for every β), `StratifiedTransitions`, `LearnerSeeds`, `TargetNetworks`, `TwinDelayed` (the TD3 policy delay and target smoothing), `BatchTensors`, and the post-training `ActorInspection` (`Regime`, `PolicySurface`). |
 | `it.unibo.learning.network` | DJL/PyTorch: `TorchNetwork`, `EdgeGATBlock`, `FastInference` (lock-free forward passes used by the nodes every round), `MinMaxActionScaler`, `NDArrayOps`. |
 | `it.unibo.inspection` | Testable recorders of the snapshot CSV files (`NodeView`, `AttentionSummary`, ...). |
 | `it.unibo.alchemist` | `Molecules` (typed molecule access), `KotlinInterop`, and the custom extractors used by the YAML `export` sections (`boundary.extractors`). The Alchemist glue must stay under `it.unibo.alchemist`: the loader resolves the unqualified `type:` names of the YAML files only there. |
@@ -136,7 +136,7 @@ and update it in the same commit.
   The tests run PyTorch single-threaded (see `build.gradle.kts`): multi-threaded BLAS is not reproducible.
 - `SimulationFilesSpec` loads every YAML (and every algorithm of the generalization scenario), so that the embedded
   Scala snippets are compiled by the build.
-- Code that only runs late in an experiment (offline training after episode 2, inspection at episode 10, snapshots
+- Code that only runs late in an experiment (offline training after episode 2, inspection after episode 9, snapshots
   at episode 19) is not covered by the golden masters: verify it by running the full simulation before and after the
   change in two scratch git worktrees and comparing the outputs (never write into the real `build/exports`). Full
   GNN runs need a larger test heap (`maxHeapSize`).

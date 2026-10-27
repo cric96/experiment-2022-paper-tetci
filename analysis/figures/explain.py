@@ -1,4 +1,4 @@
-"""Explainability of the TD3+BC policy: hidden-layer embeddings, attribution, response surfaces.
+"""Explainability of the TD3 policy: hidden-layer embeddings, attribution, response surfaces.
 
 Data: ``embeddings/embeddings_weight-<beta>.csv`` (800 sampled states with the
 actor's 64-d penultimate activations ``h_*``, predicted period ``predDt``,

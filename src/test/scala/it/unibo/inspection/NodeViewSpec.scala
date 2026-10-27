@@ -13,5 +13,13 @@ class NodeViewSpec extends AnyFlatSpec with Matchers:
 
   it should "format its common columns" in {
     NodeView(3, 1.25, -5.5, isSource = true, 12.25, Double.PositiveInfinity, period = 1.5, ticks = 7).columns shouldBe
-      Seq("3", "1.25", "-5.50", "1", "12.25", "600.00", "1.5000", "587.75")
+      Seq("3", "1.25", "-5.50", "1", "12.25", "600.00", "1.5000", "587.75", "0")
+  }
+
+  it should "export the actual leader flag independently of the broadcast id and use categorical error" in {
+    val follower = NodeView(3, 0.0, 0.0, false, 10.0, 99.0, 1.0, 1, isLeader = false, categoricalOutput = true)
+    follower.error shouldBe 1.0
+    follower.columns.last shouldBe "0"
+    follower.copy(output = 99.0).error shouldBe 0.0
+    follower.copy(isLeader = true).columns.last shouldBe "1"
   }

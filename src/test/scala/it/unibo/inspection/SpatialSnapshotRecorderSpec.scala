@@ -26,9 +26,9 @@ class SpatialSnapshotRecorderSpec extends AnyFlatSpec with Matchers:
     recorder.record(3.01, Seq(node.copy(ticks = 8)), Seq.empty)
     recorder.flush()
     linesOf(directory, "spatial_snapshots_weight-0.8.csv") shouldBe Seq(
-      "tEp,nodeId,x,y,isSource,gradient,groundTruth,nextWakeUp,error,ticks",
-      "2.01,3,1.25,-5.50,1,12.25,600.00,1.5000,587.75,7",
-      "3.01,3,1.25,-5.50,1,12.25,600.00,1.5000,587.75,8"
+      "tEp,nodeId,x,y,isSource,gradient,groundTruth,nextWakeUp,error,isLeader,ticks",
+      "2.01,3,1.25,-5.50,1,12.25,600.00,1.5000,587.75,0,7",
+      "3.01,3,1.25,-5.50,1,12.25,600.00,1.5000,587.75,0,8"
     )
     linesOf(directory, "spatial_edges_weight-0.8.csv") shouldBe Seq("u,v,xU,yU,xV,yV", "1,2,0.00,0.00,10.50,0.00")
   }

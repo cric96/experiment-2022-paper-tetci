@@ -251,7 +251,7 @@ def generalization_table(data: Dataset, out: Path) -> Path:
     caption = (
         "Zero-shot generalization (1 seed): error reduction (%) at equal rounds w.r.t. each program's "
         "fixed-period frontier, averaged over the beta_in values inside the frontier's range; Gap = "
-        "gradient (training program) minus the mean over the three unseen programs."
+        "gradient (training program) minus the mean over the unseen programs."
     )
     return _write(out, "generalization", caption, booktabs(header, rows, "l" + "r" * (len(programs) + 1)))
 

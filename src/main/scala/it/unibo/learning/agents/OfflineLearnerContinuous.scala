@@ -13,8 +13,9 @@ import it.unibo.learning.network.NDArrayOps.*
 
 import java.io.File
 
-/** Offline actor-critic with twin critics (clipped double Q-learning) over the spatial-temporal state, conditioned on
-  * the trade-off weight β: the actor outputs a continuous wake-up period in [`min`, `max`].
+/** Offline TD3 over the spatial-temporal state, conditioned on the trade-off weight β: twin critics with clipped
+  * double-Q targets, delayed policy updates and target policy smoothing ([[TwinDelayed]]); the actor outputs a
+  * continuous wake-up period in [`min`, `max`].
   */
 final class OfflineLearnerContinuous(
     min: Double,
@@ -47,6 +48,7 @@ final class OfflineLearnerContinuous(
   private val critic2: TorchNetwork[SequentialBlock] = criticNetwork("critic-2", seedOffset = 6)
   private val targetCritic2: TorchNetwork[SequentialBlock] = criticNetwork("target-critic-2", seedOffset = 7)
   targetCritic2.softUpdateFrom(critic2, TargetNetworks.HardCopy)
+  private val policyUpdates: TwinDelayed.DelayedPolicyUpdates = TwinDelayed.DelayedPolicyUpdates()
   @volatile private var fastActor: Array[Float] => Array[Float] = actor.snapshotFastMLP(useTanh = true)
 
   private def actorNetwork(name: String, seedOffset: Int): TorchNetwork[SequentialBlock] =
@@ -95,14 +97,19 @@ final class OfflineLearnerContinuous(
     Seq(critic1, critic2).foreach { critic =>
       critic.trainStep(TorchNetwork.smoothL1Loss(critic.forward(stateActions, training = true), targets))
     }
-    critic1.withFrozenParameters(actor.trainStep(actorLoss(tensors.states)))
+    policyUpdates.afterCriticUpdate(updatePolicy(tensors.states))
+
+  /** Trains the actor against the first critic, then moves every target network towards its online network. */
+  private def updatePolicy(states: NDArray): Unit =
+    critic1.withFrozenParameters(actor.trainStep(actorLoss(states)))
     targetCritic1.softUpdateFrom(critic1, TargetNetworks.UpdateRate)
     targetCritic2.softUpdateFrom(critic2, TargetNetworks.UpdateRate)
     targetActor.softUpdateFrom(actor, TargetNetworks.UpdateRate)
 
-  /** r + γ^Δt · min(Q1_target, Q2_target)(s', π_target(s')). */
+  /** r + γ^Δt · min(Q1_target, Q2_target)(s', π_target(s') + clipped noise). */
   private def clippedDoubleQTargets(tensors: ContinuousBatch): NDArray =
-    val nextStateActions = tensors.nextStates.concat(targetActor.evaluate(tensors.nextStates), 1)
+    val nextActions = TwinDelayed.smoothed(targetActor.evaluate(tensors.nextStates), random)
+    val nextStateActions = tensors.nextStates.concat(nextActions, 1)
     val nextValues = targetCritic1.evaluate(nextStateActions).minimum(targetCritic2.evaluate(nextStateActions))
     (tensors.rewards + nextValues * tensors.discounts * (-tensors.terminals + 1.0f)).stopGradient()
 
@@ -113,7 +120,7 @@ final class OfflineLearnerContinuous(
 
   override protected def onTrained(): Unit =
     fastActor = actor.snapshotFastMLP(useTanh = true)
-    if currentEpisode == explorationEpisodes && math.abs(randomKey - InspectedRun) < RunTolerance then
+    if schedule.isLastTraining(currentEpisode) && math.abs(randomKey - InspectedRun) < RunTolerance then
       ActorInspection(actor, critic1, actionScaler, stateDim, inspectionDirectory)
         .save(transitions.oldest(ActorInspection.SamplesPerRegime).map(_.state), weight)
 end OfflineLearnerContinuous

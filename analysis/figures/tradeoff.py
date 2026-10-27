@@ -13,14 +13,14 @@ from matplotlib.ticker import FuncFormatter, NullLocator, PercentFormatter
 from .. import config, style
 from ..data import select
 from ..dataset import Dataset
-from ..methods import FIXED, LEARNED, TD3BC
+from ..methods import FIXED, LEARNED, TD3
 from ..results import FRONTIER_GAINS, fixed_frontier, fixed_runs
 from ..stats import t_interval
 from .common import METRIC_LABELS, ci_of, errorbar, thousands
 
 BETA_POSITIONS = np.arange(len(config.WEIGHTS))
 DODGE = 0.09  # horizontal offset between methods on categorical beta axes
-ANNOTATED_METHOD = TD3BC  # method whose gain at the focus beta is called out
+ANNOTATED_METHOD = TD3  # method whose gain at the focus beta is called out
 PARETO_TICKS = (4000, 5000, 7000, 10000, 15000, 20000)
 
 

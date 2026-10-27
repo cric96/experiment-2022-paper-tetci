@@ -16,5 +16,6 @@ object Sensors:
   val error = "error"
   val source = "source"
   val program = "program"
+  val electedLeader = "electedLeader"
   val experiences = "experiences"
   val accumulatedUnstableTime = "accumulatedUnstableTime"

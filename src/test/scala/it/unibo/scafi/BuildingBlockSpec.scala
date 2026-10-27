@@ -6,8 +6,9 @@ import org.scalatest.matchers.should.Matchers
 
 class BuildingBlockSpec extends AnyFlatSpec with Matchers:
   "The program molecule" should "select a building block by code or by name" in {
-    Seq(0, 1, 2, 3)
-      .map(code => BuildingBlock.fromMolecule(code)) shouldBe Seq(Gradient, HopGradient, Broadcast, Collect)
+    Seq(0, 1, 2, 3, 4)
+      .map(code => BuildingBlock.fromMolecule(code)) shouldBe Seq(Gradient, HopGradient, Broadcast, Collect,
+      LeaderElection)
     BuildingBlock.fromMolecule(2.0) shouldBe Broadcast
     BuildingBlock.fromMolecule("collect") shouldBe Collect
   }
@@ -19,7 +20,7 @@ class BuildingBlockSpec extends AnyFlatSpec with Matchers:
   }
 
   "Each building block" should "normalize its error by the scale of its outputs" in {
-    BuildingBlock.values.toSeq.map(_.errorScale) shouldBe Seq(500.0, 10.0, 500.0, 40.0)
+    BuildingBlock.values.toSeq.map(_.errorScale) shouldBe Seq(500.0, 10.0, 500.0, 40.0, 1.0)
   }
 
   "The broadcast" should "spread a payload derived from the id of the source" in {

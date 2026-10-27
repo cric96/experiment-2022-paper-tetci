@@ -47,7 +47,29 @@ class Main
     val block = activeBlock
     branch(block == BuildingBlock.HopGradient)(hopDistance(isSource)) {
       branch(block == BuildingBlock.Broadcast)(broadcast(isSource)) {
-        branch(block == BuildingBlock.Collect)(collect(isSource))(classicGradient(isSource))
+        branch(block == BuildingBlock.Collect)(collect(isSource)) {
+          branch(block == BuildingBlock.LeaderElection)(electLeaders(isSource))(classicGradient(isSource))
+        }
+      }
+    }
+
+  private def electLeaders(preferred: Boolean): Double =
+    val own = LeaderElection.ownClaim(mid(), preferred)
+    val claim = rep(own) { previous =>
+      val messages = excludingSelf.reifyField((nbr(previous), nbrRange())).values
+      LeaderElection.choose(mid(), preferred, messages)
+    }
+    val elected = claim.isLeader(mid())
+    node.put(Sensors.electedLeader, elected)
+    broadcastLeaderId(elected)
+
+  /** G broadcasts the elected ids along a gradient from all current leaders. */
+  private def broadcastLeaderId(elected: Boolean): Double =
+    val potential = classicGradient(elected)
+    rep(mid().toDouble) { value =>
+      mux(elected)(mid().toDouble) {
+        val candidates = excludingSelf.reifyField((nbr(potential) + nbrRange(), nbr(value))).values
+        candidates.minByOption(identity).map(_._2).getOrElse(mid().toDouble)
       }
     }
 

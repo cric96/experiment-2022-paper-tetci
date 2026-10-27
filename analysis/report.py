@@ -216,6 +216,10 @@ def _generalization_section(data: Dataset) -> list[str]:
     lines = [
         "## Zero-shot generalization (1 seed)",
         "",
+        "S followed by G broadcasts the nearest elected leader's id (categorical mismatch error), "
+        "using grain 400 m and removal of an elected leader at 100 s; the other programs use a source move. "
+        "Failed-node counters are retained and cumulative means use the initial population.",
+        "",
         "Error reduction at equal rounds w.r.t. each program's own fixed-period frontier (mean over beta_in):",
         "",
     ]
@@ -241,7 +245,7 @@ def _spatial_section(data: Dataset) -> list[str]:
     if correlation is not None:
         rho, p = correlation
         lines.append(
-            f"- Rounds per node vs. distance to the nearest source (TD3+BC, final episode): Spearman rho = "
+            f"- Rounds per node vs. distance to the nearest source (TD3, final episode): Spearman rho = "
             f"{rho:.2f} (p = {p:.2g}); no evidence that rounds concentrate near the sources over a whole "
             "episode (the extra rounds are transient, see the filmstrip)."
         )

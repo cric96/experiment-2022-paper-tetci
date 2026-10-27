@@ -2,7 +2,7 @@
 
 All policies are trained for 10 episodes on the Euclidean gradient only; the
 evaluation episodes then run another program (gradient, hop-count gradient,
-broadcast, collect). beta-conditioned policies are queried with beta_in
+broadcast, collect, leader election). beta-conditioned policies are queried with beta_in
 = 0.5 ... 1 (two episodes each). Only one seed was run for this experiment,
 so there are no across-seed intervals: whiskers show the range over the
 evaluation episodes of each point.
@@ -19,14 +19,14 @@ from matplotlib.ticker import NullLocator
 
 from .. import config, style
 from ..dataset import Dataset
-from ..methods import BCQ, FIXED, GNN, HEURISTIC, LEARNED, QLEARNING, TD3BC, Method
+from ..methods import BCQ, FIXED, GNN, HEURISTIC, LEARNED, QLEARNING, TD3, Method
 from .common import METRIC_LABELS
 
 PROGRAMS = tuple(config.PROGRAMS.values())
 LEARNED_BETA = 0.95  # beta_in of the beta-conditioned policies in the overview
 HEURISTIC_BETA = 0.8  # beta_in of the heuristic: its rounds then match the learned policies' (~7k)
 OVERVIEW_PERIODS = (5.0, 3.0)
-SWEPT = (HEURISTIC, BCQ, TD3BC, GNN)  # drawn as beta_in-swept curves
+SWEPT = (HEURISTIC, BCQ, TD3, GNN)  # drawn as beta_in-swept curves
 LOG_TICKS = (4000, 5000, 7000, 10000, 15000, 20000)
 
 
@@ -98,7 +98,7 @@ def generalization_overview(data: Dataset, out: Path) -> None:
                     linestyle="none",
                     label=label if position == 0 else None,
                 )
-        ax.set_xticks(range(len(PROGRAMS)), [config.PROGRAM_SHORT_LABELS[p] for p in PROGRAMS])
+        ax.set_xticks(range(len(PROGRAMS)), [config.PROGRAM_SHORT_LABELS[p] for p in PROGRAMS], rotation=25, ha="right")
         ax.set_ylabel(labels[metric])
         ax.grid(axis="x", visible=False)
         if metric == "ticks":
@@ -115,7 +115,10 @@ def _swept_curve(data: Dataset, program: str, method: Method, metric: str) -> tu
 
 
 def _generalization_pareto(data: Dataset, out: Path, metric: str, name: str) -> None:
-    fig, axes = style.figure("double", 2.15, 1, len(PROGRAMS))
+    fig, axes = style.figure("double", 4.1, 2, 3)
+    axes = axes.ravel()
+    for unused in axes[len(PROGRAMS):]:
+        unused.set_visible(False)
     for ax, program in zip(axes, PROGRAMS):
         fixed = _evaluation(data)
         fixed = fixed[(fixed.program == program) & (fixed.method == FIXED.key)]

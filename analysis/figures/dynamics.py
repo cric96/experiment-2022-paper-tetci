@@ -10,7 +10,7 @@ from matplotlib.lines import Line2D
 from .. import config, style
 from ..data import resample, select, traces_by_seed
 from ..dataset import Dataset
-from ..methods import FIXED, LEARNED, TD3BC
+from ..methods import FIXED, LEARNED, TD3
 from .common import mean_band, method_band
 
 ZOOM_S = (80.0, 165.0)  # window around the source switch
@@ -50,7 +50,7 @@ def source_switch_dynamics(data: Dataset, out: Path) -> None:
         gradient_ax.plot(ZOOM_GRID, np.interp(ZOOM_GRID, seed.t, seed.gradient_mean), **_fixed_style(period))
         mean_band(deviation_ax, ZOOM_GRID, _matrix(traces, "deviation", ZOOM_GRID), band=False, **_fixed_style(period))
         period_ax.plot(ZOOM_GRID, np.full_like(ZOOM_GRID, period), **_fixed_style(period))
-    truth = select(data.traces, TD3BC.key, weight=weight)
+    truth = select(data.traces, TD3.key, weight=weight)
     truth = truth[truth.seed == SHOWN_SEED]
     gradient_ax.plot(
         ZOOM_GRID,
@@ -77,11 +77,11 @@ def source_switch_dynamics(data: Dataset, out: Path) -> None:
 
 
 def beta_effect_intra_episode(data: Dataset, out: Path) -> None:
-    """How beta shapes the wake-up schedule and the deviation of TD3+BC during the final episode."""
+    """How beta shapes the wake-up schedule and the deviation of TD3 during the final episode."""
     fig, axes = style.figure("single", 3.3, 2, 1, sharex=True)
     period_ax, deviation_ax = axes
     for weight in config.WEIGHTS:
-        traces = select(data.traces, TD3BC.key, weight=weight)
+        traces = select(data.traces, TD3.key, weight=weight)
         color = style.BETA_COLORS[weight]
         mean_band(period_ax, EPISODE_GRID, _matrix(traces, "wakeup", EPISODE_GRID), color, f"{weight:g}", linewidth=1.0)
         mean_band(
@@ -101,7 +101,7 @@ def beta_effect_intra_episode(data: Dataset, out: Path) -> None:
         style.mark_source_switch(ax, label=ax is deviation_ax)
         style.panel_label(ax, "ab"[index])
     handles, labels = period_ax.get_legend_handles_labels()
-    fig.legend(handles, labels, loc="outside upper center", ncol=len(labels), title=f"{TD3BC.short}, $\\beta$ =")
+    fig.legend(handles, labels, loc="outside upper center", ncol=len(labels), title=f"{TD3.short}, $\\beta$ =")
     style.save(fig, out, "beta_effect_intra_episode")
 
 

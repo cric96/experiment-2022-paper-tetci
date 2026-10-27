@@ -102,6 +102,15 @@ File(rootProject.rootDir.path + "/src/main/yaml").listFiles()
                 },
             )
             args("run", simulationFile.absolutePath)
+            if (name == "simulationGeneralization") {
+                providers.gradleProperty("targetProgram").orNull?.toInt()?.let { program ->
+                    require(program in 0..4) { "targetProgram must be a program code from 0 to 4" }
+                    args(
+                        "--override",
+                        "variables: {progId: {type: ArbitraryVariable, parameters: [$program, [$program]]}}",
+                    )
+                }
+            }
             if (System.getenv("CI") == "true" || batch == "true") {
                 // Headless: run the cartesian product of the swept variables (the default values of the others).
                 val swept = sweptVariablesOf(simulationFile).joinToString(", ")

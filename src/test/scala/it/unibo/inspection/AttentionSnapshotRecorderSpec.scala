@@ -23,8 +23,8 @@ class AttentionSnapshotRecorderSpec extends AnyFlatSpec with Matchers:
     recorder.record(85.01, node, summary, Array.tabulate(20)(_ * 0.5f))
     recorder.flush()
     val lines = Files.readAllLines(new File(directory, "gnn_spatiotemporal_embeddings.csv").toPath).asScala
-    lines.head shouldBe "tEp,nodeId,x,y,isSource,gradient,groundTruth,nextWakeUp,error,maxAlpha,attEntropy,attDx,attDy," +
+    lines.head shouldBe "tEp,nodeId,x,y,isSource,gradient,groundTruth,nextWakeUp,error,isLeader,maxAlpha,attEntropy,attDx,attDy," +
       "bestNbrX,bestNbrY," + (0 until 16).map(unit => s"h_$unit").mkString(",")
-    lines(1) shouldBe "85.0,3,1.25,-5.50,0,12.25,12.50,1.5000,0.25,0.7500,0.5000,7.50,1.00,10.00,0.00," +
+    lines(1) shouldBe "85.0,3,1.25,-5.50,0,12.25,12.50,1.5000,0.25,0,0.7500,0.5000,7.50,1.00,10.00,0.00," +
       (0 until 16).map(unit => Csv.number(unit * 0.5, 4)).mkString(",")
   }

@@ -1,5 +1,5 @@
 [versions]
-alchemist = "46.0.0"
+alchemist = "47.0.8"
 scala = "3.10.0"
 djl = "0.39.0"
 scalatest = "3.3.0-SNAP4"
